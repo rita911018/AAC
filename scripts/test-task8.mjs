@@ -94,8 +94,23 @@ verifierRejects((fixture) => {
 
 verifierRejects((fixture) => {
   const file = join(fixture, 'index.html');
+  writeFileSync(file, readFileSync(file, 'utf8').replace('<body>', '<body style="background:linear-&#x67radient(red,blue)">'));
+}, 'index.html: gradients are not allowed', 'Chromium-style semicolonless hex character reference in style attribute');
+
+verifierRejects((fixture) => {
+  const file = join(fixture, 'index.html');
+  writeFileSync(file, readFileSync(file, 'utf8').replace('<body>', '<body style="background:radial-&#103radient(red,blue)">'));
+}, 'index.html: gradients are not allowed', 'Chromium-style semicolonless decimal character reference in style attribute');
+
+verifierRejects((fixture) => {
+  const file = join(fixture, 'index.html');
   writeFileSync(file, readFileSync(file, 'utf8').replace('</head>', '<style>.bad{background:radial-&#103;radient(red,blue)}</style></head>'));
 }, 'index.html: gradients are not allowed', 'HTML decimal entity-escaped radial-gradient style block');
+
+verifierRejects((fixture) => {
+  const file = join(fixture, 'index.html');
+  writeFileSync(file, readFileSync(file, 'utf8').replace('<body>', '<body style="background-image:url&lpar;bad.svg&rpar;">'));
+}, 'index.html: unresolved HTML entity in style attribute', 'unknown named HTML entities fail closed in inspected style attributes');
 
 verifierRejects((fixture) => {
   const file = join(fixture, 'index.html');

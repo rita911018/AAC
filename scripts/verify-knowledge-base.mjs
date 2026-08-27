@@ -9,11 +9,15 @@ const errors = [];
 function decodeHtmlEntities(source) {
   const named = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: '\u00A0' };
   return String(source ?? '')
-    .replace(/&#(?:x([0-9a-f]+)|(\d+));/gi, (match, hex, decimal) => {
+    .replace(/&#(?:x([0-9a-f]+)|(\d+));?/gi, (match, hex, decimal) => {
       const codePoint = Number.parseInt(hex ?? decimal, hex ? 16 : 10);
       return codePoint === 0 || codePoint > 0x10FFFF ? '\uFFFD' : String.fromCodePoint(codePoint);
     })
     .replace(/&(amp|lt|gt|quot|apos|nbsp);/gi, (match, name) => named[name.toLowerCase()]);
+}
+
+function hasUnresolvedHtmlEntity(source) {
+  return /&#(?:[xX][0-9A-Za-z]*|\d*)?;?|&[A-Za-z][A-Za-z0-9]+;/.test(source);
 }
 
 function report(message) {
@@ -379,6 +383,12 @@ for (const page of pages) {
   if (html === null) continue;
   const inspection = hookMarkup(html);
   const document = removeInactiveMarkup(html);
+
+  for (const attrs of tags(document, '[a-z][\\w:-]*')) {
+    for (const name of ['style', 'src', 'srcset', 'href', 'poster', 'data']) {
+      if (attrs[name] && hasUnresolvedHtmlEntity(attrs[name])) report(`${page}: unresolved HTML entity in ${name} attribute`);
+    }
+  }
 
   if (hasForbiddenGradient(decodeHtmlEntities(html))) report(`${page}: gradients are not allowed`);
   for (const match of inspection.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style\s*>/gi)) {

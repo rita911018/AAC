@@ -168,6 +168,14 @@ const viewports = [
   });
   expect(focusEvidence.isBrand && focusEvidence.outlineWidth >= 3, 'first Tab target lacks the clear shared focus-visible outline');
 
+  await page.setContent('<div id="hex-gradient" style="background-image:linear-&#x67radient(red,blue)"></div><div id="decimal-gradient" style="background-image:radial-&#103radient(red,blue)"></div>');
+  const chromiumEntityStyles = await page.evaluate(() => ({
+    hex: getComputedStyle(document.querySelector('#hex-gradient')).backgroundImage,
+    decimal: getComputedStyle(document.querySelector('#decimal-gradient')).backgroundImage,
+  }));
+  expect(chromiumEntityStyles.hex.includes('linear-gradient'), 'Chromium fixture did not decode semicolonless hex character reference');
+  expect(chromiumEntityStyles.decimal.includes('radial-gradient'), 'Chromium fixture did not decode semicolonless decimal character reference');
+
   expect(runtimeErrors.length === 0, `browser runtime errors: ${runtimeErrors.join(' | ')}`);
   await browser.close();
 
