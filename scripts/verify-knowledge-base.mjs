@@ -200,17 +200,46 @@ function srcsetCandidates(value) {
   return (value ?? '').split(',').map((candidate) => candidate.trim().split(/[\t\n\f\r ]+/)[0]).filter(Boolean);
 }
 
+function hasSvgGradientElement(source) {
+  return /<\s*(?:linearGradient|radialGradient)\b/i.test(source);
+}
+
+function hasForbiddenGradient(source) {
+  if (/gradient\s*\(/i.test(source)) return true;
+
+  const withoutNonSvgImages = source.replace(/data:image\/(?!svg\+xml)[^,\s"'()<>]*,[^\s"')<>]*/gi, '');
+  if (hasSvgGradientElement(withoutNonSvgImages)) return true;
+
+  for (const match of source.matchAll(/data:image\/svg\+xml([^,]*),([^\s"')<>]*)/gi)) {
+    const metadata = match[1].toLowerCase();
+    const payload = match[2];
+    try {
+      const decoded = metadata.split(';').includes('base64')
+        ? Buffer.from(payload, 'base64').toString('utf8')
+        : decodeURIComponent(payload);
+      if (hasSvgGradientElement(decoded)) return true;
+    } catch {
+      // Malformed data URIs are handled as ordinary source text; asset checks remain independent.
+    }
+  }
+  return false;
+}
+
 function verifyLocalAsset(page, pagePath, value, kind) {
   if (!isLocal(value)) return;
   const target = resolveLocal(page, pagePath, value, kind);
   if (!target) return;
-  isRegularFile(
+  const valid = isRegularFile(
     target.target,
     `${page}: ${kind} is missing: ${value}`,
     `${page}: ${kind} is not a file: ${value}`,
     `${page}: ${kind} is a symlink: ${value}`,
     `${page}: ${kind} escapes real site root: ${value}`,
   );
+  if (valid && target.rootRelative.toLowerCase().endsWith('.svg')) {
+    const svg = readText(target.target, `${page}: could not read linked SVG: ${value}`);
+    if (svg !== null && hasForbiddenGradient(svg)) report(`${page}: linked SVG gradients are not allowed: ${value}`);
+  }
 }
 
 for (const page of pages) {
@@ -221,7 +250,7 @@ for (const page of pages) {
   const inspection = hookMarkup(html);
   const document = removeInactiveMarkup(html);
 
-  if (/gradient\s*\(/i.test(html)) report(`${page}: gradients are not allowed`);
+  if (hasForbiddenGradient(html)) report(`${page}: gradients are not allowed`);
 
   verifyRequiredAsset(page, pagePath, inspection, 'style.css', 'link');
   verifyRequiredAsset(page, pagePath, inspection, 'search.js', 'script');
@@ -260,7 +289,7 @@ for (const page of pages) {
 const stylesheet = resolve(root, 'style.css');
 if (isRegularFile(stylesheet, 'missing stylesheet: style.css', 'stylesheet is not a file: style.css', 'stylesheet is a symlink: style.css', 'stylesheet escapes real site root: style.css')) {
   const css = readText(stylesheet, 'could not read stylesheet: style.css');
-  if (css !== null && /gradient\s*\(/i.test(css)) report('style.css: gradients are not allowed');
+  if (css !== null && hasForbiddenGradient(css)) report('style.css: gradients are not allowed');
 }
 
 for (const mascot of requiredMascots) {

@@ -103,6 +103,12 @@ const viewports = [
 
   await page.keyboard.press('Control+K');
   expect(await page.locator('#searchInput').evaluate((node) => document.activeElement === node), 'keyboard shortcut does not focus search');
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Meta+K');
+  expect(await page.locator('#searchInput').evaluate((node) => document.activeElement === node), 'Meta+K does not focus search');
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Control+K');
+  expect(await page.locator('#searchInput').evaluate((node) => document.activeElement === node), 'Control+K does not focus search');
   await page.locator('#searchInput').fill('Copilot');
   expect(await page.locator('#searchDrop .search-item').count() > 0, 'Copilot search yields no results');
   await page.keyboard.press('Escape');
@@ -131,10 +137,20 @@ const viewports = [
   expect(await page.locator('.mod-item.done').count() === completedBefore && completedBefore > 0, 'progress state does not survive reload');
   await page.locator('.mod-check').first().click();
 
-  await page.goto(`${base}/detail.html?type=learn&id=ai-what`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${base}/detail.html?type=learn&id=prompt-basics`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(150);
-  const overflowingTables = await page.locator('.rt-table').evaluateAll((nodes) => nodes.filter((node) => node.scrollWidth > node.clientWidth + 1).map((node) => ({ tabindex: node.getAttribute('tabindex'), label: node.getAttribute('aria-label') })));
-  expect(overflowingTables.every((item) => item.tabindex === '0' && item.label), 'overflowing detail table is not keyboard-scrollable and labelled');
+  const detailTables = page.locator('.rt-table');
+  expect(await detailTables.count() > 0, 'prompt-basics detail route did not render its real comparison table');
+  const overflowingTables = detailTables.filter({ has: page.locator('tbody') });
+  const overflowCount = await overflowingTables.evaluateAll((nodes) => nodes.filter((node) => node.scrollWidth > node.clientWidth + 1).length);
+  expect(overflowCount > 0, 'prompt-basics has no real horizontally overflowing table at 390px');
+  const scrollableTable = page.locator('.rt-table[tabindex="0"]').first();
+  expect(await scrollableTable.count() === 1 && Boolean(await scrollableTable.getAttribute('aria-label')), 'overflowing detail table is not keyboard-scrollable and labelled');
+  await scrollableTable.focus();
+  const scrollBefore = await scrollableTable.evaluate((node) => node.scrollLeft);
+  await page.keyboard.press('ArrowRight');
+  await page.waitForTimeout(100);
+  expect(await scrollableTable.evaluate((node) => node.scrollLeft) > scrollBefore, 'ArrowRight does not scroll the focused detail table');
 
   await page.goto(`${base}/video.html`, { waitUntil: 'domcontentloaded' });
   const replayCards = await page.locator('a.video-card').evaluateAll((nodes) => nodes.map((node) => ({ target: node.target, rel: node.rel, height: node.getBoundingClientRect().height })));

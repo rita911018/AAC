@@ -49,10 +49,60 @@ function verifierRejects(mutator, expectedText, description) {
   }
 }
 
+function verifierAccepts(mutator, description) {
+  const fixture = mkdtempSync(join(tmpdir(), 'kb-task8-'));
+  try {
+    cpSync(root, fixture, { recursive: true });
+    mutator(fixture);
+    try {
+      execFileSync(process.execPath, [verifier, fixture], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    } catch (error) {
+      failures.push(`${description}: verifier incorrectly failed (${error.stderr || error.stdout || error.message})`);
+    }
+  } finally {
+    rmSync(fixture, { recursive: true, force: true });
+  }
+}
+
 verifierRejects((fixture) => {
   const file = join(fixture, 'index.html');
   writeFileSync(file, readFileSync(file, 'utf8').replace('</head>', '<style>.bad{background:repeating-linear-gradient(red,blue)}</style></head>'));
 }, 'index.html: gradients are not allowed', 'inline HTML gradient');
+
+verifierRejects((fixture) => {
+  const file = join(fixture, 'index.html');
+  writeFileSync(file, readFileSync(file, 'utf8').replace('</body>', '<svg aria-hidden="true"><defs><linearGradient id="bad"><stop offset="0"/></linearGradient></defs></svg></body>'));
+}, 'index.html: gradients are not allowed', 'inline SVG linearGradient element');
+
+verifierRejects((fixture) => {
+  const file = join(fixture, 'index.html');
+  const svg = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg'><defs><linearGradient id='bad'/></defs></svg>";
+  writeFileSync(file, readFileSync(file, 'utf8').replace('</head>', `<style>.bad{background-image:url("${svg}")}</style></head>`));
+}, 'index.html: gradients are not allowed', 'raw SVG linearGradient data URI');
+
+verifierRejects((fixture) => {
+  const file = join(fixture, 'index.html');
+  const svg = 'data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cdefs%3E%3CradialGradient%20id=%22bad%22/%3E%3C/defs%3E%3C/svg%3E';
+  writeFileSync(file, readFileSync(file, 'utf8').replace('</head>', `<style>.bad{background-image:url("${svg}")}</style></head>`));
+}, 'index.html: gradients are not allowed', 'percent-encoded SVG radialGradient data URI');
+
+verifierRejects((fixture) => {
+  const file = join(fixture, 'index.html');
+  const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="bad"/></defs></svg>').toString('base64');
+  writeFileSync(file, readFileSync(file, 'utf8').replace('</head>', `<style>.bad{background-image:url(data:image/svg+xml;base64,${svg})}</style></head>`));
+}, 'index.html: gradients are not allowed', 'base64 SVG linearGradient data URI');
+
+verifierRejects((fixture) => {
+  writeFileSync(join(fixture, 'bad.svg'), '<svg xmlns="http://www.w3.org/2000/svg"><defs><radialGradient id="bad"/></defs></svg>');
+  const file = join(fixture, 'index.html');
+  writeFileSync(file, readFileSync(file, 'utf8').replace('</body>', '<img src="bad.svg" alt=""></body>'));
+}, 'index.html: linked SVG gradients are not allowed: bad.svg', 'linked local SVG radialGradient asset');
+
+verifierAccepts((fixture) => {
+  const file = join(fixture, 'index.html');
+  const payload = Buffer.from('not an SVG; the word linearGradient is harmless in a PNG payload test').toString('base64');
+  writeFileSync(file, readFileSync(file, 'utf8').replace('</head>', `<style>.ok{background-image:url(data:image/png;base64,${payload})}</style></head>`));
+}, 'ordinary non-SVG data image');
 
 verifierRejects((fixture) => {
   const file = join(fixture, 'index.html');
