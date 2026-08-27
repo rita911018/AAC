@@ -278,6 +278,7 @@ body .lp-logo.alt{background:var(--blue)}
 body .lp-guide .g-row + .g-row,body .xa-hero .xh-side li,body .kb-step{border-color:var(--line);border-style:solid}
 body .lp-search input{min-height:44px;border:1px solid var(--line);border-radius:6px;background:var(--white);color:var(--ink);font-size:14px}
 body .lp-search input:focus{border-color:var(--blue)}
+body .lp-search input:focus-visible { outline:3px solid var(--blue) !important; outline-offset:3px; }
 body .lp-vs .vs-box{border:1px solid var(--line);border-radius:6px;background:var(--white);color:var(--muted);font-size:14px}
 body .lp-vs .vs-good{border-left:3px solid var(--blue);background:var(--blue-soft)}
 body .qz-result,body .qz-exp{border-color:var(--line);border-radius:6px;background:var(--blue-soft)}
