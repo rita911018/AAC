@@ -48,17 +48,24 @@
 </nav>
 
 <!-- ========== 板块 Hero ========== -->
-<section class="board-hero">
+<section class="board-hero video-hero">
   <div class="container">
-    <div class="bh-left">
+    <div class="hero-grid" aria-hidden="true"></div>
+    <div class="bh-left reveal">
       <div class="bh-tag">02 · WATCH 观看 / 学习课程</div>
       <h1>录播回放</h1>
       <p>公司内部已录制的 Copilot 培训回放，点击卡片直接跳转 SharePoint 观看（需登录公司账号）。</p>
     </div>
-    <div class="bh-meta">
+    <div class="bh-meta reveal">
       <div class="bm"><b>3</b><span>课程回放</span></div>
       <div class="bm"><b>Copilot</b><span>系列培训</span></div>
       <div class="bm"><b>2026-08</b><span>最近更新</span></div>
+    </div>
+    <div class="hero-mascot reveal">
+      <picture>
+        <source srcset="img/xiaoa-video-480.webp" type="image/webp">
+        <img src="img/xiaoa-video.png" alt="正在观看录播的小A AI 助手" width="449" height="479" fetchpriority="high" decoding="async">
+      </picture>
     </div>
   </div>
 </section>
@@ -75,7 +82,7 @@
     </div>
 
     <div class="video-grid">
-      <article class="video-card">
+      <article class="video-card reveal">
         <div class="video-thumb thumb-landscape">
           <span class="v-badge">AI 培训</span>
           <span class="play"><svg viewBox="0 0 24 24"><path d="M6 4l14 8-14 8V4z"/></svg></span>
@@ -92,7 +99,7 @@
         </div>
       </article>
 
-      <article class="video-card">
+      <article class="video-card reveal">
         <div class="video-thumb thumb-stars">
           <span class="v-badge">AI 培训 · 财务专场</span>
           <span class="play"><svg viewBox="0 0 24 24"><path d="M6 4l14 8-14 8V4z"/></svg></span>
@@ -109,7 +116,7 @@
         </div>
       </article>
 
-      <article class="video-card">
+      <article class="video-card reveal">
         <div class="video-thumb thumb-aurora">
           <span class="v-badge">专题课程</span>
           <span class="play"><svg viewBox="0 0 24 24"><path d="M6 4l14 8-14 8V4z"/></svg></span>
@@ -159,7 +166,7 @@
     </div>
     <div class="footer-bottom">
       <span>© 2026 Amer Sports · AI 赋能计划</span>
-      <span>v0.3 Preview · 简约蓝色版</span>
+      <span>v0.4 Preview · 编辑式科技版</span>
     </div>
   </div>
 </footer>

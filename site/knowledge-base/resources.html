@@ -48,12 +48,19 @@
 </nav>
 
 <!-- ========== 板块 Hero ========== -->
-<section class="board-hero">
+<section class="board-hero resources-hero">
   <div class="container">
-    <div class="bh-left">
+    <div class="hero-grid" aria-hidden="true"></div>
+    <div class="bh-left reveal">
       <div class="bh-tag">03 · EXPLORE 发现 / 使用 / 延伸学习</div>
       <h1>AI 工具与资源</h1>
       <p>不知道从哪里开始？这里按 4 个分类整理了好用的 AI 工具、精选课程、优质博主与经典阅读材料 —— 点击进入对应分类子页面。</p>
+    </div>
+    <div class="hero-mascot reveal">
+      <picture>
+        <source srcset="img/xiaoa-resources-480.webp" type="image/webp">
+        <img src="img/xiaoa-resources.png" alt="使用放大镜探索 AI 工具的小A" width="480" height="444" fetchpriority="high" decoding="async">
+      </picture>
     </div>
   </div>
 </section>
@@ -69,9 +76,9 @@
       </div>
     </div>
 
-    <div class="sub-grid" style="grid-template-columns:repeat(2,1fr)">
+    <div class="resource-directory">
       <!-- AI 工具 -->
-      <a class="res-entry" href="detail.html?type=resources&id=tools" style="--accent:#2563EB">
+      <a class="res-entry reveal" href="detail.html?type=resources&id=tools">
         <div class="re-head">
           <span class="re-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4.5 4.5 0 0 0-6 6L3 18v3h3l5.7-5.7a4.5 4.5 0 0 0 6-6L14 13l-3-3 3.7-3.7z"/></svg></span>
           <div>
@@ -90,7 +97,7 @@
             <div class="p-info"><b>Claude <span class="p-badge">海外</span></b><small>Anthropic，长文写作与编程能力突出</small></div>
           </div>
           <div class="p-row">
-            <span class="p-logo" style="background:#1D4FD7">A</span>
+            <span class="p-logo">A</span>
             <div class="p-info"><b>小A <span class="p-badge">公司内部</span></b><small>亚玛芬内部 AI 助手，接入公司数据与系统</small></div>
           </div>
         </div>
@@ -98,7 +105,7 @@
       </a>
 
       <!-- 课程推荐 -->
-      <a class="res-entry" href="detail.html?type=resources&id=courses" style="--accent:#1D4FD7">
+      <a class="res-entry reveal" href="detail.html?type=resources&id=courses">
         <div class="re-head">
           <span class="re-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9l10-5 10 5-10 5L2 9z"/><path d="M6 11.5V16c0 1.7 2.7 3 6 3s6-1.3 6-3v-4.5"/><path d="M22 9v5"/></svg></span>
           <div>
@@ -117,7 +124,7 @@
             <div class="p-info"><b>提示词工程实战课</b><small>进阶 · 约 4 小时</small></div>
           </div>
           <div class="p-row">
-            <span class="p-logo" style="background:#3B82F6">Ag</span>
+            <span class="p-logo">Ag</span>
             <div class="p-info"><b>Agent 应用开发入门</b><small>进阶 · 约 8 小时</small></div>
           </div>
         </div>
@@ -125,7 +132,7 @@
       </a>
 
       <!-- 博主 / 创作者 -->
-      <a class="res-entry" href="detail.html?type=resources&id=creators" style="--accent:#3B82F6">
+      <a class="res-entry reveal" href="detail.html?type=resources&id=creators">
         <div class="re-head">
           <span class="re-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
           <div>
@@ -136,15 +143,15 @@
         </div>
         <div class="re-preview">
           <div class="p-row">
-            <span class="p-logo" style="border-radius:50%">李</span>
+            <span class="p-logo">李</span>
             <div class="p-info"><b>AI 产品观察</b><small>产品视角 · 每周深度拆解 · 12.6w 关注</small></div>
           </div>
           <div class="p-row">
-            <span class="p-logo alt" style="border-radius:50%">王</span>
+            <span class="p-logo alt">王</span>
             <div class="p-info"><b>技术小白学 AI</b><small>技术科普 · 零基础友好 · 8.3w 关注</small></div>
           </div>
           <div class="p-row">
-            <span class="p-logo" style="border-radius:50%;background:#1D4FD7">张</span>
+            <span class="p-logo">张</span>
             <div class="p-info"><b>Prompt 实验室</b><small>提示词技巧 · 每日一练 · 5.9w 关注</small></div>
           </div>
         </div>
@@ -152,7 +159,7 @@
       </a>
 
       <!-- 论文 / 阅读材料 -->
-      <a class="res-entry" href="detail.html?type=resources&id=reading" style="--accent:#3B82F6">
+      <a class="res-entry reveal" href="detail.html?type=resources&id=reading">
         <div class="re-head">
           <span class="re-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/></svg></span>
           <div>
@@ -171,7 +178,7 @@
             <div class="p-info"><b>AI 行业年度报告 2026</b><small>行业报告 · 76 页 · 中文版</small></div>
           </div>
           <div class="p-row">
-            <span class="p-logo" style="background:#163059">读</span>
+            <span class="p-logo">读</span>
             <div class="p-info"><b>Prompt 工程最佳实践</b><small>推荐阅读 · 适合所有职场人</small></div>
           </div>
         </div>
@@ -242,7 +249,7 @@
     </div>
     <div class="footer-bottom">
       <span>© 2026 Amer Sports · AI 赋能计划</span>
-      <span>v0.3 Preview · 简约蓝色版</span>
+      <span>v0.4 Preview · 编辑式科技版</span>
     </div>
   </div>
 </footer>
