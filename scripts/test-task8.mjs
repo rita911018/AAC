@@ -43,7 +43,9 @@ function verifierRejects(mutator, expectedText, description) {
       failures.push(`${description}: verifier incorrectly passed`);
     } catch (error) {
       const output = `${error.stdout ?? ''}\n${error.stderr ?? ''}`;
-      expect(output.includes(expectedText), `${description}: verifier failed without the expected diagnostic (${expectedText})`);
+      for (const diagnostic of Array.isArray(expectedText) ? expectedText : [expectedText]) {
+        expect(output.includes(diagnostic), `${description}: verifier failed without the expected diagnostic (${diagnostic})`);
+      }
     }
   } finally {
     if (typeof cleanup === 'function') cleanup();
@@ -84,6 +86,16 @@ verifierRejects((fixture) => {
   const escapedCss = String.raw`<style>.bad{background:r\61 dial-gradie\nt(red,blue)}</style>`;
   writeFileSync(file, readFileSync(file, 'utf8').replace('</head>', `${escapedCss}</head>`));
 }, 'index.html: gradients are not allowed', 'CSS hex and simple-escaped radial-gradient');
+
+verifierRejects((fixture) => {
+  const file = join(fixture, 'index.html');
+  writeFileSync(file, readFileSync(file, 'utf8').replace('<body>', '<body style="background:linear-&#x67;radient(red,blue)">'));
+}, 'index.html: gradients are not allowed', 'HTML hex entity-escaped linear-gradient style attribute');
+
+verifierRejects((fixture) => {
+  const file = join(fixture, 'index.html');
+  writeFileSync(file, readFileSync(file, 'utf8').replace('</head>', '<style>.bad{background:radial-&#103;radient(red,blue)}</style></head>'));
+}, 'index.html: gradients are not allowed', 'HTML decimal entity-escaped radial-gradient style block');
 
 verifierRejects((fixture) => {
   const file = join(fixture, 'index.html');
@@ -186,6 +198,21 @@ verifierRejects((fixture) => {
   return () => rmSync(outside, { recursive: true, force: true });
 }, 'index.html: stylesheet is a symlink: linked-css/external.css', 'stylesheet path with a symlinked parent outside the site');
 
+verifierRejects((fixture) => {
+  writeFileSync(join(fixture, 'import-url.css'), '@import url("theme.css"); body{color:#123}');
+}, 'import-url.css: CSS @import is not allowed', 'CSS file @import url syntax');
+
+verifierRejects((fixture) => {
+  const file = join(fixture, 'index.html');
+  writeFileSync(file, readFileSync(file, 'utf8').replace('</head>', '<style>@IMPORT "theme.css";</style></head>'));
+}, 'index.html: CSS @import is not allowed', 'HTML style block uppercase @import string syntax');
+
+verifierRejects((fixture) => {
+  const file = join(fixture, 'index.html');
+  const escapedImport = String.raw`<style>@im\70 &#x6f;rt url("theme.css");</style>`;
+  writeFileSync(file, readFileSync(file, 'utf8').replace('</head>', `${escapedImport}</head>`));
+}, 'index.html: CSS @import is not allowed', 'HTML entity and CSS escape-obfuscated @import');
+
 verifierAccepts((fixture) => {
   const file = join(fixture, 'index.html');
   const payload = Buffer.from('not an SVG; the word linearGradient is harmless in a PNG payload test').toString('base64');
@@ -199,11 +226,17 @@ verifierAccepts((fixture) => {
   writeFileSync(file, readFileSync(file, 'utf8').replace('<body>', `<body style="${style}">`));
 }, 'clean local SVG and ignored external/data/non-SVG CSS URLs');
 
-verifierAccepts((fixture) => {
+verifierRejects((fixture) => {
   const file = join(fixture, 'index.html');
   const html = readFileSync(file, 'utf8');
   writeFileSync(file, html.replace('</body>', '<img src="img/xiaoa-home.png" srcset="data:image/png;base64,b2s= 1x, img/xiaoa-home-480.webp 2x" alt=""></body>'));
-}, 'valid data URL candidate in srcset');
+}, 'index.html: data URL is not allowed in image srcset', 'data URL candidate in image srcset');
+
+verifierRejects((fixture) => {
+  const file = join(fixture, 'index.html');
+  const html = readFileSync(file, 'utf8');
+  writeFileSync(file, html.replace('</body>', '<img src="img/xiaoa-home.png" srcset="data:image/png;base64,b2s=, missing-after-data.webp 2x" alt=""></body>'));
+}, ['index.html: data URL is not allowed in image srcset', 'index.html: image candidate is missing: missing-after-data.webp'], 'descriptorless data srcset followed by a missing local candidate');
 
 verifierRejects((fixture) => {
   const file = join(fixture, 'index.html');

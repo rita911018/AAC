@@ -6,6 +6,16 @@ const pages = ['index.html', 'learn.html', 'video.html', 'resources.html', 'deta
 const requiredMascots = ['img/xiaoa-home.png', 'img/xiaoa-learn.png', 'img/xiaoa-video.png', 'img/xiaoa-resources.png'];
 const errors = [];
 
+function decodeHtmlEntities(source) {
+  const named = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: '\u00A0' };
+  return String(source ?? '')
+    .replace(/&#(?:x([0-9a-f]+)|(\d+));/gi, (match, hex, decimal) => {
+      const codePoint = Number.parseInt(hex ?? decimal, hex ? 16 : 10);
+      return codePoint === 0 || codePoint > 0x10FFFF ? '\uFFFD' : String.fromCodePoint(codePoint);
+    })
+    .replace(/&(amp|lt|gt|quot|apos|nbsp);/gi, (match, name) => named[name.toLowerCase()]);
+}
+
 function report(message) {
   errors.push(message);
 }
@@ -13,7 +23,7 @@ function report(message) {
 function attributes(tag) {
   return Object.fromEntries(
     [...tag.matchAll(/\s([\w:-]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g)]
-      .map(([, key, quoted, singleQuoted, bare]) => [key.toLowerCase(), quoted ?? singleQuoted ?? bare ?? '']),
+      .map(([, key, quoted, singleQuoted, bare]) => [key.toLowerCase(), decodeHtmlEntities(quoted ?? singleQuoted ?? bare ?? '')]),
   );
 }
 
@@ -216,7 +226,15 @@ function srcsetCandidates(value) {
     if (position >= source.length) break;
     const start = position;
     const dataUrl = source.slice(position, position + 5).toLowerCase() === 'data:';
-    while (position < source.length && !whitespace.test(source[position]) && (dataUrl || source[position] !== ',')) position += 1;
+    let dataCommaSeen = false;
+    while (position < source.length && !whitespace.test(source[position])) {
+      if (source[position] === ',') {
+        if (!dataUrl) break;
+        if (dataCommaSeen && (position + 1 === source.length || whitespace.test(source[position + 1]))) break;
+        dataCommaSeen = true;
+      }
+      position += 1;
+    }
     const candidate = source.slice(start, position);
     if (candidate) candidates.push(candidate);
     while (position < source.length && source[position] !== ',') position += 1;
@@ -278,6 +296,10 @@ function hasForbiddenGradient(source) {
   return false;
 }
 
+function hasCssImport(source) {
+  return /@import\b/i.test(decodeCssEscapes(source));
+}
+
 function verifyLocalAsset(page, pagePath, value, kind, gradientKind = 'linked SVG') {
   if (!isLocal(value)) return;
   const target = resolveLocal(page, pagePath, value, kind);
@@ -301,6 +323,16 @@ function verifyCssSvgReferences(context, basePath, source) {
   }
 }
 
+function verifySrcset(page, pagePath, value, kind) {
+  for (const candidate of srcsetCandidates(value)) {
+    if (/^data:/i.test(candidate)) {
+      report(`${page}: data URL is not allowed in ${kind} srcset`);
+    } else {
+      verifyLocalAsset(page, pagePath, candidate, `${kind} candidate`);
+    }
+  }
+}
+
 function verifyStylesheetReference(page, pagePath, href) {
   if (!href || !isLocal(href)) return;
   const target = resolveLocal(page, pagePath, href, 'stylesheet');
@@ -315,6 +347,7 @@ function verifyStylesheetReference(page, pagePath, href) {
   if (!valid) return;
   const css = readText(target.target, `${page}: could not read linked stylesheet: ${href}`);
   if (css === null) return;
+  if (hasCssImport(css)) report(`${page}: linked stylesheet @import is not allowed: ${href}`);
   if (hasForbiddenGradient(css)) report(`${page}: linked stylesheet gradients are not allowed: ${href}`);
   verifyCssSvgReferences(page, target.target, css);
 }
@@ -347,9 +380,11 @@ for (const page of pages) {
   const inspection = hookMarkup(html);
   const document = removeInactiveMarkup(html);
 
-  if (hasForbiddenGradient(html)) report(`${page}: gradients are not allowed`);
+  if (hasForbiddenGradient(decodeHtmlEntities(html))) report(`${page}: gradients are not allowed`);
   for (const match of inspection.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style\s*>/gi)) {
-    verifyCssSvgReferences(page, pagePath, match[1]);
+    const styleSource = decodeHtmlEntities(match[1]);
+    if (hasCssImport(styleSource)) report(`${page}: CSS @import is not allowed`);
+    verifyCssSvgReferences(page, pagePath, styleSource);
   }
   for (const attrs of tags(document, '[a-z][\\w:-]*')) {
     if (attrs.style) verifyCssSvgReferences(page, pagePath, attrs.style);
@@ -385,11 +420,11 @@ for (const page of pages) {
 
   for (const attrs of tags(document, 'img')) {
     if (attrs.src) verifyLocalAsset(page, pagePath, attrs.src, 'image');
-    for (const candidate of srcsetCandidates(attrs.srcset)) verifyLocalAsset(page, pagePath, candidate, 'image candidate');
+    verifySrcset(page, pagePath, attrs.srcset, 'image');
   }
 
   for (const attrs of tags(document, 'source')) {
-    for (const candidate of srcsetCandidates(attrs.srcset)) verifyLocalAsset(page, pagePath, candidate, 'source candidate');
+    verifySrcset(page, pagePath, attrs.srcset, 'source');
   }
 }
 
@@ -398,6 +433,7 @@ for (const stylesheet of cssFiles()) {
   if (!isRegularFile(stylesheet, `missing stylesheet: ${name}`, `stylesheet is not a file: ${name}`, `stylesheet is a symlink: ${name}`, `stylesheet escapes real site root: ${name}`)) continue;
   const css = readText(stylesheet, `could not read stylesheet: ${name}`);
   if (css === null) continue;
+  if (hasCssImport(css)) report(`${name}: CSS @import is not allowed`);
   if (hasForbiddenGradient(css)) report(`${name}: gradients are not allowed`);
   verifyCssSvgReferences(name, stylesheet, css);
 }
