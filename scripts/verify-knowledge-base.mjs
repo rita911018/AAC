@@ -26,14 +26,20 @@ function isLocal(value) {
   return value && !/^(?:[a-z][a-z\d+.-]*:|\/\/|mailto:|tel:|data:|javascript:)/i.test(value);
 }
 
+function isExternalHttp(value) {
+  return /^https?:\/\//i.test(value ?? '');
+}
+
 function verifyAnchor(page, href) {
   const [filePart, fragment] = href.split('#');
-  if (!fragment || !isLocal(href)) return;
-  const target = resolve(root, filePart || page);
+  if (!isLocal(href)) return;
+  const targetFile = (filePart || page).split('?', 1)[0];
+  const target = resolve(root, targetFile);
   if (!existsSync(target)) {
     report(`${page}: anchor target file is missing: ${filePart}`);
     return;
   }
+  if (!fragment) return;
   const html = readFileSync(target, 'utf8');
   const escaped = fragment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   if (!new RegExp(`\\b(?:id|name)\\s*=\\s*(["'])${escaped}\\1`, 'i').test(html)) {
@@ -59,14 +65,15 @@ for (const page of pages) {
     report(`${page}: missing .nav-toggle`);
   }
 
-  for (const match of html.matchAll(/<a\b[^>]*>/gi)) {
+  const document = html.replace(/<script\b[\s\S]*?<\/script>/gi, '');
+  for (const match of document.matchAll(/<a\b[^>]*>/gi)) {
     const attrs = attributes(match[0]);
     if (attrs.href) verifyAnchor(page, attrs.href);
-    if (attrs.target?.toLowerCase() === '_blank' && !/\bnoopener\b/i.test(attrs.rel ?? '')) {
+    if (attrs.target?.toLowerCase() === '_blank' && isExternalHttp(attrs.href) && !/\bnoopener\b/i.test(attrs.rel ?? '')) {
       report(`${page}: target=_blank link is missing rel=noopener: ${attrs.href ?? '(no href)'}`);
     }
   }
-  for (const match of html.matchAll(/<img\b[^>]*>/gi)) {
+  for (const match of document.matchAll(/<img\b[^>]*>/gi)) {
     const { src } = attributes(match[0]);
     if (isLocal(src) && !existsSync(resolve(root, src.split(/[?#]/, 1)[0]))) {
       report(`${page}: image is missing: ${src}`);
