@@ -47,6 +47,16 @@ for (const href of sharePointUrls) {
   expectExternalLink(video, href, 'video.html');
   expect(count(video, href) === 1, `video.html: SharePoint URL must remain unique: ${href}`);
 }
+const videoCardTags = [...video.matchAll(/<a\b[^>]*class=["'][^"']*\bvideo-card\b[^"']*["'][^>]*>/gi)].map((match) => match[0]);
+expect(videoCardTags.length === 3, 'video.html: each replay must use one full-card anchor');
+for (const [index, href] of sharePointUrls.entries()) {
+  const card = videoCardTags[index] ?? '';
+  expect(card.includes(`href="${href}"`), `video.html: replay card ${index + 1} must own its preserved SharePoint URL`);
+  expect(/target=["']_blank["']/i.test(card) && /rel=["'][^"']*\bnoopener\b[^"']*["']/i.test(card), `video.html: replay card ${index + 1} must be a safe new-tab link`);
+}
+expect(!/<article\b[^>]*class=["'][^"']*\bvideo-card\b/i.test(video), 'video.html: replay cards must not remain non-interactive articles');
+expect(!/<a\b[^>]*class=["'][^"']*\bv-btn\b/i.test(video), 'video.html: card CTA must be visual text, not a nested or competing link');
+expect(count(video, '<h3>') === 3 && count(video, '<h4>') === 0, 'video.html: replay titles must use h3 heading hierarchy');
 for (const hook of ['thumb-landscape', 'thumb-stars', 'thumb-aurora']) {
   expect(video.includes(hook), `video.html: missing preserved thumbnail hook .${hook}`);
 }
@@ -59,6 +69,10 @@ const resourceRoutes = [
 ];
 for (const href of resourceRoutes) {
   expect(count(resources, href) === 1, `resources.html: route must be preserved exactly once: ${href}`);
+}
+for (const id of ['tools', 'courses', 'creators', 'reading']) {
+  expect(new RegExp(`<a\\b[^>]*href=["']detail\\.html\\?type=resources&id=${id}["'][^>]*aria-labelledby=["']resource-${id}-title["']`, 'i').test(resources), `resources.html: ${id} row must have a concise labelled-by accessible name`);
+  expect(resources.includes(`id="resource-${id}-title"`), `resources.html: ${id} row label target must exist`);
 }
 for (const href of ['https://aihot.virxact.com/daily', 'https://www.waytoagi.com/zh']) {
   expectExternalLink(resources, href, 'resources.html');

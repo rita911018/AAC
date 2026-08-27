@@ -200,7 +200,7 @@ html.is-ready .reveal{animation:reveal-in 420ms ease both}
 .video-thumb .v-dur,.rv-dur-txt{right:12px;bottom:12px}
 .rv-badge-real{border-color:var(--blue);background:var(--blue)}
 .video-body{padding:18px 18px 20px;display:flex;flex:1;flex-direction:column}
-.video-body h4,.rv-title{margin-bottom:10px;color:var(--ink);font-size:16px;font-weight:720;line-height:1.45}
+.video-body h3,.rv-title{margin-bottom:10px;color:var(--ink);font-size:16px;font-weight:720;line-height:1.45}
 .v-meta,.rv-meta{margin-bottom:12px;display:flex;flex-wrap:wrap;gap:6px 14px;color:var(--quiet);font:500 12px/1.5 var(--font-mono)}
 .v-meta span{display:inline-flex;align-items:center;gap:5px}
 .v-meta svg{width:14px;height:14px;stroke:currentColor}
@@ -477,6 +477,18 @@ body .xa-hero .xh-side li b{color:var(--white)}
   .board-hero .container{padding-block:42px}.bh-left h1,.detail-hero h1{font-size:30px;line-height:1.2}.bh-left p,.detail-hero p.desc,.section-head .desc,.entry-card p,.sub-card p,.xa-prompt-card p,body .xa-hero p,.gate-home-card .gh-desc{font-size:16px}
   body .rt-sec p,body .rt-ul li,body .lp-lead,body .lp-tl-item p,body .lp-step-panel p,body .lp-term .tr,body .kb-step p,body .tl-body p{font-size:16px}
   .bh-meta .bm{min-width:50%;flex:1}.bh-meta .bm:nth-child(odd){border-left:0}.bh-meta .bm:nth-child(n+3){border-top:1px solid rgba(255,255,255,.18)}
+  .video-hero .container{gap:12px;padding-block:24px}
+  .resources-hero .container{gap:12px;padding-block:24px}
+  .video-hero .hero-mascot,.resources-hero .hero-mascot{width:clamp(180px,46vw,210px);margin-top:0;justify-self:start}
+  .video-hero .hero-mascot{height:190px;max-height:190px}
+  .resources-hero .hero-mascot{height:175px;max-height:175px}
+  .video-hero .hero-mascot img{max-height:190px}
+  .resources-hero .hero-mascot img{max-height:175px}
+  .video-hero .bh-meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
+  .video-hero .bh-meta .bm{min-width:0;padding:10px 6px}
+  .video-hero .bh-meta .bm:nth-child(n){border-top:0}
+  .video-hero .bh-meta .bm + .bm{border-left:1px solid rgba(255,255,255,.18)}
+  .video-hero .bh-meta .bm:first-child{border-left:0}
   .detail-hero .container{padding-block:40px}.section,body .lp-sec{padding-block:54px}.section-head{margin-bottom:26px}.section-head h2{font-size:27px}
   .entry-card,.sub-card{padding-inline:16px}.gate-home-card{align-items:flex-start}.gate-home-card .gh-go{width:32px;overflow:hidden;white-space:nowrap}
   .res-entry .re-head,.re-preview{padding-inline:16px}.res-entry .re-count{display:none}.p-row,.detail-card .p-row{padding-inline:10px}.p-info small{white-space:normal}
