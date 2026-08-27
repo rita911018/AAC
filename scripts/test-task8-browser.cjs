@@ -66,6 +66,7 @@ const viewports = [
           brandHeight: document.querySelector('.brand')?.getBoundingClientRect().height || 0,
           navTargetHeights: [...document.querySelectorAll('.nav-links a')].map((node) => node.getBoundingClientRect().height),
           footerTargetHeights: [...document.querySelectorAll('.footer a')].map((node) => node.getBoundingClientRect().height),
+          searchInput: rect(document.querySelector('#searchInput')),
         };
       });
       expect(metrics.scrollWidth <= metrics.viewportWidth + 1, `${name} ${width}px: horizontal overflow ${metrics.scrollWidth}/${metrics.viewportWidth}`);
@@ -76,6 +77,7 @@ const viewports = [
       expect(metrics.brandHeight >= 44, `${name} ${width}px: brand target below 44px`);
       expect(metrics.navTargetHeights.every((value) => value === 0 || value >= 44), `${name} ${width}px: navigation target below 44px`);
       expect(metrics.footerTargetHeights.every((value) => value >= 44), `${name} ${width}px: footer target below 44px`);
+      expect(metrics.searchInput && metrics.searchInput.width >= 44 && metrics.searchInput.height >= 44, `${name} ${width}px: search input target below 44x44 (${metrics.searchInput?.width || 0}x${metrics.searchInput?.height || 0})`);
       await page.screenshot({ path: resolve(output, `${name}-${width}.png`), fullPage: true });
     }
   }

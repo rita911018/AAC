@@ -141,7 +141,17 @@ function isInsideRealRoot(target, escapeMessage) {
 
 function isRegularFile(target, missingMessage, nonFileMessage, symlinkMessage, escapeMessage) {
   try {
-    if (lstatSync(target).isSymbolicLink()) {
+    const rootRelative = relative(root, target);
+    let current = root;
+    const segments = rootRelative.split(sep).filter(Boolean);
+    if (segments.some((segment) => {
+      current = resolve(current, segment);
+      try {
+        return lstatSync(current).isSymbolicLink();
+      } catch {
+        return false;
+      }
+    })) {
       report(symlinkMessage);
       return false;
     }
@@ -197,7 +207,22 @@ function verifyFragment(page, href, target) {
 }
 
 function srcsetCandidates(value) {
-  return (value ?? '').split(',').map((candidate) => candidate.trim().split(/[\t\n\f\r ]+/)[0]).filter(Boolean);
+  const source = value ?? '';
+  const candidates = [];
+  let position = 0;
+  const whitespace = /[\t\n\f\r ]/;
+  while (position < source.length) {
+    while (position < source.length && (source[position] === ',' || whitespace.test(source[position]))) position += 1;
+    if (position >= source.length) break;
+    const start = position;
+    const dataUrl = source.slice(position, position + 5).toLowerCase() === 'data:';
+    while (position < source.length && !whitespace.test(source[position]) && (dataUrl || source[position] !== ',')) position += 1;
+    const candidate = source.slice(start, position);
+    if (candidate) candidates.push(candidate);
+    while (position < source.length && source[position] !== ',') position += 1;
+    if (source[position] === ',') position += 1;
+  }
+  return candidates;
 }
 
 function cssUrlReferences(source) {
@@ -220,19 +245,31 @@ function hasSvgGradientElement(source) {
   return /<\s*(?:[A-Za-z_][\w.-]*:)?(?:linearGradient|radialGradient)\b/i.test(source);
 }
 
-function hasForbiddenGradient(source) {
-  if (/gradient\s*\(/i.test(source)) return true;
+function decodeCssEscapes(source) {
+  return source
+    .replace(/\\([0-9a-f]{1,6})(?:\r\n|[\t\n\f\r ])?/gi, (match, hex) => {
+      const codePoint = Number.parseInt(hex, 16);
+      return codePoint === 0 || codePoint > 0x10FFFF ? '\uFFFD' : String.fromCodePoint(codePoint);
+    })
+    .replace(/\\(?:\r\n|[\n\f\r])/g, '')
+    .replace(/\\([^\n\f\r])/g, '$1');
+}
 
-  const withoutNonSvgImages = source.replace(/data:image\/(?!svg\+xml)[^,\s"'()<>]*,[^\s"')<>]*/gi, '');
+function hasForbiddenGradient(source) {
+  const normalized = decodeCssEscapes(source);
+  if (/gradient\s*\(/i.test(normalized)) return true;
+
+  const withoutNonSvgImages = normalized.replace(/data:image\/(?!svg\+xml)[^,\s"'()<>]*,[^\s"')<>]*/gi, '');
   if (hasSvgGradientElement(withoutNonSvgImages)) return true;
 
-  for (const match of source.matchAll(/data:image\/svg\+xml([^,]*),([^\s"')<>]*)/gi)) {
+  for (const match of normalized.matchAll(/data:image\/svg\+xml([^,]*),([^\s"')<>]*)/gi)) {
     const metadata = match[1].toLowerCase();
     const payload = match[2];
     try {
+      const urlDecodedPayload = decodeURIComponent(payload);
       const decoded = metadata.split(';').includes('base64')
-        ? Buffer.from(payload, 'base64').toString('utf8')
-        : decodeURIComponent(payload);
+        ? Buffer.from(urlDecodedPayload, 'base64').toString('utf8')
+        : urlDecodedPayload;
       if (hasSvgGradientElement(decoded)) return true;
     } catch {
       // Malformed data URIs are handled as ordinary source text; asset checks remain independent.
@@ -262,6 +299,24 @@ function verifyCssSvgReferences(context, basePath, source) {
   for (const value of cssUrlReferences(source)) {
     if (isLocalSvgReference(value)) verifyLocalAsset(context, basePath, value, 'CSS SVG', 'CSS SVG');
   }
+}
+
+function verifyStylesheetReference(page, pagePath, href) {
+  if (!href || !isLocal(href)) return;
+  const target = resolveLocal(page, pagePath, href, 'stylesheet');
+  if (!target) return;
+  const valid = isRegularFile(
+    target.target,
+    `${page}: stylesheet is missing: ${href}`,
+    `${page}: stylesheet is not a file: ${href}`,
+    `${page}: stylesheet is a symlink: ${href}`,
+    `${page}: stylesheet escapes real site root: ${href}`,
+  );
+  if (!valid) return;
+  const css = readText(target.target, `${page}: could not read linked stylesheet: ${href}`);
+  if (css === null) return;
+  if (hasForbiddenGradient(css)) report(`${page}: linked stylesheet gradients are not allowed: ${href}`);
+  verifyCssSvgReferences(page, target.target, css);
 }
 
 function cssFiles(directory = root) {
@@ -303,6 +358,10 @@ for (const page of pages) {
   verifyRequiredAsset(page, pagePath, inspection, 'style.css', 'link');
   verifyRequiredAsset(page, pagePath, inspection, 'search.js', 'script');
   verifyRequiredAsset(page, pagePath, inspection, 'site.js', 'script');
+
+  for (const attrs of tags(inspection, 'link')) {
+    if (tokens(attrs.rel).includes('stylesheet')) verifyStylesheetReference(page, pagePath, attrs.href);
+  }
 
   if (!tags(document, '[a-z][\\w:-]*').some((attrs) => tokens(attrs.class).includes('nav-toggle'))) {
     report(`${page}: missing .nav-toggle`);

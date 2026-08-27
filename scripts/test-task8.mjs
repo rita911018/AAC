@@ -34,9 +34,10 @@ expect(/@media\(max-width:820px\)[\s\S]*?\.(?:video|resources)-hero \.hero-masco
 
 function verifierRejects(mutator, expectedText, description) {
   const fixture = mkdtempSync(join(tmpdir(), 'kb-task8-'));
+  let cleanup;
   try {
     cpSync(root, fixture, { recursive: true });
-    mutator(fixture);
+    cleanup = mutator(fixture);
     try {
       execFileSync(process.execPath, [verifier, fixture], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
       failures.push(`${description}: verifier incorrectly passed`);
@@ -45,21 +46,24 @@ function verifierRejects(mutator, expectedText, description) {
       expect(output.includes(expectedText), `${description}: verifier failed without the expected diagnostic (${expectedText})`);
     }
   } finally {
+    if (typeof cleanup === 'function') cleanup();
     rmSync(fixture, { recursive: true, force: true });
   }
 }
 
 function verifierAccepts(mutator, description) {
   const fixture = mkdtempSync(join(tmpdir(), 'kb-task8-'));
+  let cleanup;
   try {
     cpSync(root, fixture, { recursive: true });
-    mutator(fixture);
+    cleanup = mutator(fixture);
     try {
       execFileSync(process.execPath, [verifier, fixture], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
     } catch (error) {
       failures.push(`${description}: verifier incorrectly failed (${error.stderr || error.stdout || error.message})`);
     }
   } finally {
+    if (typeof cleanup === 'function') cleanup();
     rmSync(fixture, { recursive: true, force: true });
   }
 }
@@ -68,6 +72,18 @@ verifierRejects((fixture) => {
   const file = join(fixture, 'index.html');
   writeFileSync(file, readFileSync(file, 'utf8').replace('</head>', '<style>.bad{background:repeating-linear-gradient(red,blue)}</style></head>'));
 }, 'index.html: gradients are not allowed', 'inline HTML gradient');
+
+verifierRejects((fixture) => {
+  const file = join(fixture, 'index.html');
+  const escapedCss = String.raw`<style>.bad{background:linear-\67 radient(red,blue)}</style>`;
+  writeFileSync(file, readFileSync(file, 'utf8').replace('</head>', `${escapedCss}</head>`));
+}, 'index.html: gradients are not allowed', 'CSS hex-escaped linear-gradient');
+
+verifierRejects((fixture) => {
+  const file = join(fixture, 'index.html');
+  const escapedCss = String.raw`<style>.bad{background:r\61 dial-gradie\nt(red,blue)}</style>`;
+  writeFileSync(file, readFileSync(file, 'utf8').replace('</head>', `${escapedCss}</head>`));
+}, 'index.html: gradients are not allowed', 'CSS hex and simple-escaped radial-gradient');
 
 verifierRejects((fixture) => {
   const file = join(fixture, 'index.html');
@@ -91,6 +107,13 @@ verifierRejects((fixture) => {
   const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="bad"/></defs></svg>').toString('base64');
   writeFileSync(file, readFileSync(file, 'utf8').replace('</head>', `<style>.bad{background-image:url(data:image/svg+xml;base64,${svg})}</style></head>`));
 }, 'index.html: gradients are not allowed', 'base64 SVG linearGradient data URI');
+
+verifierRejects((fixture) => {
+  const file = join(fixture, 'index.html');
+  const base64 = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><defs><radialGradient id="bad"/></defs></svg>').toString('base64');
+  const escapedPayload = `%${base64.charCodeAt(0).toString(16).padStart(2, '0')}${base64.slice(1)}`;
+  writeFileSync(file, readFileSync(file, 'utf8').replace('</head>', `<style>.bad{background-image:url(data:image/svg+xml;base64,${escapedPayload})}</style></head>`));
+}, 'index.html: gradients are not allowed', 'URL-encoded base64 SVG radialGradient data URI');
 
 verifierRejects((fixture) => {
   writeFileSync(join(fixture, 'bad.svg'), '<svg xmlns="http://www.w3.org/2000/svg"><defs><radialGradient id="bad"/></defs></svg>');
@@ -143,6 +166,26 @@ verifierRejects((fixture) => {
   writeFileSync(file, readFileSync(file, 'utf8').replace('<body>', '<body style="background:url(missing.svg)">'));
 }, 'index.html: CSS SVG is missing: missing.svg', 'HTML style attribute with a missing local SVG URL');
 
+verifierRejects((fixture) => {
+  writeFileSync(join(fixture, 'theme'), String.raw`.bad{background:linear-\67 radient(red,blue)}`);
+  const file = join(fixture, 'index.html');
+  writeFileSync(file, readFileSync(file, 'utf8').replace('</head>', '<link rel="alternate stylesheet" href="theme?rev=1#main"></head>'));
+}, 'index.html: linked stylesheet gradients are not allowed: theme?rev=1#main', 'local stylesheet link content is scanned');
+
+verifierRejects((fixture) => {
+  const file = join(fixture, 'index.html');
+  writeFileSync(file, readFileSync(file, 'utf8').replace('</head>', '<link rel="stylesheet" href="missing-theme.css"></head>'));
+}, 'index.html: stylesheet is missing: missing-theme.css', 'missing local stylesheet link');
+
+verifierRejects((fixture) => {
+  const outside = mkdtempSync(join(tmpdir(), 'kb-css-outside-'));
+  writeFileSync(join(outside, 'external.css'), 'body{color:#123}');
+  symlinkSync(outside, join(fixture, 'linked-css'));
+  const file = join(fixture, 'index.html');
+  writeFileSync(file, readFileSync(file, 'utf8').replace('</head>', '<link rel="stylesheet" href="linked-css/external.css"></head>'));
+  return () => rmSync(outside, { recursive: true, force: true });
+}, 'index.html: stylesheet is a symlink: linked-css/external.css', 'stylesheet path with a symlinked parent outside the site');
+
 verifierAccepts((fixture) => {
   const file = join(fixture, 'index.html');
   const payload = Buffer.from('not an SVG; the word linearGradient is harmless in a PNG payload test').toString('base64');
@@ -155,6 +198,12 @@ verifierAccepts((fixture) => {
   const style = 'background-image:url(clean.svg?cache=1#icon),url(https://example.com/remote.svg),url(data:image/png;base64,b2s=),url(missing.png)';
   writeFileSync(file, readFileSync(file, 'utf8').replace('<body>', `<body style="${style}">`));
 }, 'clean local SVG and ignored external/data/non-SVG CSS URLs');
+
+verifierAccepts((fixture) => {
+  const file = join(fixture, 'index.html');
+  const html = readFileSync(file, 'utf8');
+  writeFileSync(file, html.replace('</body>', '<img src="img/xiaoa-home.png" srcset="data:image/png;base64,b2s= 1x, img/xiaoa-home-480.webp 2x" alt=""></body>'));
+}, 'valid data URL candidate in srcset');
 
 verifierRejects((fixture) => {
   const file = join(fixture, 'index.html');
