@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>亚玛芬 AI 知识库 · 首页</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ========== 顶部导航 ========== -->
+<header class="topbar" id="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="index.html">
+      <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="3.2"/></svg></span>
+      亚玛芬 AI 知识库<small>PREVIEW</small>
+    </a>
+    <nav class="nav-links">
+      <a href="index.html" class="active">首页</a>
+      <a href="learn.html">AI 新手入门</a>
+      <a href="video.html">录播回放</a>
+      <a href="resources.html">AI 工具与资源</a>
+    </nav>
+    <div class="nav-right">
+      <div class="search-wrap" id="searchWrap">
+        <div class="search-box" id="searchBox">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input id="searchInput" type="text" placeholder="搜索课程、工具、文章…" autocomplete="off">
+          <span class="kbd">⌘K</span>
+        </div>
+        <div class="search-drop" id="searchDrop"></div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ========== Hero：门户入口 ========== -->
+<section class="board-hero">
+  <div class="container">
+    <div class="bh-left">
+      <div class="bh-tag">AMER SPORTS · AI 赋能计划 · 内部知识库</div>
+      <h1>从 AI 新手到<em class="grad">高效使用者</em><br/>一站式内部学习门户</h1>
+      <p>面向全体员工的 AI 学习平台。三大板块，三种用法 —— 入门、观看、探索，从这里找到你的起点。</p>
+    </div>
+    <img class="bh-mascot" src="img/xiaoa-mascot.png" alt="小A 智能助手">
+  </div>
+</section>
+
+<!-- ========== 三大板块入口 ========== -->
+<section class="section">
+  <div class="container">
+    <div class="section-head">
+      <div>
+        <div class="tag">CORE SECTIONS · 三大板块</div>
+        <h2>按你的需求，选择入口</h2>
+        <p class="desc">每个板块都是独立的完整页面，点击进入后内部还有细分目录。</p>
+      </div>
+    </div>
+    <div class="entry-row">
+      <a class="entry-card" href="learn.html" style="--accent:#2563EB">
+        <span class="ec-use"></span>
+        <div class="ec-top">
+          <span class="ec-num">01 / LEARN</span>
+          <span class="ec-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9l10-5 10 5-10 5L2 9z"/><path d="M6 11.5V16c0 1.7 2.7 3 6 3s6-1.3 6-3v-4.5"/><path d="M22 9v5"/></svg></span>
+        </div>
+        <h3>AI 新手入门</h3>
+        <p>我是 AI 小白，想从零开始系统学习：是什么、怎么用、如何进阶。</p>
+        <span class="ec-link">进入板块<svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
+      </a>
+      <a class="entry-card" href="video.html" style="--accent:#2563EB">
+        <span class="ec-use"></span>
+        <div class="ec-top">
+          <span class="ec-num">02 / WATCH</span>
+          <span class="ec-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="3"/><path d="M10 9.5l5 2.5-5 2.5v-5z" fill="currentColor" stroke="none"/></svg></span>
+        </div>
+        <h3>录播回放</h3>
+        <p>回看公司内部 AI 培训、分享会与专题课程，随时补课不落进度。</p>
+        <span class="ec-link">进入板块<svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
+      </a>
+      <a class="entry-card" href="resources.html" style="--accent:#2563EB">
+        <span class="ec-use"></span>
+        <div class="ec-top">
+          <span class="ec-num">03 / EXPLORE</span>
+          <span class="ec-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M15.8 8.2l-2.1 5.5-5.5 2.1 2.1-5.5 5.5-2.1z"/><circle cx="12" cy="12" r=".6" fill="currentColor" stroke="none"/></svg></span>
+        </div>
+        <h3>AI 工具与资源</h3>
+        <p>找工具、课程、博主、论文 —— 一个资源导航，解决「从哪开始」。</p>
+        <span class="ec-link">进入板块<svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- ========== 小A 智能助手 · 宣传板块 ========== -->
+<section class="section" id="xiaoa" style="padding-top:0">
+  <div class="container">
+    <div class="section-head">
+      <div>
+        <div class="tag">XIAO A · 小A 智能助手</div>
+        <h2>认识小A · 你的内部 AI 搭子</h2>
+        <p class="desc">接入了公司制度、流程和内部数据的 AI 助手。日常工作遇到「这个怎么操作 / 这个政策怎么说」的问题，先问小A —— 比翻邮件、问同事快得多。</p>
+      </div>
+    </div>
+
+    <div class="xa-hero">
+      <div class="xh-text">
+        <div class="xh-tag">XIAO A · 公司内部 AI 助手</div>
+        <h3>工作上拿不准的事，<br/>先问小A 试试</h3>
+        <p>小A 接入了公司知识库，能帮你查询制度、报销、采购、班车、招投标、Copilot 账号等内部事务。输入一句话，秒回答案。</p>
+        <a class="xh-cta" href="https://ai-uat.amersports.cn:9093/" target="_blank" rel="noopener">立即打开小A<svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"/></svg></a>
+      </div>
+      <div class="xh-side">
+        <h4>小A 适合这些场景</h4>
+        <ul>
+          <li>查<b>公司制度</b>：报销、采购、招投标、合同</li>
+          <li>查<b>办公流程</b>：班车、会议室、打印机、门禁</li>
+          <li>问<b>IT 申请</b>：Copilot 账号、权限开通</li>
+          <li>对比<b>名词含义</b>：EAB、PR/PO 等专业术语</li>
+          <li><b>生成草稿</b>：报告框架、邮件模板、纪要</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="xa-vs">
+      <h3>小A vs 微软 Copilot：什么时候用谁？</h3>
+      <table>
+        <tr><th>场景</th><th>推荐工具</th></tr>
+        <tr><td>查公司制度、报销、班车、采购、招投标</td><td><b>小A</b><span class="t-tag">公司内部</span></td></tr>
+        <tr><td>安排会议、写会议纪要、管理日程和邮件</td><td><b>Teams / Outlook 里的 Copilot</b><span class="t-tag">微软</span></td></tr>
+        <tr><td>写邮件、改文档、做总结（公司外部数据）</td><td>通用 AI（ChatGPT / Claude / 小A 都行）</td></tr>
+        <tr><td>创作、代码、学习、专业研究</td><td>通用 AI（ChatGPT / Claude / DeepSeek 等）</td></tr>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ========== AI 网闸（外部精选资源） ========== -->
+<section class="section" id="gateway">
+  <div class="container">
+    <div class="section-head">
+      <div>
+        <div class="tag">GATEWAY · AI 网闸</div>
+        <h2>外部精选 AI 资源</h2>
+        <p class="desc">由 AI 赋能计划精选的外部 AI 站点，点击卡片直达（新窗口打开）。</p>
+      </div>
+      <a class="section-more" href="resources.html#gateway">查看更多<svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>
+    </div>
+    <div class="gate-home-grid">
+      <a class="gate-home-card" href="https://aihot.virxact.com/daily" target="_blank" rel="noopener">
+        <span class="gh-icon">AI</span>
+        <div>
+          <div class="gh-name">AI 日报</div>
+          <div class="gh-desc">AI 行业每日精选动态 · virxact</div>
+        </div>
+        <span class="gh-go">前往<svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"/></svg></span>
+      </a>
+      <a class="gate-home-card" href="https://www.waytoagi.com/zh" target="_blank" rel="noopener">
+        <span class="gh-icon">AGI</span>
+        <div>
+          <div class="gh-name">WaytoAGI · AI 知识库</div>
+          <div class="gh-desc">高质量 AI 知识库与导航 · waytoagi.com</div>
+        </div>
+        <span class="gh-go">前往<svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"/></svg></span>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- ========== 页脚 ========== -->
+<footer class="footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div>
+        <div class="f-brand">
+          <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="3.2"/></svg></span>
+          亚玛芬 AI 知识库
+        </div>
+        <p class="f-desc">由亚玛芬体育 AI 赋能计划维护的内部学习平台，帮助每一位员工从 AI 新手成长为高效使用者。</p>
+      </div>
+      <div>
+        <h6>内容板块</h6>
+        <ul>
+          <li><a href="learn.html">AI 新手入门</a></li>
+          <li><a href="video.html">录播回放</a></li>
+          <li><a href="resources.html">AI 工具与资源</a></li>
+        </ul>
+      </div>
+      <div>
+        <h6>快速入口</h6>
+        <ul>
+          <li><a href="progress.html">我的学习进度</a></li>
+          <li><a href="learn.html">学习路径</a></li>
+          <li><a href="resources.html">资源推荐清单</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2026 Amer Sports · AI 赋能计划</span>
+      <span>v0.3 Preview · 简约蓝色版</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+window.addEventListener('scroll',function(){document.getElementById('topbar').classList.toggle('scrolled',window.scrollY>8)});
+</script>
+<script src="search.js"></script>
+</body>
+</html>

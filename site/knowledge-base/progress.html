@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>我的学习进度 · 亚玛芬 AI 知识库</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+.prog-bar{height:10px;border-radius:99px;background:var(--line);overflow:hidden;margin:6px 0 4px}
+.prog-fill{height:100%;width:0;background:var(--blue-600);border-radius:99px;transition:width .4s}
+.prog-num{font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--blue-600)}
+.mod-list{display:flex;flex-direction:column;gap:14px;margin-top:8px}
+.mod-item{display:flex;align-items:center;gap:16px;background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow-card);transition:border-color .2s,box-shadow .2s}
+.mod-item:hover{border-color:var(--blue-500);box-shadow:var(--shadow-hover)}
+.mod-item.done{background:#FBFDFF;border-color:var(--blue-100)}
+.mod-check{flex:none;width:26px;height:26px;border-radius:8px;border:2px solid var(--line);display:grid;place-items:center;cursor:pointer;transition:all .2s;background:#fff}
+.mod-check svg{width:15px;height:15px;stroke:#fff;stroke-width:3;opacity:0;transition:opacity .15s}
+.mod-item.done .mod-check{background:var(--blue-600);border-color:var(--blue-600)}
+.mod-item.done .mod-check svg{opacity:1}
+.mod-info{flex:1;min-width:0}
+.mod-info b{display:block;font-size:15px;font-weight:700;color:var(--ink-900)}
+.mod-item.done .mod-info b{color:var(--ink-400)}
+.mod-info small{display:block;font-size:12.5px;color:var(--ink-500);margin-top:2px}
+.mod-go{flex:none;font-size:13px;font-weight:600;color:var(--blue-600);white-space:nowrap}
+.mod-go svg{width:14px;height:14px;stroke:var(--blue-600);vertical-align:-2px}
+.pg-hint{display:flex;gap:10px;align-items:flex-start;background:var(--blue-50);border:1px dashed var(--blue-500);border-radius:10px;padding:14px 16px;margin-top:22px}
+.pg-hint svg{width:18px;height:18px;stroke:var(--blue-600);flex:none;margin-top:2px}
+.pg-hint p{font-size:12.5px;color:var(--ink-500);line-height:1.6}
+</style>
+</head>
+<body>
+
+<header class="topbar" id="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="index.html">
+      <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="3.2"/></svg></span>
+      亚玛芬 AI 知识库<small>PREVIEW</small>
+    </a>
+    <nav class="nav-links">
+      <a href="index.html">首页</a>
+      <a href="learn.html">AI 新手入门</a>
+      <a href="video.html">录播回放</a>
+      <a href="resources.html">AI 工具与资源</a>
+    </nav>
+    <div class="nav-right">
+      <div class="search-wrap" id="searchWrap">
+        <div class="search-box" id="searchBox">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input id="searchInput" type="text" placeholder="搜索课程、工具、文章…" autocomplete="off">
+          <span class="kbd">⌘K</span>
+        </div>
+        <div class="search-drop" id="searchDrop"></div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<section class="board-hero">
+  <div class="container">
+    <div class="bh-left">
+      <div class="bh-tag">MY PROGRESS · 我的学习进度</div>
+      <h1>你的 AI 学习<em class="grad">进度</em></h1>
+      <p>勾选已完成的学习模块，进度会自动保存在这台设备的浏览器里，换设备不会同步。</p>
+    </div>
+    <div class="bh-meta">
+      <div class="bm"><b id="pctNum">0%</b><span>完成度</span></div>
+      <div class="bm"><b id="doneNum">0</b><span>已完成</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="padding-bottom:40px">
+  <div class="container" style="max-width:880px">
+    <div class="prog-bar"><div class="prog-fill" id="progFill"></div></div>
+    <div class="mod-list" id="modList"></div>
+    <div class="pg-hint">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+      <p><b>说明：</b>学习进度使用浏览器本地存储（localStorage），只在当前设备上有效，换电脑、换浏览器或清除浏览器数据后进度会重置。若需跨设备同步，需接入公司账号体系（后续可选）。</p>
+    </div>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div>
+        <div class="f-brand">
+          <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="3.2"/></svg></span>
+          亚玛芬 AI 知识库
+        </div>
+        <p class="f-desc">由亚玛芬体育 AI 赋能计划维护的内部学习平台，帮助每一位员工从 AI 新手成长为高效使用者。</p>
+      </div>
+      <div>
+        <h6>内容板块</h6>
+        <ul>
+          <li><a href="learn.html">AI 新手入门</a></li>
+          <li><a href="video.html">录播回放</a></li>
+          <li><a href="resources.html">AI 工具与资源</a></li>
+        </ul>
+      </div>
+      <div>
+        <h6>快速入口</h6>
+        <ul>
+          <li><a href="progress.html">我的学习进度</a></li>
+          <li><a href="video.html">课程回放</a></li>
+          <li><a href="resources.html">资源推荐清单</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2026 Amer Sports · AI 赋能计划</span>
+      <span>v0.3 Preview · 简约蓝色版</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+var KEY = 'amer_ai_progress_v1';
+var MODULES = [
+  { id:'ai-what',        name:'AI 是什么',        desc:'定义、概念嵌套、大模型五步原理', href:'detail.html?type=learn&id=ai-what' },
+  { id:'ai-history',     name:'AI 发展史',        desc:'76 年三起两落、八个时代、完整时间线', href:'detail.html?type=learn&id=ai-history' },
+  { id:'prompt-basics',  name:'Prompt / 提示词基础', desc:'四要素、可抄模板、常见误区', href:'learn.html#sec-prompt' },
+  { id:'ai-companies',   name:'AI 公司介绍',      desc:'海外与国内主要厂商一览', href:'detail.html?type=learn&id=ai-companies' },
+  { id:'ai-models',      name:'主流 AI 模型介绍',  desc:'各家模型擅长领域与选型建议', href:'detail.html?type=learn&id=ai-models' },
+  { id:'ai-other',       name:'AI 高频术语速查',  desc:'12 个术语完整解释', href:'detail.html?type=learn&id=ai-other' }
+];
+
+function load(){
+  try{ return JSON.parse(localStorage.getItem(KEY) || '{}'); }catch(e){ return {}; }
+}
+function save(d){ try{ localStorage.setItem(KEY, JSON.stringify(d)); }catch(e){} }
+
+function render(){
+  var data = load();
+  var list = document.getElementById('modList');
+  var html = '';
+  var done = 0;
+  for(var i=0;i<MODULES.length;i++){
+    var m = MODULES[i];
+    var isDone = !!data[m.id];
+    if(isDone) done++;
+    html += '<div class="mod-item' + (isDone?' done':'') + '" data-id="' + m.id + '">' +
+      '<div class="mod-check" data-check="' + m.id + '"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg></div>' +
+      '<div class="mod-info"><b>' + m.name + '</b><small>' + m.desc + '</small></div>' +
+      '<a class="mod-go" href="' + m.href + '">查看<svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>' +
+      '</div>';
+  }
+  list.innerHTML = html;
+
+  var pct = MODULES.length ? Math.round(done / MODULES.length * 100) : 0;
+  document.getElementById('pctNum').textContent = pct + '%';
+  document.getElementById('doneNum').textContent = done;
+  document.getElementById('progFill').style.width = pct + '%';
+
+  var checks = list.querySelectorAll('.mod-check');
+  for(var j=0;j<checks.length;j++){
+    checks[j].addEventListener('click', function(){
+      var id = this.getAttribute('data-check');
+      var d = load();
+      if(d[id]) delete d[id]; else d[id] = true;
+      save(d);
+      render();
+    });
+  }
+}
+
+render();
+</script>
+<script src="search.js"></script>
+</body>
+</html>
