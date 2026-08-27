@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 
@@ -98,11 +98,52 @@ verifierRejects((fixture) => {
   writeFileSync(file, readFileSync(file, 'utf8').replace('</body>', '<img src="bad.svg" alt=""></body>'));
 }, 'index.html: linked SVG gradients are not allowed: bad.svg', 'linked local SVG radialGradient asset');
 
+verifierRejects((fixture) => {
+  writeFileSync(join(fixture, 'bad-css.svg'), '<svg xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="bad"/></defs></svg>');
+  writeFileSync(join(fixture, 'extra.css'), '.bad { background: url("bad-css.svg"); }');
+}, 'extra.css: CSS SVG gradients are not allowed: bad-css.svg', 'unreferenced CSS file with a gradient SVG URL');
+
+verifierRejects((fixture) => {
+  writeFileSync(join(fixture, 'bad-inline.svg'), '<svg xmlns="http://www.w3.org/2000/svg"><defs><radialGradient id="bad"/></defs></svg>');
+  const file = join(fixture, 'index.html');
+  writeFileSync(file, readFileSync(file, 'utf8').replace('</head>', '<style>.bad { background-image: url( "bad-inline.svg?cache=1#paint" ); }</style></head>'));
+}, 'index.html: CSS SVG gradients are not allowed: bad-inline.svg?cache=1#paint', 'HTML style block with a queried gradient SVG URL');
+
+verifierRejects((fixture) => {
+  writeFileSync(join(fixture, 'bad-attribute.svg'), '<svg xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="bad"/></defs></svg>');
+  const file = join(fixture, 'index.html');
+  writeFileSync(file, readFileSync(file, 'utf8').replace('<body>', '<body style="background-image:url(\'bad-attribute.svg\')">'));
+}, 'index.html: CSS SVG gradients are not allowed: bad-attribute.svg', 'HTML style attribute with a gradient SVG URL');
+
+verifierRejects((fixture) => {
+  const file = join(fixture, 'index.html');
+  writeFileSync(file, readFileSync(file, 'utf8').replace('<body>', '<body style="background-image:url(\'../outside.svg\')">'));
+}, 'index.html: CSS SVG escapes site root: ../outside.svg', 'HTML style attribute with an escaping SVG URL');
+
+verifierRejects((fixture) => {
+  writeFileSync(join(fixture, 'clean-target.svg'), '<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0h1v1z"/></svg>');
+  symlinkSync(join(fixture, 'clean-target.svg'), join(fixture, 'linked.svg'));
+  const file = join(fixture, 'index.html');
+  writeFileSync(file, readFileSync(file, 'utf8').replace('<body>', '<body style="background:url(linked.svg)">'));
+}, 'index.html: CSS SVG is a symlink: linked.svg', 'HTML style attribute with a symlinked local SVG URL');
+
+verifierRejects((fixture) => {
+  const file = join(fixture, 'index.html');
+  writeFileSync(file, readFileSync(file, 'utf8').replace('<body>', '<body style="background:url(missing.svg)">'));
+}, 'index.html: CSS SVG is missing: missing.svg', 'HTML style attribute with a missing local SVG URL');
+
 verifierAccepts((fixture) => {
   const file = join(fixture, 'index.html');
   const payload = Buffer.from('not an SVG; the word linearGradient is harmless in a PNG payload test').toString('base64');
   writeFileSync(file, readFileSync(file, 'utf8').replace('</head>', `<style>.ok{background-image:url(data:image/png;base64,${payload})}</style></head>`));
 }, 'ordinary non-SVG data image');
+
+verifierAccepts((fixture) => {
+  writeFileSync(join(fixture, 'clean.svg'), '<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0h1v1z"/></svg>');
+  const file = join(fixture, 'index.html');
+  const style = 'background-image:url(clean.svg?cache=1#icon),url(https://example.com/remote.svg),url(data:image/png;base64,b2s=),url(missing.png)';
+  writeFileSync(file, readFileSync(file, 'utf8').replace('<body>', `<body style="${style}">`));
+}, 'clean local SVG and ignored external/data/non-SVG CSS URLs');
 
 verifierRejects((fixture) => {
   const file = join(fixture, 'index.html');

@@ -1,4 +1,4 @@
-import { lstatSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { lstatSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 
 const root = resolve(process.argv[2] ?? 'site/knowledge-base');
@@ -200,6 +200,22 @@ function srcsetCandidates(value) {
   return (value ?? '').split(',').map((candidate) => candidate.trim().split(/[\t\n\f\r ]+/)[0]).filter(Boolean);
 }
 
+function cssUrlReferences(source) {
+  const withoutComments = source.replace(/\/\*[\s\S]*?\*\//g, '');
+  return [...withoutComments.matchAll(/url\(\s*(?:"([^"]*)"|'([^']*)'|([^)]*?))\s*\)/gi)]
+    .map(([, doubleQuoted, singleQuoted, bare]) => (doubleQuoted ?? singleQuoted ?? bare ?? '').trim())
+    .filter(Boolean);
+}
+
+function isLocalSvgReference(value) {
+  if (!isLocal(value)) return false;
+  try {
+    return /\.svg$/i.test(decodeURIComponent(splitReference(value).path));
+  } catch {
+    return false;
+  }
+}
+
 function hasSvgGradientElement(source) {
   return /<\s*(?:linearGradient|radialGradient)\b/i.test(source);
 }
@@ -225,7 +241,7 @@ function hasForbiddenGradient(source) {
   return false;
 }
 
-function verifyLocalAsset(page, pagePath, value, kind) {
+function verifyLocalAsset(page, pagePath, value, kind, gradientKind = 'linked SVG') {
   if (!isLocal(value)) return;
   const target = resolveLocal(page, pagePath, value, kind);
   if (!target) return;
@@ -238,8 +254,34 @@ function verifyLocalAsset(page, pagePath, value, kind) {
   );
   if (valid && target.rootRelative.toLowerCase().endsWith('.svg')) {
     const svg = readText(target.target, `${page}: could not read linked SVG: ${value}`);
-    if (svg !== null && hasForbiddenGradient(svg)) report(`${page}: linked SVG gradients are not allowed: ${value}`);
+    if (svg !== null && hasForbiddenGradient(svg)) report(`${page}: ${gradientKind} gradients are not allowed: ${value}`);
   }
+}
+
+function verifyCssSvgReferences(context, basePath, source) {
+  for (const value of cssUrlReferences(source)) {
+    if (isLocalSvgReference(value)) verifyLocalAsset(context, basePath, value, 'CSS SVG', 'CSS SVG');
+  }
+}
+
+function cssFiles(directory = root) {
+  const found = [];
+  let entries;
+  try {
+    entries = readdirSync(directory, { withFileTypes: true });
+  } catch {
+    report(`could not inspect CSS directory: ${relative(root, directory) || '.'}`);
+    return found;
+  }
+  for (const entry of entries) {
+    const target = resolve(directory, entry.name);
+    if (entry.isDirectory()) {
+      found.push(...cssFiles(target));
+    } else if (/\.css$/i.test(entry.name)) {
+      found.push(target);
+    }
+  }
+  return found;
 }
 
 for (const page of pages) {
@@ -251,6 +293,12 @@ for (const page of pages) {
   const document = removeInactiveMarkup(html);
 
   if (hasForbiddenGradient(html)) report(`${page}: gradients are not allowed`);
+  for (const match of inspection.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style\s*>/gi)) {
+    verifyCssSvgReferences(page, pagePath, match[1]);
+  }
+  for (const attrs of tags(document, '[a-z][\\w:-]*')) {
+    if (attrs.style) verifyCssSvgReferences(page, pagePath, attrs.style);
+  }
 
   verifyRequiredAsset(page, pagePath, inspection, 'style.css', 'link');
   verifyRequiredAsset(page, pagePath, inspection, 'search.js', 'script');
@@ -286,10 +334,13 @@ for (const page of pages) {
   }
 }
 
-const stylesheet = resolve(root, 'style.css');
-if (isRegularFile(stylesheet, 'missing stylesheet: style.css', 'stylesheet is not a file: style.css', 'stylesheet is a symlink: style.css', 'stylesheet escapes real site root: style.css')) {
-  const css = readText(stylesheet, 'could not read stylesheet: style.css');
-  if (css !== null && hasForbiddenGradient(css)) report('style.css: gradients are not allowed');
+for (const stylesheet of cssFiles()) {
+  const name = relative(root, stylesheet).replace(/\\/g, '/');
+  if (!isRegularFile(stylesheet, `missing stylesheet: ${name}`, `stylesheet is not a file: ${name}`, `stylesheet is a symlink: ${name}`, `stylesheet escapes real site root: ${name}`)) continue;
+  const css = readText(stylesheet, `could not read stylesheet: ${name}`);
+  if (css === null) continue;
+  if (hasForbiddenGradient(css)) report(`${name}: gradients are not allowed`);
+  verifyCssSvgReferences(name, stylesheet, css);
 }
 
 for (const mascot of requiredMascots) {
