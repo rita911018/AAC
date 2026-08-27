@@ -109,28 +109,68 @@ var MODULES = [
   { id:'ai-other',       name:'AI 高频术语速查',  desc:'12 个术语完整解释', href:'detail.html?type=learn&id=ai-other' }
 ];
 
+function normalizeState(value){ return value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {}; }
+var memoryState = {}, storageEnabled = true;
 function load(){
-  try{ return JSON.parse(localStorage.getItem(KEY) || '{}'); }catch(e){ return {}; }
+  if(!storageEnabled) return memoryState;
+  var raw;
+  try{ raw = localStorage.getItem(KEY); }catch(e){ storageEnabled = false; return memoryState; }
+  if(!raw){ memoryState = {}; return memoryState; }
+  try{ memoryState = normalizeState(JSON.parse(raw)); }catch(e){ memoryState = {}; }
+  return memoryState;
 }
-function save(d){ try{ localStorage.setItem(KEY, JSON.stringify(d)); }catch(e){} }
+function save(d){
+  memoryState = normalizeState(d);
+  if(!storageEnabled) return;
+  try{ localStorage.setItem(KEY, JSON.stringify(memoryState)); }catch(e){ storageEnabled = false; }
+}
+function safeLocalHref(value){
+  var href = String(value || '');
+  if(!href) return '#';
+  try{
+    var url = new URL(href, document.baseURI);
+    if((url.protocol === 'http:' || url.protocol === 'https:' || url.protocol === 'file:') && url.origin === location.origin) return href;
+  }catch(e){}
+  return '#';
+}
 
 function render(focusId){
   var data = load();
   var list = document.getElementById('modList');
-  var html = '';
   var done = 0;
+  list.textContent = '';
   for(var i=0;i<MODULES.length;i++){
     var m = MODULES[i];
     var isDone = !!data[m.id];
     if(isDone) done++;
     var label = isDone ? '取消「' + m.name + '」完成状态' : '标记「' + m.name + '」为已完成';
-    html += '<div class="mod-item' + (isDone?' done':'') + '" data-id="' + m.id + '">' +
-      '<button type="button" class="mod-check" data-check="' + m.id + '" aria-pressed="' + (isDone ? 'true' : 'false') + '" aria-label="' + label + '"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12l5 5L20 6"/></svg></button>' +
-      '<div class="mod-info"><b>' + m.name + '</b><small>' + m.desc + '</small></div>' +
-      '<a class="mod-go" href="' + m.href + '">查看<svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>' +
-      '</div>';
+    var item = document.createElement('div');
+    item.className = 'mod-item' + (isDone ? ' done' : '');
+    item.setAttribute('data-id', m.id);
+    var check = document.createElement('button');
+    check.type = 'button';
+    check.className = 'mod-check';
+    check.setAttribute('data-check', m.id);
+    check.setAttribute('aria-pressed', isDone ? 'true' : 'false');
+    check.setAttribute('aria-label', label);
+    check.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12l5 5L20 6"/></svg>';
+    var info = document.createElement('div');
+    info.className = 'mod-info';
+    var title = document.createElement('b');
+    title.textContent = m.name;
+    var desc = document.createElement('small');
+    desc.textContent = m.desc;
+    info.appendChild(title);
+    info.appendChild(desc);
+    var go = document.createElement('a');
+    go.className = 'mod-go';
+    go.setAttribute('href', safeLocalHref(m.href));
+    go.innerHTML = '查看<svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>';
+    item.appendChild(check);
+    item.appendChild(info);
+    item.appendChild(go);
+    list.appendChild(item);
   }
-  list.innerHTML = html;
 
   var pct = MODULES.length ? Math.round(done / MODULES.length * 100) : 0;
   document.getElementById('pctNum').textContent = pct + '%';
@@ -148,8 +188,9 @@ function render(focusId){
     });
   }
   if(focusId){
-    var focused = list.querySelector('.mod-check[data-check="' + focusId + '"]');
-    if(focused) focused.focus();
+    for(var k=0;k<checks.length;k++){
+      if(checks[k].getAttribute('data-check') === String(focusId)){ checks[k].focus(); break; }
+    }
   }
 }
 

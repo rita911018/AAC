@@ -548,7 +548,24 @@ function qs(name){
   var m = location.search.match(new RegExp('[?&]' + name + '=([^&]*)'));
   return m ? decodeURIComponent(m[1]) : '';
 }
-function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+function esc(s){
+  var entities = {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};
+  return String(s).replace(/[&<>"']/g,function(character){ return entities[character]; });
+}
+function syncTableScrollState(){
+  var tables = document.querySelectorAll('.rt-table[data-scroll-label]');
+  for(var i=0;i<tables.length;i++){
+    var table = tables[i];
+    if(table.scrollWidth > table.clientWidth + 1){
+      table.setAttribute('tabindex','0');
+      table.setAttribute('aria-label',table.getAttribute('data-scroll-label'));
+    } else {
+      table.removeAttribute('tabindex');
+      table.removeAttribute('aria-label');
+    }
+  }
+}
+window.addEventListener('resize',syncTableScrollState);
 
 /* ================= 内容渲染器 ================= */
 function renderTimelineItems(items){
@@ -571,7 +588,7 @@ function renderArticle(c){
     if(s.ul){ html += '<ul class="rt-ul">'; for(var b=0;b<s.ul.length;b++) html += '<li>' + s.ul[b] + '</li>'; html += '</ul>'; }
     if(s.code) html += '<div class="rt-code">' + esc(s.code) + '</div>';
     if(s.table){
-      html += '<table class="rt-table" tabindex="0" aria-label="' + esc('横向滚动查看「' + (s.h || '详情内容') + '」数据表') + '"><tr>'; for(var h=0;h<s.table.head.length;h++) html += '<th scope="col">' + esc(s.table.head[h]) + '</th>'; html += '</tr>';
+      html += '<table class="rt-table" data-scroll-label="' + esc('横向滚动查看「' + (s.h || '详情内容') + '」数据表') + '"><tr>'; for(var h=0;h<s.table.head.length;h++) html += '<th scope="col">' + esc(s.table.head[h]) + '</th>'; html += '</tr>';
       for(var r=0;r<s.table.rows.length;r++){ html += '<tr>'; for(var d=0;d<s.table.rows[r].length;d++) html += '<td>' + esc(s.table.rows[r][d]) + '</td>'; html += '</tr>'; }
       html += '</table>';
     }
@@ -776,6 +793,7 @@ function renderVideoList(id){
       }
       break;
   }
+  syncTableScrollState();
 })();
 
 </script>

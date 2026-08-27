@@ -10,6 +10,7 @@
   --quiet:#52647D;
   --on-navy:#D7E0EB;--on-navy-muted:#B8C6D8;
   --line:#DCE5F0;
+  --control-border:#71839C;
   --radius:12px;
   --content:1180px;
   --font-sans:"Inter","PingFang SC","Microsoft YaHei",system-ui,-apple-system,sans-serif;
@@ -302,7 +303,7 @@ body .ls-fill,body .ls-collapse-fill{background:var(--blue)}
 body .ls-item{min-height:44px;border-radius:4px}
 body .ls-item:hover,body .ls-item.active{background:var(--blue-soft)}
 body .ls-check{position:relative;width:44px!important;height:44px!important;display:grid;place-items:center;flex:none;border:0!important;border-radius:0!important;background:transparent!important;cursor:pointer}
-body .ls-check::before{content:"";position:absolute;top:50%;left:50%;width:18px;height:18px;border:2px solid var(--line);border-radius:6px;background:var(--white);transform:translate(-50%,-50%)}
+body .ls-check::before{content:"";position:absolute;top:50%;left:50%;width:18px;height:18px;border:2px solid var(--control-border);border-radius:6px;background:var(--white);transform:translate(-50%,-50%)}
 body .ls-item.done .ls-check::before{border-color:var(--blue);background:var(--blue)}
 body .ls-check svg{position:relative;z-index:1;width:11px;height:11px}
 body .ls-item.done .ls-check svg{opacity:1}
@@ -315,7 +316,7 @@ body .mod-item{min-height:76px;border-top:0}
 body .mod-item:first-child{border-top:1px solid var(--line)}
 body .mod-item.done{background:var(--blue-soft)}
 body .mod-check{position:relative;width:44px!important;height:44px!important;display:grid;place-items:center;flex:none;border:0!important;border-radius:0!important;background:transparent!important;cursor:pointer}
-body .mod-check::before{content:"";position:absolute;top:50%;left:50%;width:26px;height:26px;border:2px solid var(--line);border-radius:6px;background:var(--white);transform:translate(-50%,-50%)}
+body .mod-check::before{content:"";position:absolute;top:50%;left:50%;width:26px;height:26px;border:2px solid var(--control-border);border-radius:6px;background:var(--white);transform:translate(-50%,-50%)}
 body .mod-item.done .mod-check::before{border-color:var(--blue);background:var(--blue)}
 body .mod-check svg{position:relative;z-index:1;width:15px;height:15px}
 body .mod-item.done .mod-check svg{opacity:1}
@@ -333,7 +334,7 @@ body .lp-top{width:44px!important;height:44px!important}
 .mod-item{padding:18px 20px;display:flex;align-items:center;gap:16px;border:1px solid var(--line);border-radius:var(--radius);background:var(--white);box-shadow:var(--shadow-card);transition:border-color .2s,box-shadow .2s}
 .mod-item:hover{border-color:var(--blue);box-shadow:var(--shadow-hover)}
 .mod-item.done{border-color:var(--line);background:var(--blue-soft)}
-.mod-check{width:26px;height:26px;padding:0;display:grid;place-items:center;flex:none;border:2px solid var(--line);border-radius:8px;background:var(--white);color:inherit;transition:background-color .2s,border-color .2s}
+.mod-check{width:26px;height:26px;padding:0;display:grid;place-items:center;flex:none;border:2px solid var(--control-border);border-radius:8px;background:var(--white);color:inherit;transition:background-color .2s,border-color .2s}
 .mod-check svg{width:15px;height:15px;stroke:var(--white);stroke-width:3;opacity:0;transition:opacity .15s}
 .mod-item.done .mod-check{border-color:var(--blue);background:var(--blue)}
 .mod-item.done .mod-check svg{opacity:1}
