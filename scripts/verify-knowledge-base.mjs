@@ -1,5 +1,5 @@
-import { lstatSync, readFileSync, statSync } from 'node:fs';
-import { dirname, isAbsolute, relative, resolve } from 'node:path';
+import { lstatSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 
 const root = resolve(process.argv[2] ?? 'site/knowledge-base');
 const pages = ['index.html', 'learn.html', 'video.html', 'resources.html', 'detail.html', 'progress.html'];
@@ -123,7 +123,23 @@ function resolveLocal(page, pagePath, value, kind) {
   return { target, rootRelative: rootRelative.replace(/\\/g, '/') };
 }
 
-function isRegularFile(target, missingMessage, nonFileMessage, symlinkMessage) {
+function isInsideRealRoot(target, escapeMessage) {
+  try {
+    const realRoot = realpathSync(root);
+    const realTarget = realpathSync(target);
+    const rootPrefix = realRoot.endsWith(sep) ? realRoot : `${realRoot}${sep}`;
+    if (realTarget !== realRoot && !realTarget.startsWith(rootPrefix)) {
+      report(escapeMessage);
+      return false;
+    }
+    return true;
+  } catch {
+    report(`${escapeMessage}: could not resolve real path`);
+    return false;
+  }
+}
+
+function isRegularFile(target, missingMessage, nonFileMessage, symlinkMessage, escapeMessage) {
   try {
     if (lstatSync(target).isSymbolicLink()) {
       report(symlinkMessage);
@@ -133,7 +149,7 @@ function isRegularFile(target, missingMessage, nonFileMessage, symlinkMessage) {
       report(nonFileMessage);
       return false;
     }
-    return true;
+    return isInsideRealRoot(target, escapeMessage);
   } catch {
     report(missingMessage);
     return false;
@@ -162,6 +178,7 @@ function verifyRequiredAsset(page, pagePath, document, asset, tagName) {
       `${page}: referenced asset is missing: ${asset}`,
       `${page}: referenced asset is not a file: ${asset}`,
       `${page}: referenced asset is a symlink: ${asset}`,
+      `${page}: referenced asset escapes real site root: ${asset}`,
     );
   }
   if (!referenced) report(`${page}: missing required asset: ${asset}`);
@@ -181,7 +198,7 @@ function verifyFragment(page, href, target) {
 
 for (const page of pages) {
   const pagePath = resolve(root, page);
-  if (!isRegularFile(pagePath, `missing page: ${page}`, `page is not a file: ${page}`, `page is a symlink: ${page}`)) continue;
+  if (!isRegularFile(pagePath, `missing page: ${page}`, `page is not a file: ${page}`, `page is a symlink: ${page}`, `page escapes real site root: ${page}`)) continue;
   const html = readText(pagePath, `could not read page: ${page}`);
   if (html === null) continue;
   const inspection = hookMarkup(html);
@@ -203,6 +220,7 @@ for (const page of pages) {
         `${page}: anchor target file is missing: ${splitReference(attrs.href).path || page}`,
         `${page}: local target is not a file: ${splitReference(attrs.href).path || page}`,
         `${page}: local target is a symlink: ${splitReference(attrs.href).path || page}`,
+        `${page}: local target escapes real site root: ${splitReference(attrs.href).path || page}`,
       )) verifyFragment(page, attrs.href, target.target);
     }
     if (attrs.target?.toLowerCase() === '_blank' && isExternalHttp(attrs.href) && !tokens(attrs.rel).includes('noopener')) {
@@ -218,18 +236,19 @@ for (const page of pages) {
       `${page}: image is missing: ${attrs.src}`,
       `${page}: image is not a file: ${attrs.src}`,
       `${page}: image is a symlink: ${attrs.src}`,
+      `${page}: image escapes real site root: ${attrs.src}`,
     );
   }
 }
 
 const stylesheet = resolve(root, 'style.css');
-if (isRegularFile(stylesheet, 'missing stylesheet: style.css', 'stylesheet is not a file: style.css', 'stylesheet is a symlink: style.css')) {
+if (isRegularFile(stylesheet, 'missing stylesheet: style.css', 'stylesheet is not a file: style.css', 'stylesheet is a symlink: style.css', 'stylesheet escapes real site root: style.css')) {
   const css = readText(stylesheet, 'could not read stylesheet: style.css');
   if (css !== null && /gradient\s*\(/i.test(css)) report('style.css: gradients are not allowed');
 }
 
 for (const mascot of requiredMascots) {
-  isRegularFile(resolve(root, mascot), `missing required mascot: ${mascot}`, `required mascot is not a file: ${mascot}`, `required mascot is a symlink: ${mascot}`);
+  isRegularFile(resolve(root, mascot), `missing required mascot: ${mascot}`, `required mascot is not a file: ${mascot}`, `required mascot is a symlink: ${mascot}`, `required mascot escapes real site root: ${mascot}`);
 }
 
 if (errors.length) {
