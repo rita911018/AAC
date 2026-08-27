@@ -217,7 +217,7 @@ function isLocalSvgReference(value) {
 }
 
 function hasSvgGradientElement(source) {
-  return /<\s*(?:linearGradient|radialGradient)\b/i.test(source);
+  return /<\s*(?:[A-Za-z_][\w.-]*:)?(?:linearGradient|radialGradient)\b/i.test(source);
 }
 
 function hasForbiddenGradient(source) {

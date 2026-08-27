@@ -104,6 +104,17 @@ verifierRejects((fixture) => {
 }, 'extra.css: CSS SVG gradients are not allowed: bad-css.svg', 'unreferenced CSS file with a gradient SVG URL');
 
 verifierRejects((fixture) => {
+  writeFileSync(join(fixture, 'prefixed-linear.svg'), '<svg xmlns="http://www.w3.org/2000/svg" xmlns:svg="http://www.w3.org/2000/svg"><defs><svg:linearGradient id="bad" spreadMethod="pad"/></defs></svg>');
+  writeFileSync(join(fixture, 'prefixed-linear.css'), '.bad { background: url("prefixed-linear.svg"); }');
+}, 'prefixed-linear.css: CSS SVG gradients are not allowed: prefixed-linear.svg', 'CSS-linked SVG namespace-prefixed linearGradient');
+
+verifierRejects((fixture) => {
+  writeFileSync(join(fixture, 'prefixed-radial.svg'), '<svg xmlns="http://www.w3.org/2000/svg" xmlns:foo="http://www.w3.org/2000/svg"><defs><foo:radialGradient id="bad" cx="50%"/></defs></svg>');
+  const file = join(fixture, 'index.html');
+  writeFileSync(file, readFileSync(file, 'utf8').replace('</head>', '<style>.bad { background: url( prefixed-radial.svg ); }</style></head>'));
+}, 'index.html: CSS SVG gradients are not allowed: prefixed-radial.svg', 'inline CSS-linked SVG namespace-prefixed radialGradient');
+
+verifierRejects((fixture) => {
   writeFileSync(join(fixture, 'bad-inline.svg'), '<svg xmlns="http://www.w3.org/2000/svg"><defs><radialGradient id="bad"/></defs></svg>');
   const file = join(fixture, 'index.html');
   writeFileSync(file, readFileSync(file, 'utf8').replace('</head>', '<style>.bad { background-image: url( "bad-inline.svg?cache=1#paint" ); }</style></head>'));
