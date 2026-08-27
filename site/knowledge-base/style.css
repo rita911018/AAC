@@ -36,6 +36,7 @@ h1,h2,h3,h4,h5,h6,p{margin-top:0}
 :focus-visible{outline:3px solid var(--blue);outline-offset:3px}
 ::selection{background:var(--blue-soft);color:var(--navy)}
 .container{width:min(100% - 56px,var(--content));margin-inline:auto}
+.reading-shell{max-width:860px}
 .sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
 
 /* Header and search */
@@ -102,6 +103,10 @@ h1,h2,h3,h4,h5,h6,p{margin-top:0}
 .hero-mascot{position:relative;right:auto;bottom:auto;z-index:3;grid-column:2;grid-row:1;width:clamp(148px,16vw,190px);height:240px;max-height:240px;display:flex;align-items:flex-end;justify-content:center;justify-self:end;align-self:end;pointer-events:none}
 .hero-mascot img{width:100%;height:100%;max-height:240px;object-fit:contain;object-position:center bottom;filter:none}
 .hero-mascot .mascot-status{position:absolute;right:0;bottom:16px;z-index:2}
+.learn-hero .container{row-gap:20px}
+.learn-hero .bh-left{grid-column:1;grid-row:1}
+.learn-hero .hero-mascot{grid-column:2;grid-row:1/3}
+.learn-hero .bh-meta{grid-column:1;grid-row:2;justify-self:start}
 .bh-mascot{position:relative;z-index:2;width:clamp(148px,16vw,190px);max-height:220px;align-self:end;object-fit:contain;filter:none}
 .mascot-status{min-height:32px;padding:5px 10px;display:inline-flex;align-items:center;gap:7px;border:1px solid rgba(255,255,255,.24);border-radius:6px;background:var(--navy-2);color:var(--white);font:650 11px/1.5 var(--font-mono)}
 .mascot-status::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--blue)}
@@ -250,6 +255,7 @@ body .qz-hint,body .ls-tip{font-size:14px;line-height:1.6}
 body .lp-blog-card .blink{min-height:44px;display:inline-flex;align-items:center;font-size:14px;line-height:1.5}
 body .rt-code,body .lp-code{border:1px solid var(--navy-2);border-radius:8px;background:var(--navy);color:#DDE8F9;font:500 13px/1.8 var(--font-mono)}
 body .rt-table{display:block;width:100%;max-width:100%;overflow-x:auto;border-collapse:collapse;font-size:14px;overscroll-behavior-inline:contain;-webkit-overflow-scrolling:touch}
+body .rt-table:focus-visible{outline:3px solid var(--blue);outline-offset:3px}
 body .rt-table>tbody{display:table;width:max(100%,620px);border-collapse:collapse;table-layout:auto}
 .xa-vs table{width:100%;border-collapse:collapse;font-size:14px}
 body .rt-table th,.xa-vs th{padding:10px 12px;border-bottom:2px solid var(--line);color:var(--muted);font:650 12px/1.5 var(--font-mono);text-align:left}
@@ -316,6 +322,30 @@ body .mod-item.done .mod-check svg{opacity:1}
 body .mod-go{width:auto;min-width:44px;min-height:44px;padding-inline:8px;display:inline-flex;align-items:center;justify-content:center;gap:4px;overflow:visible;font-size:14px;white-space:nowrap}
 body .prog-fill{background:var(--blue)}
 body .lp-top{width:44px!important;height:44px!important}
+
+/* Progress page */
+.progress-section{padding-bottom:40px}
+.progress-shell{max-width:880px}
+.prog-bar{height:10px;margin:6px 0 4px;overflow:hidden;border-radius:99px;background:var(--line)}
+.prog-fill{width:0;height:100%;border-radius:99px;background:var(--blue);transition:width .4s}
+.prog-num{color:var(--blue);font:700 13px/1.5 var(--font-mono)}
+.mod-list{margin-top:8px;display:flex;flex-direction:column;gap:14px}
+.mod-item{padding:18px 20px;display:flex;align-items:center;gap:16px;border:1px solid var(--line);border-radius:var(--radius);background:var(--white);box-shadow:var(--shadow-card);transition:border-color .2s,box-shadow .2s}
+.mod-item:hover{border-color:var(--blue);box-shadow:var(--shadow-hover)}
+.mod-item.done{border-color:var(--line);background:var(--blue-soft)}
+.mod-check{width:26px;height:26px;padding:0;display:grid;place-items:center;flex:none;border:2px solid var(--line);border-radius:8px;background:var(--white);color:inherit;transition:background-color .2s,border-color .2s}
+.mod-check svg{width:15px;height:15px;stroke:var(--white);stroke-width:3;opacity:0;transition:opacity .15s}
+.mod-item.done .mod-check{border-color:var(--blue);background:var(--blue)}
+.mod-item.done .mod-check svg{opacity:1}
+.mod-info{min-width:0;flex:1}
+.mod-info b{display:block;color:var(--ink);font-size:15px;font-weight:700}
+.mod-item.done .mod-info b{color:var(--quiet)}
+.mod-info small{margin-top:2px;display:block;color:var(--muted);font-size:12.5px}
+.mod-go{flex:none;color:var(--blue);font-size:13px;font-weight:600;white-space:nowrap}
+.mod-go svg{width:14px;height:14px;stroke:var(--blue);vertical-align:-2px}
+.pg-hint{margin-top:22px;padding:14px 16px;display:flex;align-items:flex-start;gap:10px;border:1px dashed var(--blue);border-radius:10px;background:var(--blue-soft)}
+.pg-hint svg{width:18px;height:18px;margin-top:2px;flex:none;stroke:var(--blue)}
+.pg-hint p{color:var(--muted);font-size:12.5px;line-height:1.6}
 
 /* Xiao A, comparison table, and prompt card */
 .xa-prompt-card{padding:30px;display:flex;align-items:center;gap:32px;border:solid var(--line);border-width:1px 0;border-radius:0;background:var(--white);box-shadow:none;transition:border-color 160ms ease,background-color 160ms ease}
@@ -419,6 +449,7 @@ body .xa-hero .xh-side li b{color:var(--white)}
   .nav-right{order:2}.search-box{width:180px}.crumb{width:min(100% - 32px,var(--content))}
   .board-hero .container{grid-template-columns:1fr;align-items:start;gap:28px;min-height:0;padding-block:48px}
   .hero-mascot{position:relative;right:auto;bottom:auto;grid-column:1;grid-row:auto;width:132px;height:150px;max-height:150px;margin-top:16px;justify-self:start;align-self:start;transform:none;opacity:1}.hero-mascot img{max-height:150px}.bh-mascot{position:static;width:132px;max-height:150px;justify-self:start;align-self:auto;transform:none;opacity:1}.bh-meta{grid-column:auto;width:100%}
+  .learn-hero .bh-left,.learn-hero .hero-mascot,.learn-hero .bh-meta{grid-column:1;grid-row:auto}.learn-hero .bh-meta{justify-self:stretch}
   .section-head{align-items:flex-start;flex-direction:column}.sub-grid,.video-grid,.gate-home-grid,.xa-qa-grid{grid-template-columns:1fr}.footer-grid{grid-template-columns:1.4fr 1fr}
   body .xa-hero{grid-template-columns:1fr;gap:24px}body .lp-anchor{top:64px}
   body .lp-anchor-inner,body .lp-shell{width:min(100% - 32px,var(--content))}body .lp-shell{flex-direction:column;gap:20px}

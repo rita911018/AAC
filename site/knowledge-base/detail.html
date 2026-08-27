@@ -13,7 +13,7 @@
 .sk-vlist{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
 .sk-vcard{background:#fff;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
 .sk-vcard .sk-thumb{position:relative;aspect-ratio:16/9;background:#163059;display:grid;place-items:center}
-.sk-vcard .sk-thumb::before{content:"";position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.05) 1px,transparent 1px);background-size:26px 26px}
+.sk-vcard .sk-thumb::before{content:"";position:absolute;inset:12px;border:1px solid rgba(255,255,255,.12)}
 .sk-vcard .sk-thumb .play{position:relative;z-index:2;width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,.9);display:grid;place-items:center}
 .sk-vcard .sk-thumb .play svg{width:17px;height:17px;fill:#0E2144;margin-left:2px}
 .sk-vcard .sk-thumb .sk-dur{position:absolute;z-index:2;right:12px;bottom:12px;width:42px;height:18px;border-radius:6px;background:rgba(8,18,38,.5)}
@@ -126,7 +126,7 @@
 
 <!-- ========== 内容骨架 ========== -->
 <section class="detail-body">
-  <div class="container" style="max-width:880px">
+  <div class="container reading-shell">
     <div class="detail-card">
       <div class="dc-head">
         <span class="dot"></span>
@@ -172,7 +172,7 @@
     </div>
     <div class="footer-bottom">
       <span>© 2026 Amer Sports · AI 赋能计划</span>
-      <span>v0.3 Preview · 简约蓝色版</span>
+      <span>v0.4 · Editorial AI</span>
     </div>
   </div>
 </footer>
@@ -571,7 +571,7 @@ function renderArticle(c){
     if(s.ul){ html += '<ul class="rt-ul">'; for(var b=0;b<s.ul.length;b++) html += '<li>' + s.ul[b] + '</li>'; html += '</ul>'; }
     if(s.code) html += '<div class="rt-code">' + esc(s.code) + '</div>';
     if(s.table){
-      html += '<table class="rt-table"><tr>'; for(var h=0;h<s.table.head.length;h++) html += '<th>' + esc(s.table.head[h]) + '</th>'; html += '</tr>';
+      html += '<table class="rt-table" tabindex="0" aria-label="' + esc('横向滚动查看「' + (s.h || '详情内容') + '」数据表') + '"><tr>'; for(var h=0;h<s.table.head.length;h++) html += '<th scope="col">' + esc(s.table.head[h]) + '</th>'; html += '</tr>';
       for(var r=0;r<s.table.rows.length;r++){ html += '<tr>'; for(var d=0;d<s.table.rows[r].length;d++) html += '<td>' + esc(s.table.rows[r][d]) + '</td>'; html += '</tr>'; }
       html += '</table>';
     }

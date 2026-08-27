@@ -8,28 +8,6 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
-<style>
-.prog-bar{height:10px;border-radius:99px;background:var(--line);overflow:hidden;margin:6px 0 4px}
-.prog-fill{height:100%;width:0;background:var(--blue-600);border-radius:99px;transition:width .4s}
-.prog-num{font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--blue-600)}
-.mod-list{display:flex;flex-direction:column;gap:14px;margin-top:8px}
-.mod-item{display:flex;align-items:center;gap:16px;background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow-card);transition:border-color .2s,box-shadow .2s}
-.mod-item:hover{border-color:var(--blue-500);box-shadow:var(--shadow-hover)}
-.mod-item.done{background:#FBFDFF;border-color:var(--blue-100)}
-.mod-check{flex:none;width:26px;height:26px;border-radius:8px;border:2px solid var(--line);display:grid;place-items:center;cursor:pointer;transition:all .2s;background:#fff}
-.mod-check svg{width:15px;height:15px;stroke:#fff;stroke-width:3;opacity:0;transition:opacity .15s}
-.mod-item.done .mod-check{background:var(--blue-600);border-color:var(--blue-600)}
-.mod-item.done .mod-check svg{opacity:1}
-.mod-info{flex:1;min-width:0}
-.mod-info b{display:block;font-size:15px;font-weight:700;color:var(--ink-900)}
-.mod-item.done .mod-info b{color:var(--ink-400)}
-.mod-info small{display:block;font-size:12.5px;color:var(--ink-500);margin-top:2px}
-.mod-go{flex:none;font-size:13px;font-weight:600;color:var(--blue-600);white-space:nowrap}
-.mod-go svg{width:14px;height:14px;stroke:var(--blue-600);vertical-align:-2px}
-.pg-hint{display:flex;gap:10px;align-items:flex-start;background:var(--blue-50);border:1px dashed var(--blue-500);border-radius:10px;padding:14px 16px;margin-top:22px}
-.pg-hint svg{width:18px;height:18px;stroke:var(--blue-600);flex:none;margin-top:2px}
-.pg-hint p{font-size:12.5px;color:var(--ink-500);line-height:1.6}
-</style>
 </head>
 <body>
 
@@ -75,8 +53,8 @@
   </div>
 </section>
 
-<section class="section" style="padding-bottom:40px">
-  <div class="container" style="max-width:880px">
+<section class="section progress-section">
+  <div class="container progress-shell">
     <div class="prog-bar"><div class="prog-fill" id="progFill"></div></div>
     <div class="mod-list" id="modList"></div>
     <div class="pg-hint">
@@ -115,7 +93,7 @@
     </div>
     <div class="footer-bottom">
       <span>© 2026 Amer Sports · AI 赋能计划</span>
-      <span>v0.3 Preview · 简约蓝色版</span>
+      <span>v0.4 · Editorial AI</span>
     </div>
   </div>
 </footer>
@@ -136,7 +114,7 @@ function load(){
 }
 function save(d){ try{ localStorage.setItem(KEY, JSON.stringify(d)); }catch(e){} }
 
-function render(){
+function render(focusId){
   var data = load();
   var list = document.getElementById('modList');
   var html = '';
@@ -145,8 +123,9 @@ function render(){
     var m = MODULES[i];
     var isDone = !!data[m.id];
     if(isDone) done++;
+    var label = isDone ? '取消「' + m.name + '」完成状态' : '标记「' + m.name + '」为已完成';
     html += '<div class="mod-item' + (isDone?' done':'') + '" data-id="' + m.id + '">' +
-      '<div class="mod-check" data-check="' + m.id + '"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg></div>' +
+      '<button type="button" class="mod-check" data-check="' + m.id + '" aria-pressed="' + (isDone ? 'true' : 'false') + '" aria-label="' + label + '"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12l5 5L20 6"/></svg></button>' +
       '<div class="mod-info"><b>' + m.name + '</b><small>' + m.desc + '</small></div>' +
       '<a class="mod-go" href="' + m.href + '">查看<svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>' +
       '</div>';
@@ -165,8 +144,12 @@ function render(){
       var d = load();
       if(d[id]) delete d[id]; else d[id] = true;
       save(d);
-      render();
+      render(id);
     });
+  }
+  if(focusId){
+    var focused = list.querySelector('.mod-check[data-check="' + focusId + '"]');
+    if(focused) focused.focus();
   }
 }
 
