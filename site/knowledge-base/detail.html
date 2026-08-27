@@ -552,6 +552,32 @@ function esc(s){
   var entities = {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};
   return String(s).replace(/[&<>"']/g,function(character){ return entities[character]; });
 }
+function sanitizeInlineRichText(value){
+  var template = document.createElement('template');
+  template.innerHTML = String(value);
+  function clean(nodes){
+    var html = '';
+    for(var i=0;i<nodes.length;i++){
+      var node = nodes[i];
+      if(node.nodeType === 3){
+        html += esc(node.data);
+      } else if(node.nodeType === 1){
+        var inner = clean(node.childNodes);
+        var tag = node.tagName.toLowerCase();
+        html += (tag === 'b' || tag === 'strong') ? '<' + tag + '>' + inner + '</' + tag + '>' : inner;
+      }
+    }
+    return html;
+  }
+  return clean(template.content.childNodes);
+}
+function safeHttpUrl(value){
+  try{
+    var url = new URL(String(value),document.baseURI);
+    if(url.protocol === 'http:' || url.protocol === 'https:') return url.href;
+  }catch(e){}
+  return '';
+}
 function syncTableScrollState(){
   var tables = document.querySelectorAll('.rt-table[data-scroll-label]');
   for(var i=0;i<tables.length;i++){
@@ -585,7 +611,7 @@ function renderArticle(c){
     html += '<div class="rt-sec">';
     if(s.h) html += '<h3>' + esc(s.h) + '</h3>';
     if(s.ps) for(var a=0;a<s.ps.length;a++) html += '<p>' + esc(s.ps[a]) + '</p>';
-    if(s.ul){ html += '<ul class="rt-ul">'; for(var b=0;b<s.ul.length;b++) html += '<li>' + s.ul[b] + '</li>'; html += '</ul>'; }
+    if(s.ul){ html += '<ul class="rt-ul">'; for(var b=0;b<s.ul.length;b++) html += '<li>' + sanitizeInlineRichText(s.ul[b]) + '</li>'; html += '</ul>'; }
     if(s.code) html += '<div class="rt-code">' + esc(s.code) + '</div>';
     if(s.table){
       html += '<table class="rt-table" data-scroll-label="' + esc('横向滚动查看「' + (s.h || '详情内容') + '」数据表') + '"><tr>'; for(var h=0;h<s.table.head.length;h++) html += '<th scope="col">' + esc(s.table.head[h]) + '</th>'; html += '</tr>';
@@ -649,32 +675,70 @@ function renderTimeline(c){
 }
 
 function renderList(c){
-  var html = '';
+  var fragment = document.createDocumentFragment();
   if(c.chips){
-    html += '<div class="filter-chips">';
-    for(var i=0;i<c.chips.length;i++) html += '<span class="chip' + (i===0?' active':'') + '">' + esc(c.chips[i]) + '</span>';
-    html += '</div>';
+    var chips = document.createElement('div');
+    chips.className = 'filter-chips';
+    for(var i=0;i<c.chips.length;i++){
+      var chip = document.createElement('span');
+      chip.className = 'chip' + (i===0 ? ' active' : '');
+      chip.textContent = c.chips[i];
+      chips.appendChild(chip);
+    }
+    fragment.appendChild(chips);
   }
   for(var g=0;g<c.groups.length;g++){
     var grp = c.groups[g];
-    html += '<div class="rt-sec" data-key="' + esc(grp.name) + '" style="margin-bottom:22px"><h3>' + esc(grp.name) + '</h3>';
-    html += '<div class="detail-card" style="box-shadow:none">';
+    var section = document.createElement('div');
+    section.className = 'rt-sec';
+    section.setAttribute('data-key',grp.name);
+    section.style.marginBottom = '22px';
+    var heading = document.createElement('h3');
+    heading.textContent = grp.name;
+    section.appendChild(heading);
+    var card = document.createElement('div');
+    card.className = 'detail-card';
+    card.style.boxShadow = 'none';
     for(var j=0;j<grp.items.length;j++){
       var it = grp.items[j];
-      var bd = 'border-bottom:' + (j<grp.items.length-1?'1px dashed var(--line)':'none');
-      var inner = '<span class="p-logo' + (j%2?' alt':'') + '">' + esc(it.logo) + '</span>' +
-        '<div class="p-info"><b>' + esc(it.name) + ' <span class="p-badge">' + esc(it.badge) + '</span></b>' +
-        '<small>' + esc(it.desc) + '</small></div>' +
-        (it.url?'<span class="p-arrow"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"/></svg></span>':'');
-      if(it.url){
-        html += '<a class="p-row p-link" href="' + it.url + '" target="_blank" rel="noopener" style="' + bd + '">' + inner + '</a>';
-      } else {
-        html += '<div class="p-row" style="' + bd + '">' + inner + '</div>';
+      var safeUrl = it.url ? safeHttpUrl(it.url) : '';
+      var row = document.createElement(safeUrl ? 'a' : 'div');
+      row.className = 'p-row' + (safeUrl ? ' p-link' : '');
+      row.style.borderBottom = j < grp.items.length-1 ? '1px dashed var(--line)' : 'none';
+      if(safeUrl){
+        row.href = safeUrl;
+        row.target = '_blank';
+        row.rel = 'noopener';
       }
+      var logo = document.createElement('span');
+      logo.className = 'p-logo' + (j%2 ? ' alt' : '');
+      logo.textContent = it.logo;
+      var info = document.createElement('div');
+      info.className = 'p-info';
+      var title = document.createElement('b');
+      title.appendChild(document.createTextNode(it.name + ' '));
+      var badge = document.createElement('span');
+      badge.className = 'p-badge';
+      badge.textContent = it.badge;
+      title.appendChild(badge);
+      var desc = document.createElement('small');
+      desc.textContent = it.desc;
+      info.appendChild(title);
+      info.appendChild(desc);
+      row.appendChild(logo);
+      row.appendChild(info);
+      if(safeUrl){
+        var arrow = document.createElement('span');
+        arrow.className = 'p-arrow';
+        arrow.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8"/></svg>';
+        row.appendChild(arrow);
+      }
+      card.appendChild(row);
     }
-    html += '</div></div>';
+    section.appendChild(card);
+    fragment.appendChild(section);
   }
-  return html;
+  return fragment;
 }
 
 function initListFilter(){
@@ -708,20 +772,59 @@ function initListFilter(){
 
 function renderVideoList(id){
   var real = VIDEO_REAL[id] || [];
-  var html = '<div class="sk-vlist">';
   var thumbs = ['thumb-landscape','thumb-stars','thumb-aurora'];
+  if(!real.length){
+    var placeholder = document.createElement('div');
+    placeholder.className = 'placeholder-note';
+    placeholder.style.marginTop = '0';
+    placeholder.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg><p><b>暂无回放：</b>该分类还没有接入真实录播，敬请期待。</p>';
+    return placeholder;
+  }
+  var list = document.createElement('div');
+  list.className = 'sk-vlist';
   for(var r=0;r<real.length;r++){
     var it = real[r];
-    html += '<a class="sk-vcard rv-real" href="' + it.url + '" target="_blank" rel="noopener">' +
-      '<div class="sk-thumb ' + thumbs[r%3] + '"><span class="rv-badge-demo rv-badge-real">' + esc(it.tag) + '</span><span class="play"><svg viewBox="0 0 24 24"><path d="M6 4l14 8-14 8V4z"/></svg></span><span class="rv-dur-txt">回放</span></div>' +
-      '<div class="sk-body"><b class="rv-title">' + esc(it.title) + '</b>' +
-      '<div class="rv-meta"><span>AI 赋能小组</span><span>SharePoint 回放</span></div>' +
-      '<div class="rv-tagrow"><span>点击观看 ↗</span></div></div></a>';
+    var safeUrl = safeHttpUrl(it.url);
+    var item = document.createElement(safeUrl ? 'a' : 'div');
+    item.className = 'sk-vcard rv-real';
+    if(safeUrl){
+      item.href = safeUrl;
+      item.target = '_blank';
+      item.rel = 'noopener';
+    }
+    var thumb = document.createElement('div');
+    thumb.className = 'sk-thumb ' + thumbs[r%3];
+    var tag = document.createElement('span');
+    tag.className = 'rv-badge-demo rv-badge-real';
+    tag.textContent = it.tag;
+    var play = document.createElement('span');
+    play.className = 'play';
+    play.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4l14 8-14 8V4z"/></svg>';
+    var duration = document.createElement('span');
+    duration.className = 'rv-dur-txt';
+    duration.textContent = '回放';
+    thumb.appendChild(tag);
+    thumb.appendChild(play);
+    thumb.appendChild(duration);
+    var itemBody = document.createElement('div');
+    itemBody.className = 'sk-body';
+    var itemTitle = document.createElement('b');
+    itemTitle.className = 'rv-title';
+    itemTitle.textContent = it.title;
+    var meta = document.createElement('div');
+    meta.className = 'rv-meta';
+    meta.innerHTML = '<span>AI 赋能小组</span><span>SharePoint 回放</span>';
+    var tagRow = document.createElement('div');
+    tagRow.className = 'rv-tagrow';
+    tagRow.innerHTML = '<span>点击观看 ↗</span>';
+    itemBody.appendChild(itemTitle);
+    itemBody.appendChild(meta);
+    itemBody.appendChild(tagRow);
+    item.appendChild(thumb);
+    item.appendChild(itemBody);
+    list.appendChild(item);
   }
-  if(!real.length){
-    html = '<div class="placeholder-note" style="margin-top:0"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg><p><b>暂无回放：</b>该分类还没有接入真实录播，敬请期待。</p></div>';
-  }
-  return html + '</div>';
+  return list;
 }
 
 /* ================= 渲染主流程 ================= */
@@ -779,12 +882,12 @@ function renderVideoList(id){
       break;
     case 'list':
       titleEl.textContent = '清单'; noteEl.textContent = 'LIST';
-      bodyEl.innerHTML = content ? renderList(content) : '';
+      if(content) bodyEl.replaceChildren(renderList(content)); else bodyEl.textContent = '';
       initListFilter();
       break;
     case 'video-list':
       titleEl.textContent = '课程回放'; noteEl.textContent = 'VIDEO LIST';
-      bodyEl.innerHTML = renderVideoList(id);
+      bodyEl.replaceChildren(renderVideoList(id));
       if(VIDEO_REAL[id] && VIDEO_REAL[id].length){
         phBox.style.display = 'flex';
         phNote.innerHTML = '<b>点击卡片即可观看：</b>以下为已接入的真实录播，点击会跳转到公司 SharePoint 站点观看（需登录公司账号）。';

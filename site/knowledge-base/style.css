@@ -263,9 +263,9 @@ body .rt-table th,.xa-vs th{padding:10px 12px;border-bottom:2px solid var(--line
 body .rt-table td,.xa-vs td{padding:12px;border-bottom:1px solid var(--line);color:var(--muted);vertical-align:top}
 body .kb-quote,body .lp-quote{border:1px solid var(--line);border-left:3px solid var(--blue);border-radius:6px;background:var(--blue-soft);color:var(--muted);font-size:14px}
 body .kb-cards,body .kb-eras,body .lp-cards,body .lp-formula,body .lp-ent-grid{gap:16px}
-body .kb-card,body .kb-term,body .kb-era,body .lp-card,body .lp-ent,body .lp-blog-card,body .lp-quiz,body .lp-guide,body .lp-term,body .lp-step-panel,body .lp-fig,body .ls-card,body .mod-item,body .sk-vcard{border:solid var(--line);border-width:1px 0;border-radius:0;background:var(--white);box-shadow:none}
-body .kb-card:hover,body .lp-card:hover,body .lp-ent:hover,body .lp-blog-card:hover,body .rv-real:hover,body .mod-item:hover{border-color:var(--blue);box-shadow:none;transform:none}
-body .kb-card p,body .kb-term .kt-row,body .kb-era p,body .lp-card p,body .lp-ent p,body .lp-blog-card p,body .mod-info small{color:var(--muted);font-size:14px;line-height:1.7}
+body .kb-card,body .kb-term,body .kb-era,body .lp-card,body .lp-ent,body .lp-blog-card,body .lp-quiz,body .lp-guide,body .lp-term,body .lp-step-panel,body .lp-fig,body .ls-card,body .sk-vcard{border:solid var(--line);border-width:1px 0;border-radius:0;background:var(--white);box-shadow:none}
+body .kb-card:hover,body .lp-card:hover,body .lp-ent:hover,body .lp-blog-card:hover,body .rv-real:hover{border-color:var(--blue);box-shadow:none;transform:none}
+body .kb-card p,body .kb-term .kt-row,body .kb-era p,body .lp-card p,body .lp-ent p,body .lp-blog-card p{color:var(--muted);font-size:14px;line-height:1.7}
 body .kb-card .kc-tag,body .kb-term .kt-tag,body .lp-card .kc-tag,body .lp-term .tt,body .btag,body .etags span,body .t-tag{border:1px solid var(--line);border-radius:4px;background:var(--blue-soft);color:var(--blue);font:650 11px/1.5 var(--font-mono)}
 body .kb-step{border-bottom:1px solid var(--line)}
 body .kb-step .ks-num{border:1px solid var(--line);border-radius:5px;background:var(--blue-soft);color:var(--blue)}
@@ -311,17 +311,6 @@ body .ls-name{min-height:44px;display:flex;align-items:center;font-size:14px}
 body .ls-name:focus-visible{outline:3px solid var(--blue);outline-offset:3px}
 body .ls-toggle{width:44px!important;height:44px!important;flex:none}
 body .lp-band{border-color:var(--line);background:var(--white)}
-body .mod-list{gap:0}
-body .mod-item{min-height:76px;border-top:0}
-body .mod-item:first-child{border-top:1px solid var(--line)}
-body .mod-item.done{background:var(--blue-soft)}
-body .mod-check{position:relative;width:44px!important;height:44px!important;display:grid;place-items:center;flex:none;border:0!important;border-radius:0!important;background:transparent!important;cursor:pointer}
-body .mod-check::before{content:"";position:absolute;top:50%;left:50%;width:26px;height:26px;border:2px solid var(--control-border);border-radius:6px;background:var(--white);transform:translate(-50%,-50%)}
-body .mod-item.done .mod-check::before{border-color:var(--blue);background:var(--blue)}
-body .mod-check svg{position:relative;z-index:1;width:15px;height:15px}
-body .mod-item.done .mod-check svg{opacity:1}
-body .mod-go{width:auto;min-width:44px;min-height:44px;padding-inline:8px;display:inline-flex;align-items:center;justify-content:center;gap:4px;overflow:visible;font-size:14px;white-space:nowrap}
-body .prog-fill{background:var(--blue)}
 body .lp-top{width:44px!important;height:44px!important}
 
 /* Progress page */
@@ -330,19 +319,21 @@ body .lp-top{width:44px!important;height:44px!important}
 .prog-bar{height:10px;margin:6px 0 4px;overflow:hidden;border-radius:99px;background:var(--line)}
 .prog-fill{width:0;height:100%;border-radius:99px;background:var(--blue);transition:width .4s}
 .prog-num{color:var(--blue);font:700 13px/1.5 var(--font-mono)}
-.mod-list{margin-top:8px;display:flex;flex-direction:column;gap:14px}
-.mod-item{padding:18px 20px;display:flex;align-items:center;gap:16px;border:1px solid var(--line);border-radius:var(--radius);background:var(--white);box-shadow:var(--shadow-card);transition:border-color .2s,box-shadow .2s}
-.mod-item:hover{border-color:var(--blue);box-shadow:var(--shadow-hover)}
-.mod-item.done{border-color:var(--line);background:var(--blue-soft)}
-.mod-check{width:26px;height:26px;padding:0;display:grid;place-items:center;flex:none;border:2px solid var(--control-border);border-radius:8px;background:var(--white);color:inherit;transition:background-color .2s,border-color .2s}
-.mod-check svg{width:15px;height:15px;stroke:var(--white);stroke-width:3;opacity:0;transition:opacity .15s}
-.mod-item.done .mod-check{border-color:var(--blue);background:var(--blue)}
-.mod-item.done .mod-check svg{opacity:1}
+body .mod-list{margin-top:8px;display:flex;flex-direction:column;gap:0}
+body .mod-item{min-height:76px;padding:18px 20px;display:flex;align-items:center;gap:16px;border:solid var(--line);border-width:0 0 1px;border-radius:0;background:var(--white);box-shadow:none;transition:border-color .2s,background-color .2s}
+body .mod-item:first-child{border-top:1px solid var(--line)}
+body .mod-item:hover{border-color:var(--blue);box-shadow:none;transform:none}
+body .mod-item.done{border-color:var(--line);background:var(--blue-soft)}
+body .mod-check{position:relative;width:44px!important;height:44px!important;padding:0;display:grid;place-items:center;flex:none;border:0!important;border-radius:0!important;background:transparent!important;color:inherit;cursor:pointer}
+body .mod-check::before{content:"";position:absolute;top:50%;left:50%;width:26px;height:26px;border:2px solid var(--control-border);border-radius:6px;background:var(--white);transform:translate(-50%,-50%);transition:background-color .2s,border-color .2s}
+body .mod-item.done .mod-check::before{border-color:var(--blue);background:var(--blue)}
+body .mod-check svg{position:relative;z-index:1;width:15px;height:15px;stroke:var(--white);stroke-width:3;opacity:0;transition:opacity .15s}
+body .mod-item.done .mod-check svg{opacity:1}
 .mod-info{min-width:0;flex:1}
 .mod-info b{display:block;color:var(--ink);font-size:15px;font-weight:700}
 .mod-item.done .mod-info b{color:var(--quiet)}
-.mod-info small{margin-top:2px;display:block;color:var(--muted);font-size:12.5px}
-.mod-go{flex:none;color:var(--blue);font-size:13px;font-weight:600;white-space:nowrap}
+.mod-info small{margin-top:2px;display:block;color:var(--muted);font-size:14px;line-height:1.7}
+body .mod-go{width:auto;min-width:44px;min-height:44px;padding-inline:8px;display:inline-flex;align-items:center;justify-content:center;gap:4px;overflow:visible;flex:none;color:var(--blue);font-size:14px;font-weight:600;white-space:nowrap}
 .mod-go svg{width:14px;height:14px;stroke:var(--blue);vertical-align:-2px}
 .pg-hint{margin-top:22px;padding:14px 16px;display:flex;align-items:flex-start;gap:10px;border:1px dashed var(--blue);border-radius:10px;background:var(--blue-soft)}
 .pg-hint svg{width:18px;height:18px;margin-top:2px;flex:none;stroke:var(--blue)}
