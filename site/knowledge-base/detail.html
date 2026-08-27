@@ -89,7 +89,10 @@
       <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="3.2"/></svg></span>
       亚玛芬 AI 知识库<small>PREVIEW</small>
     </a>
-    <nav class="nav-links" id="navLinks">
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="primaryNav">
+      <span></span><span></span><span></span><span class="sr-only">打开导航</span>
+    </button>
+    <nav class="nav-links" id="primaryNav">
       <a href="index.html">首页</a>
       <a href="learn.html" data-nav="learn">AI 新手入门</a>
       <a href="video.html" data-nav="video">录播回放</a>
@@ -714,7 +717,7 @@ function renderVideoList(id){
   var accent = sub.accent;
 
   // 1) 导航高亮
-  var navLinks = document.querySelectorAll('#navLinks a[data-nav]');
+  var navLinks = document.querySelectorAll('.nav-links a[data-nav]');
   for(var i=0;i<navLinks.length;i++){
     if(navLinks[i].getAttribute('data-nav') === board.nav) navLinks[i].classList.add('active');
   }
@@ -775,8 +778,8 @@ function renderVideoList(id){
   }
 })();
 
-window.addEventListener('scroll',function(){document.getElementById('topbar').classList.toggle('scrolled',window.scrollY>8)});
 </script>
 <script src="search.js"></script>
+<script src="site.js"></script>
 </body>
 </html>
