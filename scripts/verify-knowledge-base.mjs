@@ -111,13 +111,13 @@ function resolveLocal(page, pagePath, value, kind) {
   const decodedPath = decode(path, `${page}: ${kind}`);
   if (decodedPath === null) return null;
   if (isAbsolute(decodedPath)) {
-    report(`${page}: absolute local target is not allowed: ${value}`);
+    report(`${page}: absolute ${kind} is not allowed: ${value}`);
     return null;
   }
   const target = decodedPath ? resolve(dirname(pagePath), decodedPath) : pagePath;
   const rootRelative = relative(root, target);
   if (rootRelative === '..' || rootRelative.startsWith('../') || isAbsolute(rootRelative)) {
-    report(`${page}: local target escapes site root: ${value}`);
+    report(`${page}: ${kind} escapes site root: ${value}`);
     return null;
   }
   return { target, rootRelative: rootRelative.replace(/\\/g, '/') };
@@ -196,6 +196,23 @@ function verifyFragment(page, href, target) {
   if (!found) report(`${page}: anchor target is missing: ${href}`);
 }
 
+function srcsetCandidates(value) {
+  return (value ?? '').split(',').map((candidate) => candidate.trim().split(/[\t\n\f\r ]+/)[0]).filter(Boolean);
+}
+
+function verifyLocalAsset(page, pagePath, value, kind) {
+  if (!isLocal(value)) return;
+  const target = resolveLocal(page, pagePath, value, kind);
+  if (!target) return;
+  isRegularFile(
+    target.target,
+    `${page}: ${kind} is missing: ${value}`,
+    `${page}: ${kind} is not a file: ${value}`,
+    `${page}: ${kind} is a symlink: ${value}`,
+    `${page}: ${kind} escapes real site root: ${value}`,
+  );
+}
+
 for (const page of pages) {
   const pagePath = resolve(root, page);
   if (!isRegularFile(pagePath, `missing page: ${page}`, `page is not a file: ${page}`, `page is a symlink: ${page}`, `page escapes real site root: ${page}`)) continue;
@@ -203,6 +220,8 @@ for (const page of pages) {
   if (html === null) continue;
   const inspection = hookMarkup(html);
   const document = removeInactiveMarkup(html);
+
+  if (/gradient\s*\(/i.test(html)) report(`${page}: gradients are not allowed`);
 
   verifyRequiredAsset(page, pagePath, inspection, 'style.css', 'link');
   verifyRequiredAsset(page, pagePath, inspection, 'search.js', 'script');
@@ -229,15 +248,12 @@ for (const page of pages) {
   }
 
   for (const attrs of tags(document, 'img')) {
-    if (!attrs.src || !isLocal(attrs.src)) continue;
-    const target = resolveLocal(page, pagePath, attrs.src, 'image target');
-    if (target) isRegularFile(
-      target.target,
-      `${page}: image is missing: ${attrs.src}`,
-      `${page}: image is not a file: ${attrs.src}`,
-      `${page}: image is a symlink: ${attrs.src}`,
-      `${page}: image escapes real site root: ${attrs.src}`,
-    );
+    if (attrs.src) verifyLocalAsset(page, pagePath, attrs.src, 'image');
+    for (const candidate of srcsetCandidates(attrs.srcset)) verifyLocalAsset(page, pagePath, candidate, 'image candidate');
+  }
+
+  for (const attrs of tags(document, 'source')) {
+    for (const candidate of srcsetCandidates(attrs.srcset)) verifyLocalAsset(page, pagePath, candidate, 'source candidate');
   }
 }
 
