@@ -1,4 +1,4 @@
-import { readFileSync, statSync } from 'node:fs';
+import { lstatSync, readFileSync, statSync } from 'node:fs';
 import { dirname, isAbsolute, relative, resolve } from 'node:path';
 
 const root = resolve(process.argv[2] ?? 'site/knowledge-base');
@@ -18,7 +18,46 @@ function attributes(tag) {
 }
 
 function tags(document, name) {
-  return [...document.matchAll(new RegExp(`<${name}\\b[^>]*>`, 'gi'))].map((match) => attributes(match[0]));
+  const expectedName = new RegExp(`^(?:${name})$`, 'i');
+  const found = [];
+  let position = 0;
+
+  while (position < document.length) {
+    const start = document.indexOf('<', position);
+    if (start === -1) break;
+    const nameMatch = document.slice(start + 1).match(/^([a-z][\w:-]*)/i);
+    if (!nameMatch) {
+      position = start + 1;
+      continue;
+    }
+
+    const tagName = nameMatch[1];
+    let quote = null;
+    let end = start + 1 + tagName.length;
+    for (; end < document.length; end += 1) {
+      const character = document[end];
+      if (quote) {
+        if (character === quote) quote = null;
+      } else if (character === '"' || character === "'") {
+        quote = character;
+      } else if (character === '>') {
+        break;
+      }
+    }
+    if (end === document.length) break;
+
+    if (expectedName.test(tagName)) found.push(attributes(document.slice(start, end + 1)));
+    position = end + 1;
+
+    if (tagName.toLowerCase() === 'script' || tagName.toLowerCase() === 'style') {
+      const closingTag = new RegExp(`<\\/${tagName}\\s*>`, 'ig');
+      closingTag.lastIndex = position;
+      const closingMatch = closingTag.exec(document);
+      if (closingMatch) position = closingMatch.index + closingMatch[0].length;
+    }
+  }
+
+  return found;
 }
 
 function removeComments(html) {
@@ -32,9 +71,7 @@ function removeInactiveMarkup(html) {
 }
 
 function hookMarkup(html) {
-  return removeComments(html)
-    .replace(/<style\b[\s\S]*?<\/style>/gi, '')
-    .replace(/<script\b([^>]*)>[\s\S]*?<\/script>/gi, '<script$1>');
+  return removeComments(html);
 }
 
 function isLocal(value) {
@@ -86,8 +123,12 @@ function resolveLocal(page, pagePath, value, kind) {
   return { target, rootRelative: rootRelative.replace(/\\/g, '/') };
 }
 
-function isRegularFile(target, missingMessage, nonFileMessage) {
+function isRegularFile(target, missingMessage, nonFileMessage, symlinkMessage) {
   try {
+    if (lstatSync(target).isSymbolicLink()) {
+      report(symlinkMessage);
+      return false;
+    }
     if (!statSync(target).isFile()) {
       report(nonFileMessage);
       return false;
@@ -120,6 +161,7 @@ function verifyRequiredAsset(page, pagePath, document, asset, tagName) {
       target.target,
       `${page}: referenced asset is missing: ${asset}`,
       `${page}: referenced asset is not a file: ${asset}`,
+      `${page}: referenced asset is a symlink: ${asset}`,
     );
   }
   if (!referenced) report(`${page}: missing required asset: ${asset}`);
@@ -139,7 +181,7 @@ function verifyFragment(page, href, target) {
 
 for (const page of pages) {
   const pagePath = resolve(root, page);
-  if (!isRegularFile(pagePath, `missing page: ${page}`, `page is not a file: ${page}`)) continue;
+  if (!isRegularFile(pagePath, `missing page: ${page}`, `page is not a file: ${page}`, `page is a symlink: ${page}`)) continue;
   const html = readText(pagePath, `could not read page: ${page}`);
   if (html === null) continue;
   const inspection = hookMarkup(html);
@@ -160,6 +202,7 @@ for (const page of pages) {
         target.target,
         `${page}: anchor target file is missing: ${splitReference(attrs.href).path || page}`,
         `${page}: local target is not a file: ${splitReference(attrs.href).path || page}`,
+        `${page}: local target is a symlink: ${splitReference(attrs.href).path || page}`,
       )) verifyFragment(page, attrs.href, target.target);
     }
     if (attrs.target?.toLowerCase() === '_blank' && isExternalHttp(attrs.href) && !tokens(attrs.rel).includes('noopener')) {
@@ -174,18 +217,19 @@ for (const page of pages) {
       target.target,
       `${page}: image is missing: ${attrs.src}`,
       `${page}: image is not a file: ${attrs.src}`,
+      `${page}: image is a symlink: ${attrs.src}`,
     );
   }
 }
 
 const stylesheet = resolve(root, 'style.css');
-if (isRegularFile(stylesheet, 'missing stylesheet: style.css', 'stylesheet is not a file: style.css')) {
+if (isRegularFile(stylesheet, 'missing stylesheet: style.css', 'stylesheet is not a file: style.css', 'stylesheet is a symlink: style.css')) {
   const css = readText(stylesheet, 'could not read stylesheet: style.css');
   if (css !== null && /gradient\s*\(/i.test(css)) report('style.css: gradients are not allowed');
 }
 
 for (const mascot of requiredMascots) {
-  isRegularFile(resolve(root, mascot), `missing required mascot: ${mascot}`, `required mascot is not a file: ${mascot}`);
+  isRegularFile(resolve(root, mascot), `missing required mascot: ${mascot}`, `required mascot is not a file: ${mascot}`, `required mascot is a symlink: ${mascot}`);
 }
 
 if (errors.length) {
