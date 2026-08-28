@@ -176,9 +176,57 @@ function findUniqueAnchorAttributesByText(source, text) {
   return parseTagAttributes(anchors[0][1]);
 }
 
+function extractUniqueElementByClass(source, tagName, className, label) {
+  const withoutComments = source.replace(/<!--[\s\S]*?-->/g, '');
+  const openingPattern = new RegExp(`<${tagName}\\b([^>]*)>`, 'gi');
+  const openings = [...withoutComments.matchAll(openingPattern)].filter((match) => {
+    const classes = (parseTagAttributes(match[1]).get('class') ?? '').split(/\s+/);
+    return classes.includes(className);
+  });
+  assert.equal(openings.length, 1, `${label} must be one real, uncommented element`);
+
+  const opening = openings[0];
+  const contentStart = opening.index + opening[0].length;
+  const closingPattern = new RegExp(`</${tagName}\\s*>`, 'gi');
+  closingPattern.lastIndex = contentStart;
+  const closing = closingPattern.exec(withoutComments);
+  assert.ok(closing, `${label} must have a closing tag`);
+  return {
+    attributes: parseTagAttributes(opening[1]),
+    innerHtml: withoutComments.slice(contentStart, closing.index),
+  };
+}
+
+function extractUniqueChildByClass(source, tagName, className, label) {
+  const elementPattern = new RegExp(`<${tagName}\\b([^>]*)>([\\s\\S]*?)</${tagName}\\s*>`, 'gi');
+  const elements = [...source.matchAll(elementPattern)].filter((match) => {
+    const classes = (parseTagAttributes(match[1]).get('class') ?? '').split(/\s+/);
+    return classes.includes(className);
+  });
+  assert.equal(elements.length, 1, `${label} must exist exactly once inside the Xiao A copy`);
+  return { attributes: parseTagAttributes(elements[0][1]), innerHtml: elements[0][2] };
+}
+
 for (const [name, content] of Object.entries(files)) {
   assert.ok(!content.includes(oldUatUrl), `${name} must not reference the old Xiao A UAT URL`);
 }
+
+const xiaoACopy = extractUniqueElementByClass(files.index, 'div', 'xh-text', 'home Xiao A copy');
+const xiaoANote = extractUniqueChildByClass(xiaoACopy.innerHtml, 'p', 'xh-note', 'home Xiao A Portal note');
+const xiaoANoteText = xiaoANote.innerHtml.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+const xiaoANoteClasses = new Set((xiaoANote.attributes.get('class') ?? '').split(/\s+/).filter(Boolean));
+assert.equal(
+  xiaoANoteText,
+  `${portalInstructions}。`,
+  'home Xiao A Portal note must show the complete approved instructions',
+);
+assert.ok(
+  !xiaoANote.attributes.has('hidden')
+    && xiaoANote.attributes.get('aria-hidden') !== 'true'
+    && !/(?:display\s*:\s*none|visibility\s*:\s*hidden)/i.test(xiaoANote.attributes.get('style') ?? '')
+    && !['hidden', 'sr-only', 'visually-hidden'].some((className) => xiaoANoteClasses.has(className)),
+  'home Xiao A Portal note must be visibly rendered',
+);
 
 const ctaAttributes = findUniqueAnchorAttributesByText(files.index, '前往 Portal 打开小A');
 const ctaRelTokens = new Set((ctaAttributes.get('rel') ?? '').split(/\s+/).filter(Boolean));
