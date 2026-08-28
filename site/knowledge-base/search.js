@@ -19,7 +19,7 @@
     { t:'Copilot 财务专场培训', d:'面向财务场景的 Copilot 专场培训回放', tag:'回放', href:'https://amersportsonline.sharepoint.com/sites/amersportsaicommunity/SitePages/Copilot%E8%B4%A2%E5%8A%A1%E4%B8%93%E5%9C%BA%E5%9F%B9%E8%AE%AD.aspx', ext:1 },
     { t:'Copilot 线上精选课程', d:'Copilot 线上精选课程合集', tag:'回放', href:'https://amersportsonline.sharepoint.com/sites/amersportsaicommunity/SitePages/Copilot%E7%BA%BF%E4%B8%8A%E7%B2%BE%E9%80%89%E8%AF%BE%E7%A8%8B.aspx', ext:1 },
     /* 工具 */
-    { t:'小A · 公司内部 AI 助手', d:'接入公司数据的内部 AI 助手，日常问答首选（公司内部 UAT 入口）', tag:'工具', href:'https://ai-uat.amersports.cn:9093/', ext:1 },
+    { t:'小A · 公司内部 AI 助手', d:'接入公司数据的内部 AI 助手，日常问答首选。进入 Portal 后，点击右侧「小A智助」打开助手', tag:'工具', href:'https://portal.amersports.cn/portal/indexs', ext:1 },
     { t:'ChatGPT', d:'OpenAI 出品，综合能力全面的 AI 助手', tag:'工具', href:'https://chatgpt.com', ext:1 },
     { t:'Claude', d:'Anthropic 出品，长文写作与编程体验优秀', tag:'工具', href:'https://claude.ai', ext:1 },
     { t:'Gemini', d:'Google 出品，与搜索/办公套件深度整合', tag:'工具', href:'https://gemini.google.com', ext:1 },
