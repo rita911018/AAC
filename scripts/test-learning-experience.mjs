@@ -47,6 +47,68 @@ const chapterImages = [
   ['images/ai-verification.webp', 'images/ai-verification.png'],
   ['images/ai-workflow.webp', 'images/ai-workflow.png'],
 ];
+const expectedChapterContent = {
+  'ai-basics': {
+    sectionTitles: ['先把四个概念放对位置', '大模型在做什么'],
+    coreTerms: ['AI', '生成式 AI', '大模型', 'Agent', 'Token', '上下文', '预训练'],
+    caseTitle: '为什么新对话不记得上次说过的事？',
+    caseTerms: ['新对话', '上下文', '临时工作记忆'],
+    exerciseType: 'token-and-concepts',
+    exerciseKeys: ['candidates', 'steps'],
+    takeawayTitle: 'AI 概念关系图与 8 个工作必懂词',
+    takeawayTerms: ['Token', '上下文', '多模态', '幻觉', 'RAG', 'Prompt', '工作流', 'Agent'],
+  },
+  'ai-boundaries': {
+    sectionTitles: ['AI 擅长加速，人擅长把关', '“说得像真的”为什么还会错'],
+    coreTerms: ['整理', '改写', '事实确认', '高代价判断', '流畅', '查证'],
+    caseTitle: '汇报里出现了原材料没有的增长数字',
+    caseTerms: ['原材料', '精确数字', '来源'],
+    exerciseType: 'hallucination-spotter',
+    exerciseKeys: ['claims'],
+    takeawayTitle: 'AI 能力边界清单',
+    takeawayTerms: ['绿', '黄', '红'],
+  },
+  'ai-delegation': {
+    sectionTitles: ['三种分工方式', '分工前先问五个问题'],
+    coreTerms: ['AI', '人机协作', '人负责', '可验证', '错误代价'],
+    caseTitle: '一份月度汇报应该怎么分工？',
+    caseTerms: ['数据整理', '优先级判断', '行动'],
+    exerciseType: 'delegation-sort',
+    exerciseKeys: ['tasks'],
+    takeawayTitle: 'AI 任务分工五问',
+    takeawayTerms: ['目标清晰', '结果可验证', '错误代价', '业务语境', '最终谁负责'],
+  },
+  'ai-prompting': {
+    sectionTitles: ['提示词就是一份工作 brief', '用多轮协作逐步校准'],
+    coreTerms: ['目标', '背景', '任务', '输出要求', '多轮', '具体差距'],
+    caseTitle: '从“帮我写汇报”到可执行的任务说明',
+    caseTerms: ['宽泛需求', '材料边界', '输出格式'],
+    exerciseType: 'prompt-builder',
+    exerciseKeys: ['fields', 'reference'],
+    takeawayTitle: '四要素 Prompt 模板',
+    takeawayTerms: ['目标', '背景', '任务', '输出要求'],
+  },
+  'ai-verification': {
+    sectionTitles: ['先区分回答里的三种内容', '五步核验，再检查可用性'],
+    coreTerms: ['事实', '推论', '观点', '来源', '原文', '时间口径', '可追溯'],
+    caseTitle: '“销量上升”能否直接证明“营销有效”？',
+    caseTerms: ['销量上升', '因果结论', '其他因素'],
+    exerciseType: 'evidence-check',
+    exerciseKeys: ['claims'],
+    takeawayTitle: 'AI 结果核验五步卡',
+    takeawayTerms: ['查来源', '对原文', '时间口径', '检查推理', '任务标准'],
+  },
+  'ai-workflow': {
+    sectionTitles: ['从一次成功，到稳定复用', '沉淀一条工作流的五步'],
+    coreTerms: ['对话', 'Prompt 模板', '工作流', 'Agent', '输入输出', '检查点'],
+    caseTitle: '把每月重复的汇报从对话变成流程',
+    caseTerms: ['每月', '步骤', '人机分工', '检查点'],
+    exerciseType: 'workflow-builder',
+    exerciseKeys: ['steps'],
+    takeawayTitle: '个人 AI 工作流画布',
+    takeawayTerms: ['拆任务', '输入输出', '明确分工', '设置检查点', '保存模板'],
+  },
+};
 const allowedRuntimeStatuses = new Set(['unseen', 'in-progress', 'seen']);
 const learnHeroDescription = '从看懂 AI 到会协作，用六个轻量章节掌握分工、表达与判断。每章都有案例和小练习，无需技术背景。';
 const learnHubHeading = '选择一个章节，轻松开始';
@@ -458,6 +520,89 @@ function createHubStateHarness() {
       },
     },
   };
+}
+
+function createMiniDom() {
+  class MiniNode {
+    constructor(ownerDocument, tagName = '', text = '') {
+      this.ownerDocument = ownerDocument;
+      this.tagName = tagName ? tagName.toUpperCase() : '';
+      this.nodeType = tagName ? 1 : 3;
+      this.children = [];
+      this.parentNode = null;
+      this.className = '';
+      this.disabled = false;
+      this.hidden = false;
+      this.open = false;
+      this._text = String(text);
+      this._attributes = new Map();
+      this._listeners = new Map();
+      this._innerHtmlWrites = [];
+    }
+    get textContent() {
+      return this._text + this.children.map((child) => child.textContent).join('');
+    }
+    set textContent(value) {
+      this._text = String(value ?? '');
+      this.children = [];
+    }
+    get innerHTML() { return this._innerHtmlWrites.at(-1) ?? ''; }
+    set innerHTML(value) {
+      this._innerHtmlWrites.push(String(value));
+      this._text = String(value);
+      this.children = [];
+    }
+    setAttribute(name, value) { this._attributes.set(String(name), String(value)); }
+    getAttribute(name) { return this._attributes.get(String(name)) ?? null; }
+    removeAttribute(name) { this._attributes.delete(String(name)); }
+    appendChild(child) {
+      child.parentNode = this;
+      this.children.push(child);
+      return child;
+    }
+    replaceChildren(...children) {
+      this._text = '';
+      this.children = [];
+      for (const child of children) this.appendChild(child);
+    }
+    addEventListener(type, listener) {
+      if (!this._listeners.has(type)) this._listeners.set(type, []);
+      this._listeners.get(type).push(listener);
+    }
+    dispatchEvent(event) {
+      event.currentTarget = this;
+      for (const listener of this._listeners.get(event.type) ?? []) listener.call(this, event);
+    }
+    matches(selector) {
+      if (selector === '*') return this.nodeType === 1;
+      if (selector.startsWith('.')) return this.className.split(/\s+/).includes(selector.slice(1));
+      const attribute = /^\[([^\]=]+)(?:=["']?([^\]"']+)["']?)?\]$/.exec(selector);
+      if (attribute) {
+        if (!this._attributes.has(attribute[1])) return false;
+        return attribute[2] === undefined || this._attributes.get(attribute[1]) === attribute[2];
+      }
+      return this.tagName === selector.toUpperCase();
+    }
+    querySelectorAll(selector) {
+      const matches = [];
+      for (const child of this.children) {
+        if (child.matches && child.matches(selector)) matches.push(child);
+        if (child.querySelectorAll) matches.push(...child.querySelectorAll(selector));
+      }
+      return matches;
+    }
+    querySelector(selector) { return this.querySelectorAll(selector)[0] ?? null; }
+  }
+  const document = {
+    readyState: 'complete',
+    addEventListener() {},
+    createElement(tagName) { return new MiniNode(document, tagName); },
+    createTextNode(text) { return new MiniNode(document, '', text); },
+    querySelector() { return null; },
+    querySelectorAll() { return []; },
+    getElementById() { return null; },
+  };
+  return { document, createTarget() { return document.createElement('div'); } };
 }
 
 function createCopyHarness(templateText, options = {}) {
@@ -893,22 +1038,60 @@ function runContract() {
     assert.ok(typeof chapter.image.alt === 'string' && chapter.image.alt.trim(), `${chapterIds[index]} image must have meaningful alt text`);
     assert.ok(Array.isArray(chapter.sections) && chapter.sections.length >= 2, `${chapterIds[index]} must include complete core-content sections`);
     assert.ok(Array.isArray(chapter.quickCheck) && chapter.quickCheck.length >= 2, `${chapterIds[index]} must include at least two low-pressure review prompts`);
+    const expected = expectedChapterContent[chapter.id];
+    assert.deepEqual(chapter.sections.map(({ title }) => title), expected.sectionTitles,
+      `${chapter.id} section titles must match the approved learning arc`);
+    const coreCopy = JSON.stringify(chapter.sections);
+    for (const term of expected.coreTerms) assert.ok(coreCopy.includes(term), `${chapter.id} core content must cover ${term}`);
+    assert.equal(chapter.caseStudy.title, expected.caseTitle, `${chapter.id} case study must use the approved workplace scenario`);
+    const caseCopy = JSON.stringify(chapter.caseStudy);
+    for (const term of expected.caseTerms) assert.ok(caseCopy.includes(term), `${chapter.id} case study must retain ${term}`);
+    assert.equal(chapter.exercise.type, expected.exerciseType, `${chapter.id} exercise must use ${expected.exerciseType}`);
+    for (const key of expected.exerciseKeys) assert.ok(Object.hasOwn(chapter.exercise, key), `${chapter.id} exercise must define ${key}`);
+    assert.equal(chapter.takeaway.title, expected.takeawayTitle, `${chapter.id} takeaway must match the approved tool`);
+    const takeawayCopy = JSON.stringify(chapter.takeaway);
+    for (const term of expected.takeawayTerms) assert.ok(takeawayCopy.includes(term), `${chapter.id} takeaway must retain ${term}`);
+    assert.ok(typeof chapter.takeaway.template === 'string' && chapter.takeaway.template.trim(), `${chapter.id} takeaway must include a reusable template`);
   }
+  const basics = api.chapters[0];
+  assert.equal(basics.exercise.candidates.length, 3, 'ai-basics token exercise must expose three candidates');
+  assert.ok(basics.exercise.candidates.every(({ label, probability }) => typeof label === 'string' && label && Number.isFinite(probability)),
+    'ai-basics token candidates must have labels and numeric probabilities');
+  assert.equal(basics.exercise.candidates.reduce((sum, { probability }) => sum + probability, 0), 100,
+    'ai-basics token candidate probabilities must sum to 100');
+  assert.deepEqual(basics.exercise.steps, ['切分 Token', '读取上下文', '预测候选', '选择下一个 Token', '重复直到完成'],
+    'ai-basics exercise must retain the approved five-step model flow');
+  assert.ok(basics.takeaway.template.includes('AI → 生成式 AI → 大模型'),
+    'ai-basics takeaway must make the AI / generative AI / model relationship explicit');
+  assert.ok(basics.takeaway.template.includes('Agent = 大模型 + 目标拆解 + 工具 + 执行循环'),
+    'ai-basics takeaway must explain Agent as model plus goal, tools, and execution loop');
+  assert.deepEqual(api.chapters[1].exercise.claims.map(({ category }) => category), ['可以保留', '需要核验', '需要修改'],
+    'ai-boundaries exercise must retain the three non-punitive review states');
+  assert.ok(api.chapters[1].exercise.claims.some(({ text }) => /\d/.test(text)), 'ai-boundaries exercise must include a numeric claim to verify');
+  assert.deepEqual(api.chapters[2].exercise.tasks.map(({ lane }) => lane), ['AI', '人机协作', '人负责'],
+    'ai-delegation exercise must cover all three delegation lanes');
+  assert.deepEqual(api.chapters[3].exercise.fields, ['目标', '背景', '任务', '输出要求'],
+    'ai-prompting exercise must retain the four approved brief fields');
+  for (const field of api.chapters[3].exercise.fields) assert.ok(api.chapters[3].exercise.reference.includes(field),
+    `ai-prompting reference brief must demonstrate ${field}`);
+  assert.deepEqual(api.chapters[4].exercise.claims.map(({ kind }) => kind), ['事实', '推论', '观点'],
+    'ai-verification exercise must distinguish fact, inference, and opinion');
+  assert.ok(api.chapters[4].exercise.claims.every(({ evidence }) => typeof evidence === 'string' && evidence.trim()),
+    'ai-verification exercise must connect every claim to evidence guidance');
+  assert.ok(api.chapters[5].exercise.steps.length >= 4, 'ai-workflow exercise must contain sortable workflow steps');
+  assert.deepEqual(api.chapters[5].exercise.steps.map(({ text }) => text),
+    ['收集当月数据', '提取变化与异常', '核对来源和口径', '生成汇报初稿', '确定优先级并交付'],
+    'ai-workflow exercise must retain the approved sortable monthly-report sequence');
+  assert.ok(api.chapters[5].exercise.steps.some(({ owner, checkpoint }) => owner === '人负责' && checkpoint === true),
+    'ai-workflow exercise must retain a human-owned checkpoint');
   assert.deepEqual(api.aliases, aliases, 'legacy learning URL aliases must map to the approved new chapters');
   const renderChapterSource = learningScript.slice(
     learningScript.indexOf('function renderChapter('),
     learningScript.indexOf('window.AIBeginner ='),
   );
   assert.ok(renderChapterSource.length > 0, 'renderChapter implementation must be inspectable');
-  assert.ok(!/\.innerHTML\s*=/.test(renderChapterSource), 'chapter metadata and questions must render without innerHTML string assembly');
-  assert.match(renderChapterSource, /if\s*\(\s*nextId\s*\)[\s\S]*?detail\.html\?type=learn&id=/,
-    'next chapter action must be conditional so chapter six has no next button');
-  assert.match(learningScript, /createTextNode\s*\(\s*chapter\.caseStudy\.lesson\s*\)/,
-    'chapter case content must be inserted as text, not executable markup');
-  assert.match(renderChapterSource, /element\s*\(\s*ownerDocument\s*,\s*['"]fieldset['"]/,
-    'exercise skeleton must use a semantic fieldset');
-  assert.match(renderChapterSource, /element\s*\(\s*ownerDocument\s*,\s*['"]legend['"]/,
-    'exercise skeleton must label its fieldset with a legend');
+  assert.ok(!/\.innerHTML\s*=\s*(?:chapter|check|sectionData|exercise|takeaway|caseStudy|[A-Za-z_$][\w$]*\.)/.test(renderChapterSource),
+    'chapter metadata and questions must render without innerHTML string assembly');
   const movedNoticeSource = learningScript.slice(
     learningScript.indexOf('function renderMovedNotice('),
     learningScript.indexOf('function canonicalizeLearningUrl('),
@@ -1036,12 +1219,8 @@ function fixtureFiles(order = chapterIds) {
     const index = chapterIds.indexOf(id);
     return `<a class="learning-card" id="chapter-${id}" data-chapter-id="${id}" href="${chapterHrefs[index]}"><h2>${titles[index]}</h2><p>章节说明</p><span class="learning-status">未看</span><span class="learning-card-action">开始学习</span></a>`;
   }).join('\n');
-  const chapters = chapterIds.map((id, index) => `{
-    id:${JSON.stringify(id)}, number:${JSON.stringify(String(index + 1).padStart(2, '0'))}, title:${JSON.stringify(titles[index])}, description:'章节说明',
-    image:{webp:${JSON.stringify(chapterImages[index][0])},fallback:${JSON.stringify(chapterImages[index][1])},alt:'章节插画'},
-    sections:[{title:'核心一',paragraphs:['内容'],bullets:['要点']},{title:'核心二',paragraphs:['内容'],bullets:['要点']}],
-    caseStudy:{title:'案例'}, exercise:{type:'互动'}, quickCheck:[{q:'想一想'},{q:'再想一想'}], takeaway:{title:'模板'}
-  }`).join(',\n');
+  const approvedRuntime = evaluateLearningApi(readRequired('learning-experience.js'));
+  const chapters = approvedRuntime.chapters.map((chapter) => JSON.stringify(chapter)).join(',\n');
   const detailConfigs = chapterIds.map((id, index) => `'${id}':{name:${JSON.stringify(titles[index])},structure:'learning',meta:['轻量学习','${chapterMinutes[index]}']}`).join(',');
   const searchEntries = chapterIds.map((id, index) => `{t:${JSON.stringify(titles[index])},d:'章节',tag:'入门',href:${JSON.stringify(chapterHrefs[index])}}`).join(',\n');
   const toolCards = toolkitTitles.map((title, index) => `<article class="learning-tool-card"><h3>${title}</h3><p>轻量说明</p><pre><code data-template-content>${toolkitFields[index].join('：\n')}：</code></pre><button class="learning-tool-copy" type="button" data-copy-template>复制模板</button><span class="tool-copy-feedback" data-copy-feedback aria-live="polite"></span></article>`).join('');
@@ -1337,6 +1516,42 @@ function runRuntimeUnitTest() {
   assert.match(movedTarget.innerHTML, /href=["']resources\.html["']/, 'legacy route notice must link to resources.html');
   assert.ok(!/(?:OpenAI|Claude|Gemini|DeepSeek|Qwen|GPT)/i.test(movedTarget.innerHTML),
     'legacy moved notice must not leak the old company or model directory');
+
+  const firstDom = createMiniDom();
+  const firstRuntime = evaluateLearningRuntime(source, createStorage(), { document: firstDom.document });
+  const firstTarget = firstDom.createTarget();
+  assert.equal(firstRuntime.renderChapter('ai-basics', firstTarget), true, 'first chapter must render into a real DOM-like target');
+  assert.equal(firstTarget.querySelectorAll('a').filter((anchor) => anchor.textContent === '下一章').length, 1,
+    'a non-final chapter must render one next-chapter action');
+  const caseSection = firstTarget.querySelector('.lesson-case');
+  assert.ok(caseSection && caseSection.textContent.includes('把关键背景放进当前任务'),
+    'case-study lesson must be visible as text in the rendered DOM');
+  const renderedExercise = firstTarget.querySelector('.lesson-exercise');
+  assert.ok(renderedExercise, 'chapter must render its quick exercise region');
+  const exerciseFieldsets = renderedExercise.querySelectorAll('fieldset');
+  assert.equal(exerciseFieldsets.length, 1, 'chapter exercise must render one semantic fieldset');
+  assert.equal(exerciseFieldsets[0].querySelectorAll('legend').length, 1, 'chapter exercise fieldset must have one legend');
+  assert.ok(exerciseFieldsets[0].querySelector('legend').textContent.trim(), 'chapter exercise legend must have an accessible label');
+
+  const finalDom = createMiniDom();
+  const finalRuntime = evaluateLearningRuntime(source, createStorage(), { document: finalDom.document });
+  const finalTarget = finalDom.createTarget();
+  assert.equal(finalRuntime.renderChapter('ai-workflow', finalTarget), true, 'final chapter must render into a real DOM-like target');
+  assert.equal(finalTarget.querySelectorAll('a').filter((anchor) => anchor.textContent === '下一章').length, 0,
+    'chapter six must not render a next-chapter action');
+
+  const maliciousPayload = '<script>globalThis.__learningXss = true<\/script><img src=x onerror="globalThis.__learningXss=true">';
+  const safeLessonNeedle = "lesson: '把关键背景放进当前任务，不把过去对话当作自动长期记忆。'";
+  assert.ok(source.includes(safeLessonNeedle), 'malicious case payload probe must find the approved lesson source');
+  const maliciousSource = source.replace(safeLessonNeedle, `lesson: ${JSON.stringify(maliciousPayload)}`);
+  const maliciousDom = createMiniDom();
+  const maliciousRuntime = evaluateLearningRuntime(maliciousSource, createStorage(), { document: maliciousDom.document });
+  const maliciousTarget = maliciousDom.createTarget();
+  assert.equal(maliciousRuntime.renderChapter('ai-basics', maliciousTarget), true, 'chapter must still render when metadata contains markup characters');
+  assert.ok(maliciousTarget.textContent.includes(maliciousPayload), 'malicious-looking metadata must remain literal visible text');
+  assert.equal(maliciousTarget.querySelectorAll('script').length, 0, 'malicious-looking metadata must not create script elements');
+  assert.equal(maliciousTarget.querySelectorAll('*').filter((node) => node.getAttribute('onerror') !== null).length, 0,
+    'malicious-looking metadata must not create event-handler attributes');
   assert.doesNotThrow(() => fresh.initHub(), 'initHub must remain safe without a matching DOM hub');
 
   function assertReturnScroll(name, expectedBehavior, matchMedia) {
@@ -1365,7 +1580,7 @@ function runRuntimeUnitTest() {
     get() { throw new Error('matches unavailable'); },
   }));
 
-  console.log('PASS beginner learning runtime unit tests (state validation, session summary, copy fallback, pending guard, order, legacy routes, reduced motion)');
+  console.log('PASS beginner learning runtime unit tests (state, DOM semantics, XSS text safety, navigation, copy fallback, legacy routes, reduced motion)');
 }
 
 function runRuntimeMutationTest() {
@@ -1524,7 +1739,7 @@ function runSelfTest() {
     replaceIn(root, 'detail.html', '</script></body>', '</script><script src="learning-experience.js"></script></body>');
   }, 'detail.html must load learning-experience.js before the inline renderer');
   expectMutation('missing canonical chapter', (root) => {
-    replaceIn(root, 'learning-experience.js', 'id:"ai-workflow"', 'id:"ai-workflow-missing"');
+    replaceIn(root, 'learning-experience.js', '"id":"ai-workflow"', '"id":"ai-workflow-missing"');
   }, 'learning chapter IDs must match the approved order');
   expectMutation('wrong chapter minutes', (root) => {
     replaceIn(root, 'detail.html', '约 8 分钟', '约 18 分钟');
@@ -1532,9 +1747,9 @@ function runSelfTest() {
   expectMutation('wrong approved chapter image', (root) => {
     replaceIn(root, 'learning-experience.js', 'images/ai-concept.webp', 'images/ai-history.webp');
   }, 'ai-basics must use the approved WebP and fallback image');
-  expectMutation('chapter six next button', (root) => {
-    replaceIn(root, 'learning-experience.js', 'if(nextId)', 'if(true)');
-  }, 'next chapter action must be conditional so chapter six has no next button');
+  expectMutation('wrong final chapter number', (root) => {
+    replaceIn(root, 'learning-experience.js', '"number":"06"', '"number":"07"');
+  }, 'ai-workflow must use its canonical chapter number');
   expectMutation('moved route leaks model directory', (root) => {
     replaceIn(root, 'learning-experience.js', "return '已移至 AI 工具与资源'", "return 'OpenAI 与 GPT 目录'");
   }, 'legacy moved-route renderer must not retain old company or model directory content');
@@ -1548,7 +1763,7 @@ function runSelfTest() {
     replaceIn(root, 'learn.html', '<main>', '<main><a href="detail.html?type=learn&id=ai-companies">AI 公司入口</a>');
   }, 'learn hub must not link to the old company or model directory');
   expectMutation('missing case study', (root) => {
-    replaceIn(root, 'learning-experience.js', 'caseStudy:{title:\'案例\'}', 'caseStudyMissing:{title:\'案例\'}');
+    replaceIn(root, 'learning-experience.js', '"caseStudy":', '"caseStudyMissing":');
   }, 'ai-basics must define caseStudy');
   expectMutation('missing PNG', (root) => {
     unlinkSync(path.join(root, 'images', 'ai-boundaries.png'));
@@ -1580,6 +1795,22 @@ function runSelfTest() {
   expectMutation('external resource-directory link', (root) => {
     replaceIn(root, 'learn.html', '<main>', '<main><a href="https://www.coursera.org/learn/ai-for-everyone">延伸阅读</a>');
   }, 'learn main must not contain external resource-directory links');
+
+  for (const id of chapterIds) {
+    const expected = expectedChapterContent[id];
+    expectMutation(`${id} placeholder core content`, (root) => {
+      replaceIn(root, 'learning-experience.js', JSON.stringify(expected.sectionTitles[0]), JSON.stringify('占位内容'));
+    }, `${id} section titles must match the approved learning arc`);
+    expectMutation(`${id} crossed case study`, (root) => {
+      replaceIn(root, 'learning-experience.js', JSON.stringify(expected.caseTitle), JSON.stringify('其他章节的案例'));
+    }, `${id} case study must use the approved workplace scenario`);
+    expectMutation(`${id} crossed interaction`, (root) => {
+      replaceIn(root, 'learning-experience.js', JSON.stringify(expected.exerciseType), JSON.stringify('placeholder-interaction'));
+    }, `${id} exercise must use ${expected.exerciseType}`);
+    expectMutation(`${id} crossed takeaway`, (root) => {
+      replaceIn(root, 'learning-experience.js', JSON.stringify(expected.takeawayTitle), JSON.stringify('其他章节的工具'));
+    }, `${id} takeaway must match the approved tool`);
+  }
 
   expectMutationBatch([
     {
@@ -1614,7 +1845,7 @@ function runSelfTest() {
     },
   ]);
 
-  console.log('PASS learning experience contract self-test (valid fixture + 40 mutations)');
+  console.log('PASS learning experience contract self-test (valid fixture + 64 mutations)');
 }
 
 if (process.argv.includes('--runtime-test')) runRuntimeUnitTest();
