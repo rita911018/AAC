@@ -856,11 +856,14 @@ function createStorage(initialValue = null, options = {}) {
   };
 }
 
-function listFiles(root) {
+function listFiles(root, scanRoot = root) {
   const files = [];
   for (const entry of readdirSync(root, { withFileTypes: true })) {
     const absolute = path.join(root, entry.name);
-    if (entry.isDirectory()) files.push(...listFiles(absolute));
+    if (entry.isDirectory()) {
+      if (path.resolve(root) === path.resolve(scanRoot) && entry.name === 'backups') continue;
+      files.push(...listFiles(absolute, scanRoot));
+    }
     else files.push(absolute);
   }
   return files;
@@ -881,6 +884,8 @@ function assertLocalReferenceStaysInside(rawReference, fromFile) {
   const relative = path.relative(siteRoot, resolved);
   assert.ok(relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative),
     `${path.relative(siteRoot, fromFile)} local reference must stay inside knowledge-base: ${reference}`);
+  assert.notEqual(relative.split(path.sep)[0], 'backups',
+    `${path.relative(siteRoot, fromFile)} local reference must not target top-level backups: ${reference}`);
 }
 
 function stripCssCommentsAndStrings(source) {
@@ -2135,6 +2140,17 @@ function runSelfTest() {
     rmSync(greenRoot, { recursive: true, force: true });
   }
 
+  const backupRoot = createFixture();
+  try {
+    mkdirSync(path.join(backupRoot, 'backups'));
+    writeFileSync(path.join(backupRoot, 'backups', 'legacy.css'), '.legacy{background:linear-gradient(red,blue)}');
+    const backedUp = runFixture(backupRoot);
+    assert.equal(backedUp.status, 0,
+      `top-level backups descendants must be excluded from active-site scanning:\n${backedUp.stdout}\n${backedUp.stderr}`);
+  } finally {
+    rmSync(backupRoot, { recursive: true, force: true });
+  }
+
   expectMutation('seventh card', (root) => {
     replaceIn(root, 'learn.html', '</section>', '<a class="learning-card" href="detail.html?type=learn&id=extra"><h2>额外章节</h2><span class="learning-status">未看</span></a></section>');
   }, 'learn hub must contain exactly six chapter cards');
@@ -2243,6 +2259,22 @@ function runSelfTest() {
   expectMutation('CSS gradient', (root) => {
     replaceIn(root, 'learning-experience.css', '#0e2144', 'linear-gradient(#fff, #0e2144)');
   }, 'learning-experience.css must not use CSS gradients');
+  expectMutation('active root backup-like CSS gradient', (root) => {
+    writeFileSync(path.join(root, 'backup.css'), '.bad{background:linear-gradient(red,blue)}');
+  }, 'backup.css must not use CSS gradients');
+  expectMutation('nested active CSS gradient', (root) => {
+    mkdirSync(path.join(root, 'active', 'nested'), { recursive: true });
+    writeFileSync(path.join(root, 'active', 'nested', 'bad.css'), '.bad{background:linear-gradient(red,blue)}');
+  }, 'active/nested/bad.css must not use CSS gradients');
+  expectMutation('nested active backups-named directory gradient', (root) => {
+    mkdirSync(path.join(root, 'active', 'backups'), { recursive: true });
+    writeFileSync(path.join(root, 'active', 'backups', 'bad.css'), '.bad{background:linear-gradient(red,blue)}');
+  }, 'active/backups/bad.css must not use CSS gradients');
+  expectMutation('active reference into top-level backups', (root) => {
+    mkdirSync(path.join(root, 'backups'));
+    writeFileSync(path.join(root, 'backups', 'archived.svg'), '<svg xmlns="http://www.w3.org/2000/svg"></svg>');
+    replaceIn(root, 'learn.html', '<main>', '<main><img src="backups/archived.svg" alt="">');
+  }, 'local reference must not target top-level backups');
   expectMutation('missing reduced motion coverage', (root) => {
     replaceIn(root, 'learning-experience.css', '.chapter-return-highlight', '.chapter-return-highlight-missing');
   }, 'reduced-motion block must cover .chapter-return-highlight');
@@ -2332,7 +2364,7 @@ function runSelfTest() {
     },
   ]);
 
-  console.log('PASS learning experience contract self-test (valid fixture + 77 mutations)');
+  console.log('PASS learning experience contract self-test (valid fixture + top-level backup fixture + 81 mutations)');
 }
 
 if (process.argv.includes('--runtime-test')) runRuntimeUnitTest();

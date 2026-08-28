@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { cpSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 
@@ -69,6 +69,32 @@ function verifierAccepts(mutator, description) {
     rmSync(fixture, { recursive: true, force: true });
   }
 }
+
+verifierAccepts((fixture) => {
+  mkdirSync(join(fixture, 'backups'));
+  writeFileSync(join(fixture, 'backups', 'legacy.css'), '.legacy{background:linear-gradient(red,blue)}');
+}, 'top-level backups descendants are excluded from active-site scanning');
+
+verifierRejects((fixture) => {
+  writeFileSync(join(fixture, 'backup.css'), '.bad{background:linear-gradient(red,blue)}');
+}, 'backup.css: gradients are not allowed', 'active backup-like CSS file is still scanned');
+
+verifierRejects((fixture) => {
+  mkdirSync(join(fixture, 'active', 'nested'), { recursive: true });
+  writeFileSync(join(fixture, 'active', 'nested', 'bad.css'), '.bad{background:linear-gradient(red,blue)}');
+}, 'active/nested/bad.css: gradients are not allowed', 'nested active CSS file is still scanned');
+
+verifierRejects((fixture) => {
+  mkdirSync(join(fixture, 'active', 'backups'), { recursive: true });
+  writeFileSync(join(fixture, 'active', 'backups', 'bad.css'), '.bad{background:linear-gradient(red,blue)}');
+}, 'active/backups/bad.css: gradients are not allowed', 'nested active backups-named directory is not broadly ignored');
+
+verifierRejects((fixture) => {
+  mkdirSync(join(fixture, 'backups'));
+  writeFileSync(join(fixture, 'backups', 'archived.svg'), '<svg xmlns="http://www.w3.org/2000/svg"></svg>');
+  const file = join(fixture, 'index.html');
+  writeFileSync(file, readFileSync(file, 'utf8').replace('</body>', '<img src="backups/archived.svg" alt=""></body>'));
+}, 'index.html: image must not target top-level backups: backups/archived.svg', 'active local reference into top-level backups fails closed');
 
 verifierRejects((fixture) => {
   const file = join(fixture, 'index.html');

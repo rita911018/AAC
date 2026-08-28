@@ -119,6 +119,10 @@ function splitReference(value) {
   };
 }
 
+function targetsTopLevelBackups(rootRelative) {
+  return rootRelative.split('/')[0] === 'backups';
+}
+
 function resolveLocal(page, pagePath, value, kind) {
   if (!isLocal(value)) return null;
   const { path } = splitReference(value);
@@ -134,7 +138,12 @@ function resolveLocal(page, pagePath, value, kind) {
     report(`${page}: ${kind} escapes site root: ${value}`);
     return null;
   }
-  return { target, rootRelative: rootRelative.replace(/\\/g, '/') };
+  const normalizedRelative = rootRelative.replace(/\\/g, '/');
+  if (targetsTopLevelBackups(normalizedRelative)) {
+    report(`${page}: ${kind} must not target top-level backups: ${value}`);
+    return null;
+  }
+  return { target, rootRelative: normalizedRelative };
 }
 
 function isInsideRealRoot(target, escapeMessage) {
@@ -368,6 +377,7 @@ function cssFiles(directory = root) {
   for (const entry of entries) {
     const target = resolve(directory, entry.name);
     if (entry.isDirectory()) {
+      if (resolve(directory) === root && entry.name === 'backups') continue;
       found.push(...cssFiles(target));
     } else if (/\.css$/i.test(entry.name)) {
       found.push(target);
