@@ -47,7 +47,8 @@ function readRequired(relativePath) {
 
 function decodeHtmlEntities(source) {
   const named = new Map([
-    ['amp', '&'], ['apos', "'"], ['gt', '>'], ['lt', '<'], ['nbsp', '\u00a0'], ['quot', '"'],
+    ['amp', '&'], ['apos', "'"], ['bsol', '\\'], ['gt', '>'], ['lt', '<'], ['nbsp', '\u00a0'],
+    ['period', '.'], ['quot', '"'], ['sol', '/'],
   ]);
   return source.replace(/&(?:#(\d+);?|#x([\da-f]+);?|([a-z][\da-z]+);)/gi, (entity, decimal, hexadecimal, name) => {
     if (name) return named.get(name.toLowerCase()) ?? entity;
@@ -124,14 +125,15 @@ function maskHtmlCommentsAndNonContent(source) {
     const token = scanNextTag(masked, cursor, 'HTML');
     if (!token) break;
     if (!token.special && !token.closing && ['script', 'style'].includes(token.tagName)) {
-      if (token.tagName === 'script' && parseAttributeEntries(token.rawAttributes).some(({ name }) => name === 'src')) {
-        cursor = token.end;
-        continue;
-      }
       const closePattern = new RegExp(`<\\/\\s*${token.tagName}\\s*>`, 'gi');
       closePattern.lastIndex = token.end;
       const close = closePattern.exec(masked);
       assert.ok(close, `<${token.tagName}> must have a closing tag`);
+      if (token.tagName === 'script' && parseAttributeEntries(token.rawAttributes).some(({ name }) => name === 'src')) {
+        masked = `${masked.slice(0, token.end)}${' '.repeat(close.index - token.end)}${masked.slice(close.index)}`;
+        cursor = token.end;
+        continue;
+      }
       const regionEnd = close.index + close[0].length;
       masked = `${masked.slice(0, token.start)}${' '.repeat(regionEnd - token.start)}${masked.slice(regionEnd)}`;
       cursor = regionEnd;
@@ -239,84 +241,139 @@ function uniqueElement(elements, predicate, message) {
 }
 
 function maskJavaScript(source) {
-  const output = source.split('');
-  let cursor = 0;
-  while (cursor < source.length) {
-    const character = source[cursor];
-    if (character === '/' && source[cursor + 1] === '/') {
-      let end = cursor + 2;
-      while (end < source.length && source[end] !== '\n' && source[end] !== '\r') end += 1;
-      for (let index = cursor; index < end; index += 1) output[index] = ' ';
-      cursor = end;
-      continue;
-    }
-    if (character === '/' && source[cursor + 1] === '*') {
-      const close = source.indexOf('*/', cursor + 2);
-      assert.ok(close >= 0, 'JavaScript block comments must close');
-      const end = close + 2;
-      for (let index = cursor; index < end; index += 1) output[index] = ' ';
-      cursor = end;
-      continue;
-    }
-    if (character === "'" || character === '"' || character === '`') {
-      const quote = character;
-      let end = cursor + 1;
-      while (end < source.length) {
-        if (source[end] === '\\') {
-          end += 2;
-          continue;
-        }
-        if (source[end] === quote) {
-          end += 1;
-          break;
-        }
-        end += 1;
-      }
-      assert.ok(end <= source.length && source[end - 1] === quote, 'JavaScript strings must close');
-      for (let index = cursor; index < end; index += 1) output[index] = ' ';
-      cursor = end;
-      continue;
-    }
-    cursor += 1;
+  const output = Array(source.length).fill(' ');
+  const controlParenClosers = new Set();
+  const parenStack = [];
+
+  function previousExecutableIndex(start) {
+    let index = start - 1;
+    while (index >= 0 && /\s/.test(output[index])) index -= 1;
+    return index;
   }
+
+  function regexCanStart(start) {
+    const previous = previousExecutableIndex(start);
+    if (previous < 0) return true;
+    if (controlParenClosers.has(previous)) return true;
+    const character = output[previous];
+    if (/[$\w\])}]/.test(character)) {
+      if (!/[A-Za-z]/.test(character)) return false;
+      let wordStart = previous;
+      while (wordStart > 0 && /[$\w]/.test(output[wordStart - 1])) wordStart -= 1;
+      const word = output.slice(wordStart, previous + 1).join('');
+      return ['await', 'case', 'delete', 'do', 'else', 'in', 'instanceof', 'of', 'return', 'throw', 'typeof', 'void', 'yield'].includes(word);
+    }
+    return true;
+  }
+
+  function scanQuoted(start, quote) {
+    output[start] = 'S';
+    let cursor = start + 1;
+    while (cursor < source.length) {
+      if (source[cursor] === '\\') { cursor += 2; continue; }
+      if (source[cursor] === quote) return cursor + 1;
+      cursor += 1;
+    }
+    assert.fail('JavaScript strings must close');
+  }
+
+  function scanRegex(start) {
+    output[start] = 'R';
+    let cursor = start + 1;
+    let inClass = false;
+    while (cursor < source.length) {
+      const character = source[cursor];
+      assert.ok(character !== '\n' && character !== '\r', 'JavaScript regex literals must close before a newline');
+      if (character === '\\') { cursor += 2; continue; }
+      if (character === '[') inClass = true;
+      else if (character === ']') inClass = false;
+      else if (character === '/' && !inClass) {
+        cursor += 1;
+        while (/[A-Za-z]/.test(source[cursor] ?? '')) cursor += 1;
+        return cursor;
+      }
+      cursor += 1;
+    }
+    assert.fail('JavaScript regex literals must close');
+  }
+
+  function scanTemplate(start) {
+    output[start] = 'S';
+    let cursor = start + 1;
+    while (cursor < source.length) {
+      if (source[cursor] === '\\') { cursor += 2; continue; }
+      if (source[cursor] === '`') return cursor + 1;
+      if (source[cursor] === '$' && source[cursor + 1] === '{') {
+        cursor = scanCode(cursor + 2, true);
+        continue;
+      }
+      cursor += 1;
+    }
+    assert.fail('JavaScript template literals must close');
+  }
+
+  function scanCode(start, stopAtTemplateBrace = false) {
+    let cursor = start;
+    let braceDepth = 0;
+    while (cursor < source.length) {
+      const character = source[cursor];
+      if (stopAtTemplateBrace && character === '}' && braceDepth === 0) return cursor + 1;
+      if (character === "'" || character === '"') { cursor = scanQuoted(cursor, character); continue; }
+      if (character === '`') { cursor = scanTemplate(cursor); continue; }
+      if (character === '/' && source[cursor + 1] === '/') {
+        while (cursor < source.length && source[cursor] !== '\n' && source[cursor] !== '\r') cursor += 1;
+        continue;
+      }
+      if (character === '/' && source[cursor + 1] === '*') {
+        const close = source.indexOf('*/', cursor + 2);
+        assert.ok(close >= 0, 'JavaScript block comments must close');
+        cursor = close + 2;
+        continue;
+      }
+      if (character === '/' && regexCanStart(cursor)) { cursor = scanRegex(cursor); continue; }
+      output[cursor] = character;
+      if (character === '(') {
+        const previous = previousExecutableIndex(cursor);
+        let wordStart = previous;
+        while (wordStart >= 0 && /[$\w]/.test(output[wordStart])) wordStart -= 1;
+        const word = output.slice(wordStart + 1, previous + 1).join('');
+        parenStack.push(['catch', 'for', 'if', 'switch', 'while', 'with'].includes(word));
+      } else if (character === ')') {
+        const closesControl = parenStack.pop() ?? false;
+        if (closesControl) controlParenClosers.add(cursor);
+      }
+      if (stopAtTemplateBrace && character === '{') braceDepth += 1;
+      else if (stopAtTemplateBrace && character === '}') braceDepth -= 1;
+      cursor += 1;
+    }
+    assert.ok(!stopAtTemplateBrace, 'JavaScript template interpolation must close');
+    return cursor;
+  }
+
+  scanCode(0);
   return output.join('');
 }
 
 function findArrayLiteral(source, variableName) {
   const masked = maskJavaScript(source);
-  const declaration = new RegExp(`\\b(?:var|let|const)\\s+${variableName}\\s*=\\s*\\[`).exec(masked);
-  assert.ok(declaration, `${variableName} must be declared as an array`);
+  const declarationPattern = new RegExp(`\\b(?:var|let|const)\\s+${variableName}\\s*=\\s*\\[`, 'g');
+  const declarations = [...masked.matchAll(declarationPattern)];
+  assert.equal(declarations.length, 1, `${variableName} must have exactly one canonical declaration`);
+  const assignmentPattern = new RegExp(`\\b${variableName}\\s*=(?!=)`, 'g');
+  assert.equal([...masked.matchAll(assignmentPattern)].length, 1, `${variableName} must be assigned exactly once`);
+  const mutatorPattern = new RegExp(`\\b${variableName}\\s*\\.\\s*(?:copyWithin|fill|pop|push|reverse|shift|sort|splice|unshift)\\s*\\(`);
+  const propertyWritePattern = new RegExp(`\\b${variableName}\\s*(?:\\[[^\\]]+\\]|\\.\\s*length)\\s*=(?!=)`);
+  assert.ok(!mutatorPattern.test(masked) && !propertyWritePattern.test(masked), `${variableName} must not be mutated after its canonical declaration`);
+  const declaration = declarations[0];
   const start = masked.indexOf('[', declaration.index);
   let depth = 0;
-  let cursor = start;
-  while (cursor < source.length) {
-    const character = source[cursor];
-    if (character === "'" || character === '"' || character === '`') {
-      const quote = character;
-      cursor += 1;
-      while (cursor < source.length) {
-        if (source[cursor] === '\\') cursor += 2;
-        else if (source[cursor] === quote) { cursor += 1; break; }
-        else cursor += 1;
-      }
-      continue;
-    }
-    if (character === '/' && source[cursor + 1] === '/') {
-      while (cursor < source.length && source[cursor] !== '\n' && source[cursor] !== '\r') cursor += 1;
-      continue;
-    }
-    if (character === '/' && source[cursor + 1] === '*') {
-      const close = source.indexOf('*/', cursor + 2);
-      assert.ok(close >= 0, 'JavaScript block comments must close');
-      cursor = close + 2;
-      continue;
-    }
+  for (let cursor = start; cursor < masked.length; cursor += 1) {
+    const character = masked[cursor];
     if (character === '[') depth += 1;
     if (character === ']') {
       depth -= 1;
       if (depth === 0) return source.slice(start, cursor + 1);
     }
-    cursor += 1;
   }
   assert.fail(`${variableName} array must close`);
 }
@@ -371,6 +428,8 @@ function assertLocalReferenceStaysInside(rawReference, fromFile) {
   const reference = decodeHtmlEntities(rawReference.trim());
   if (!reference || reference.startsWith('#') || reference.startsWith('//')) return;
   if (/^(?:https?:|mailto:|tel:|data:|blob:)/i.test(reference)) return;
+  assert.ok(!/&[a-z][\da-z]+;/i.test(reference),
+    `${path.relative(siteRoot, fromFile)} local reference contains an unknown named HTML entity: ${reference}`);
   const pathname = reference.split(/[?#]/, 1)[0];
   if (!pathname) return;
   let decoded;
@@ -415,8 +474,56 @@ function assertNoGradient(files) {
 function assertCssReferencesStayInside(css, fromFile) {
   const withoutComments = css.replace(/\/\*[\s\S]*?\*\//g, '');
   for (const match of withoutComments.matchAll(/url\(\s*(?:"([^"]+)"|'([^']+)'|([^\s)]+))\s*\)/gi)) {
-    assertLocalReferenceStaysInside(match[1] ?? match[2] ?? match[3], fromFile);
+    assertLocalReferenceStaysInside(decodeCssEscapes(match[1] ?? match[2] ?? match[3]), fromFile);
   }
+}
+
+function decodeCssEscapes(value) {
+  let decoded = '';
+  let cursor = 0;
+  while (cursor < value.length) {
+    if (value[cursor] !== '\\') {
+      decoded += value[cursor];
+      cursor += 1;
+      continue;
+    }
+    if (value[cursor + 1] === '\r' && value[cursor + 2] === '\n') { cursor += 3; continue; }
+    if (value[cursor + 1] === '\r' || value[cursor + 1] === '\n' || value[cursor + 1] === '\f') { cursor += 2; continue; }
+    const hex = /^[\da-f]{1,6}/i.exec(value.slice(cursor + 1));
+    if (hex) {
+      const codePoint = Number.parseInt(hex[0], 16);
+      decoded += codePoint === 0 || codePoint > 0x10FFFF ? '\uFFFD' : String.fromCodePoint(codePoint);
+      cursor += 1 + hex[0].length;
+      if (/[\t\n\f\r ]/.test(value[cursor] ?? '')) cursor += 1;
+      continue;
+    }
+    if (cursor + 1 < value.length) {
+      decoded += value[cursor + 1];
+      cursor += 2;
+      continue;
+    }
+    cursor += 1;
+  }
+  return decoded;
+}
+
+function isKnownExternalDirectoryLink(href) {
+  let url;
+  try { url = new URL(href, 'https://knowledge-base.example/'); }
+  catch { return false; }
+  const host = url.hostname.toLowerCase().replace(/^www\./, '');
+  return [
+    'youtube.com',
+    'coursera.org',
+    'space.bilibili.com',
+    'speech.ee.ntu.edu.tw',
+    'baoyu.io',
+    'jiqizhixin.com',
+    'qbitai.com',
+    'sspai.com',
+    'karpathy.ai',
+    'geekpark.net',
+  ].some((blockedHost) => host === blockedHost || host.endsWith(`.${blockedHost}`));
 }
 
 function runContract() {
@@ -457,11 +564,11 @@ function runContract() {
   }
   const main = uniqueElement(learnElements, (element) => element.tagName === 'main', 'learn.html must contain exactly one main');
   const visibleMainCopy = visibleText(main.innerHtml, 'learn main');
-  for (const forbidden of ['AI 公司', '主流 AI 模型', '课程目录', '视频目录', '博主目录']) {
+  for (const forbidden of ['课程目录', '视频目录', '博主目录']) {
     assert.ok(!visibleMainCopy.includes(forbidden), `learn hub must not contain the external-resource directory copy: ${forbidden}`);
   }
   const mainElements = parseElements(main.innerHtml, 'learn main');
-  const directoryHeadingPattern = /(?:(?:精选|推荐|值得关注(?:的)?|延伸学习|资源导航|资源推荐).{0,12}(?:视频|课程|博主|创作者|信息源)|(?:视频|课程|博主|创作者|信息源).{0,12}(?:精选|推荐|目录|导航|资源|信息源))/;
+  const directoryHeadingPattern = /(?:(?:精选|推荐|值得关注(?:的)?|延伸学习|资源导航|资源推荐).{0,12}(?:视频|课程|博主|创作者|信息源)|(?:视频|课程|博主|创作者|信息源).{0,12}(?:精选|推荐|目录|导航|资源|信息源)|(?:AI\s*公司|主流\s*AI\s*模型).{0,12}(?:介绍|入口|目录|推荐|官网|图谱)|(?:介绍|入口|目录|推荐|官网|图谱).{0,12}(?:AI\s*公司|主流\s*AI\s*模型))/;
   const directoryHeadings = mainElements.filter((element) => /^h[1-6]$/.test(element.tagName) && isVisible(element))
     .map((element) => visibleText(element.innerHtml, 'learn directory heading'))
     .filter((heading) => directoryHeadingPattern.test(heading));
@@ -480,7 +587,7 @@ function runContract() {
   assert.equal(visibleLegacyMediaSections.length, 0, 'learn main must not retain the legacy #sec-media directory');
 
   const externalDirectoryLinks = mainElements.filter((element) => element.tagName === 'a' && isVisible(element) &&
-    /^(?:https?:)?\/\//i.test((element.attributes.get('href') ?? '').trim()));
+    isKnownExternalDirectoryLink((element.attributes.get('href') ?? '').trim()));
   assert.equal(externalDirectoryLinks.length, 0, 'learn main must not contain external resource-directory links');
   const forbiddenLearningIds = ['ai-companies', 'ai-models'];
   for (const anchor of learnElements.filter((element) => element.tagName === 'a' && isVisible(element))) {
@@ -579,13 +686,18 @@ function fixtureFiles(order = chapterIds) {
     'learn.html': `<!doctype html><html><head><link rel="stylesheet" href="learning-experience.css"></head><body>
       <!-- <a class="learning-card"><h2>decoy 未通过</h2></a> -->
       <script>var decoy='<a class="learning-card">decoy 未通过</a>';</script>
-      <main><p>章节案例可以自然提到推荐课程、精选视频或值得关注的博主，不代表这里承载资源目录。</p><section class="learning-hub"><a class="learning-card" hidden href="detail.html?type=learn&id=hidden"><h2>隐藏占位</h2><span class="learning-status">未看</span></a>${cards}</section></main></body></html>`,
+      <script src="learning-experience.js"><a class="learning-card" href="detail.html?type=learn&id=script-decoy"><h2>外链脚本 raw-text decoy</h2></a></script>
+      <main><p>章节案例可以自然提到 AI 公司、主流 AI 模型、推荐课程、精选视频或值得关注的博主，不代表这里承载资源目录。必要时可引用<a href="https://www.anthropic.com/research">单一权威来源</a>。</p><section class="learning-hub"><a class="learning-card" hidden href="detail.html?type=learn&id=hidden"><h2>隐藏占位</h2><span class="learning-status">未看</span></a>${cards}</section></main></body></html>`,
     'detail.html': '<!doctype html><html><head><link rel="stylesheet" href="learning-experience.css"></head><body><main id="learningExperience"></main><script src="learning-experience.js"></script></body></html>',
     'progress.html': '<!doctype html><html><body><main><p>进度只在本次标签会话有效。</p><a href="learn.html">进入 AI 新手入门</a></main></body></html>',
-    'search.js': `(function(){ var SEARCH_INDEX=[${searchEntries},{t:'AI 公司介绍',tag:'资源',href:'resources.html'}]; window.search=SEARCH_INDEX; }());`,
+    'search.js': `(function(){ var SEARCH_INDEX=[${searchEntries},{t:'AI 公司介绍',tag:'资源',href:'resources.html'}]; var decoy='SEARCH_INDEX.push({tag:"入门"})'; /* SEARCH_INDEX = []; */ window.search=SEARCH_INDEX; }());`,
     'learning-experience.js': `(function(){
       // localStorage in documentation must not count as executable usage.
       var harmlessStorageWord='localStorage';
+      var harmlessTemplateText=\`localStorage\`;
+      var harmlessRegex=/localStorage/;
+      function harmlessRegexStatement(flag){ if(flag) /localStorage/.test('documentation'); }
+      var harmlessNestedTemplate=\`documentation \${\`localStorage\`}\`;
       var chapters=[${chapters}];
       var aliases=${JSON.stringify(aliases)};
       function read(){ try { return sessionStorage.getItem('amersports-ai-beginner-session-v1'); } catch(error) { return null; } }
@@ -634,6 +746,22 @@ function replaceIn(root, relative, from, to) {
   writeFileSync(absolute, source.replace(from, to));
 }
 
+function expectMutationBatch(cases) {
+  const missed = [];
+  for (const { name, mutate, expectedMessage } of cases) {
+    const root = createFixture();
+    try {
+      mutate(root);
+      const result = runFixture(root);
+      const output = `${result.stdout}\n${result.stderr}`;
+      if (result.status === 0 || !output.includes(expectedMessage)) missed.push(name);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+  assert.deepEqual(missed, [], `contract missed review mutations: ${missed.join(', ')}`);
+}
+
 function runSelfTest() {
   const greenRoot = createFixture();
   try {
@@ -658,7 +786,7 @@ function runSelfTest() {
   }, 'learn.html must not contain prohibited status or assessment copy: 未通过');
   expectMutation('company directory', (root) => {
     replaceIn(root, 'learn.html', '<main>', '<main><a href="detail.html?type=learn&id=ai-companies">AI 公司入口</a>');
-  }, 'learn hub must not contain the external-resource directory copy: AI 公司');
+  }, 'learn hub must not link to the old company or model directory');
   expectMutation('missing case study', (root) => {
     replaceIn(root, 'learning-experience.js', 'caseStudy:{title:\'案例\'}', 'caseStudyMissing:{title:\'案例\'}');
   }, 'ai-basics must define caseStudy');
@@ -687,10 +815,43 @@ function runSelfTest() {
     replaceIn(root, 'learn.html', '<main>', '<main><section id="sec-media"><div class="video-grid"><p>延伸内容</p></div></section>');
   }, 'learn main must not retain legacy course, video, or creator directory structures');
   expectMutation('external resource-directory link', (root) => {
-    replaceIn(root, 'learn.html', '<main>', '<main><a href="https://example.test/resource">延伸阅读</a>');
+    replaceIn(root, 'learn.html', '<main>', '<main><a href="https://www.coursera.org/learn/ai-for-everyone">延伸阅读</a>');
   }, 'learn main must not contain external resource-directory links');
 
-  console.log('PASS learning experience contract self-test (valid fixture + 15 mutations)');
+  expectMutationBatch([
+    {
+      name: 'SEARCH_INDEX push',
+      mutate(root) { replaceIn(root, 'search.js', 'window.search=SEARCH_INDEX', "SEARCH_INDEX.push({t:'旧模型',tag:'入门',href:'detail.html?type=learn&id=ai-models'}); window.search=SEARCH_INDEX"); },
+      expectedMessage: 'SEARCH_INDEX must not be mutated after its canonical declaration',
+    },
+    {
+      name: 'second SEARCH_INDEX declaration',
+      mutate(root) { replaceIn(root, 'search.js', 'window.search=SEARCH_INDEX', 'var SEARCH_INDEX=[]; window.search=SEARCH_INDEX'); },
+      expectedMessage: 'SEARCH_INDEX must have exactly one canonical declaration',
+    },
+    {
+      name: 'SEARCH_INDEX reassignment',
+      mutate(root) { replaceIn(root, 'search.js', 'window.search=SEARCH_INDEX', 'SEARCH_INDEX=SEARCH_INDEX.slice(); window.search=SEARCH_INDEX'); },
+      expectedMessage: 'SEARCH_INDEX must be assigned exactly once',
+    },
+    {
+      name: 'localStorage in template interpolation',
+      mutate(root) { replaceIn(root, 'learning-experience.js', 'window.AIBeginner=', 'function hiddenProbe(){ return `${localStorage.getItem("bad")}`; } window.AIBeginner='); },
+      expectedMessage: 'learning-experience.js must not use localStorage',
+    },
+    {
+      name: 'HTML named-entity traversal',
+      mutate(root) { replaceIn(root, 'learn.html', '<head>', '<head><link rel="stylesheet" href="images&sol;..&sol;..&sol;escape.css">'); },
+      expectedMessage: 'local reference must stay inside knowledge-base',
+    },
+    {
+      name: 'CSS escaped traversal',
+      mutate(root) { replaceIn(root, 'learning-experience.css', '#0e2144', '#0e2144; background-image: url(images/\\2e\\2e/\\2e\\2e/escape.png)'); },
+      expectedMessage: 'local reference must stay inside knowledge-base',
+    },
+  ]);
+
+  console.log('PASS learning experience contract self-test (valid fixture + 21 mutations)');
 }
 
 if (process.argv.includes('--self-test')) runSelfTest();
