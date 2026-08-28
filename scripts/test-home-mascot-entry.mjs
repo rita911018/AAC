@@ -1059,7 +1059,7 @@ assertVisiblyRendered(deepSeekBadge, 'AI tools DeepSeek replacement row badge');
 assertVisiblyRendered(deepSeekDescription, 'AI tools DeepSeek replacement row description');
 assert.equal(normalizedVisibleText(deepSeekName.innerHtml, 'AI tools DeepSeek replacement row name'), 'DeepSeek 国内', 'AI tools DeepSeek replacement row must retain its exact visible name and badge');
 assert.equal(normalizedVisibleText(deepSeekBadge.innerHtml, 'AI tools DeepSeek replacement row badge'), '国内', 'AI tools DeepSeek replacement row visible badge must be 国内');
-assert.equal(normalizedVisibleText(deepSeekDescription.innerHtml, 'AI tools DeepSeek replacement row description'), '通用推理与编程助手', 'AI tools DeepSeek replacement row must retain its exact visible description');
+assert.equal(normalizedVisibleText(deepSeekDescription.innerHtml, 'AI tools DeepSeek replacement row description'), '国产通用 AI 助手，推理能力突出', 'AI tools DeepSeek replacement row must retain its exact visible description');
 assert.equal(
   normalizedVisibleText(deepSeekRows[0].innerHtml, 'AI tools DeepSeek replacement row').match(/DeepSeek/g)?.length,
   1,
