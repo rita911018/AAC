@@ -361,9 +361,9 @@ body .mod-go{width:auto;min-width:44px;min-height:44px;padding-inline:8px;displa
 .xa-prompt-card .xp-tag{margin-bottom:10px;padding:2px 7px;border:1px solid var(--line);border-radius:4px;background:var(--white);color:var(--blue);font:700 11px/1.5 var(--font-mono)}
 .xa-prompt-card h3{margin-bottom:8px;font-size:24px;line-height:1.3}
 .xa-prompt-card p{max-width:640px;margin-bottom:16px;color:var(--muted);font-size:17px;line-height:1.8}
-.xa-prompt-card .xp-cta,.xa-hero .xh-cta{min-height:44px;padding:9px 16px;display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid var(--blue);border-radius:7px;background:var(--blue);color:var(--white);font-size:14px;font-weight:720}
-.xa-prompt-card .xp-cta:hover,.xa-hero .xh-cta:hover{border-color:var(--navy-2);background:var(--navy-2);box-shadow:none;color:var(--white);transform:none}
-.xa-prompt-card .xp-cta svg,.xa-hero .xh-cta svg{width:16px;height:16px;stroke:currentColor}
+.xa-prompt-card .xp-cta,.xa-hero .xh-cta,.home-hero .hero-xiaoa-cta{min-height:44px;padding:9px 16px;display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid var(--blue);border-radius:7px;background:var(--blue);color:var(--white);font-size:14px;font-weight:720}
+.xa-prompt-card .xp-cta:hover,.xa-hero .xh-cta:hover,.home-hero .hero-xiaoa-cta:hover{border-color:var(--navy-2);background:var(--navy-2);box-shadow:none;color:var(--white);transform:none}
+.xa-prompt-card .xp-cta svg,.xa-hero .xh-cta svg,.home-hero .hero-xiaoa-cta svg{width:16px;height:16px;stroke:currentColor}
 .xa-prompt-card .xp-deco{position:relative;isolation:isolate;width:168px;height:124px;display:grid;place-items:center;flex:none;overflow:hidden;border:1px solid var(--navy-2);border-radius:8px;background:var(--navy);color:var(--white)}
 .xa-prompt-card .xp-deco::after{content:none;background-image:none}
 .xa-prompt-card .xp-deco svg{position:relative;z-index:2;width:42px;height:42px;stroke:currentColor}
@@ -519,18 +519,28 @@ body .xa-hero .xh-side li b{color:var(--white)}
 .home-hero .container{min-height:360px;padding-block:0;grid-template-columns:minmax(0,1fr) minmax(340px,440px);align-items:center;gap:clamp(40px,5vw,72px)}
 .home-hero .bh-left{grid-column:1;grid-row:1}
 .home-hero .hero-mascot{position:relative;right:auto;bottom:auto;grid-column:2;grid-row:1;width:100%;max-width:440px;height:360px;max-height:none;margin:0;overflow:visible;justify-self:end;align-self:end;animation:none!important;transform:none;opacity:1}
+.home-hero .hero-xiaoa-entry{position:absolute;top:88px;right:-18px;z-index:5;width:190px;pointer-events:auto}
+.home-hero .hero-xiaoa-entry p{margin:9px 0 0;color:var(--on-navy);font-size:12.5px;line-height:1.6}
 .home-hero .hero-mascot picture{position:absolute;inset:0;display:block;overflow:visible}
-.home-hero .hero-mascot img{position:absolute;right:0;bottom:-165px;width:auto;height:520px;max-width:none;max-height:none;object-fit:contain;object-position:center bottom}
+.home-hero .hero-mascot img{position:absolute;right:48px;bottom:-165px;width:auto;height:520px;max-width:none;max-height:none;object-fit:contain;object-position:center bottom}
 
 @media(max-width:820px){
   .home-hero .container{min-height:0;padding-block:46px 0;grid-template-columns:1fr;align-items:start;gap:24px}
   .home-hero .bh-left{grid-column:1;grid-row:1}
   .home-hero .hero-mascot{grid-column:1;grid-row:2;width:340px;max-width:100%;height:280px;max-height:none;margin:0;justify-self:end;align-self:end}
-  .home-hero .hero-mascot img{right:0;bottom:-110px;width:auto;height:390px;max-width:none;max-height:none}
+  .home-hero .hero-xiaoa-entry{top:84px;right:0;width:174px;display:flex;align-items:flex-end;flex-direction:column}
+  .home-hero .hero-xiaoa-entry p{width:130px;margin-top:46px}
+  .home-hero .hero-mascot img{right:48px;bottom:-110px;width:auto;height:390px;max-width:none;max-height:none}
 }
 
 @media(max-width:560px){
   .home-hero .container{padding-block:42px 0;gap:20px}
   .home-hero .hero-mascot{width:300px;height:250px}
-  .home-hero .hero-mascot img{bottom:-80px;height:330px}
+  .home-hero .hero-xiaoa-entry{top:72px;right:-8px;width:160px}
+  .home-hero .hero-mascot img{right:48px;bottom:-80px;height:330px}
+}
+
+@media(max-width:390px){
+  .home-hero .hero-mascot{width:286px}
+  .home-hero .hero-xiaoa-entry{right:0;width:154px}
 }
