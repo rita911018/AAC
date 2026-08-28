@@ -519,7 +519,7 @@ body .xa-hero .xh-side li b{color:var(--white)}
 .home-hero .container{min-height:360px;padding-block:0;grid-template-columns:minmax(0,1fr) minmax(340px,440px);align-items:center;gap:clamp(40px,5vw,72px)}
 .home-hero .bh-left{grid-column:1;grid-row:1}
 .home-hero .hero-mascot{position:relative;right:auto;bottom:auto;grid-column:2;grid-row:1;width:100%;max-width:440px;height:360px;max-height:none;margin:0;overflow:visible;justify-self:end;align-self:end;animation:none!important;transform:none;opacity:1}
-.home-hero .hero-xiaoa-entry{position:absolute;top:88px;right:-18px;z-index:5;width:190px;pointer-events:auto}
+.home-hero .hero-xiaoa-entry{position:absolute;top:88px;right:-25px;z-index:5;width:190px;pointer-events:auto}
 .home-hero .hero-xiaoa-entry p{margin:9px 0 0;color:var(--on-navy);font-size:12.5px;line-height:1.6}
 .home-hero .hero-mascot picture{position:absolute;inset:0;display:block;overflow:visible}
 .home-hero .hero-mascot img{position:absolute;right:48px;bottom:-165px;width:auto;height:520px;max-width:none;max-height:none;object-fit:contain;object-position:center bottom}
@@ -528,19 +528,20 @@ body .xa-hero .xh-side li b{color:var(--white)}
   .home-hero .container{min-height:0;padding-block:46px 0;grid-template-columns:1fr;align-items:start;gap:24px}
   .home-hero .bh-left{grid-column:1;grid-row:1}
   .home-hero .hero-mascot{grid-column:1;grid-row:2;width:340px;max-width:100%;height:280px;max-height:none;margin:0;justify-self:end;align-self:end}
-  .home-hero .hero-xiaoa-entry{top:84px;right:0;width:174px;display:flex;align-items:flex-end;flex-direction:column}
-  .home-hero .hero-xiaoa-entry p{width:130px;margin-top:46px}
-  .home-hero .hero-mascot img{right:48px;bottom:-110px;width:auto;height:390px;max-width:none;max-height:none}
+  .home-hero .hero-xiaoa-entry{top:84px;right:0;width:115px;display:flex;align-items:flex-end;flex-direction:column}
+  .home-hero .hero-xiaoa-entry p{width:115px;margin-top:46px}
+  .home-hero .hero-mascot img{right:28px;bottom:-110px;width:auto;height:390px;max-width:none;max-height:none}
 }
 
 @media(max-width:560px){
   .home-hero .container{padding-block:42px 0;gap:20px}
   .home-hero .hero-mascot{width:300px;height:250px}
-  .home-hero .hero-xiaoa-entry{top:72px;right:-8px;width:160px}
-  .home-hero .hero-mascot img{right:48px;bottom:-80px;height:330px}
+  .home-hero .hero-xiaoa-entry{top:72px;right:-14px;width:102px}
+  .home-hero .hero-xiaoa-entry p{width:102px}
+  .home-hero .hero-xiaoa-cta{padding-inline:12px}
+  .home-hero .hero-mascot img{right:16px;bottom:-80px;height:330px}
 }
 
 @media(max-width:390px){
   .home-hero .hero-mascot{width:286px}
-  .home-hero .hero-xiaoa-entry{right:0;width:154px}
 }
