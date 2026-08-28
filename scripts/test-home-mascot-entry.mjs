@@ -30,6 +30,31 @@ const approvedBookPaths = [
   'M4.5 5.5c3.1-.8 5.6-.2 7.5 1.5v12c-1.9-1.7-4.4-2.3-7.5-1.5z',
   'M19.5 5.5c-3.1-.8-5.6-.2-7.5 1.5v12c1.9-1.7 4.4-2.3 7.5-1.5z',
 ];
+const upperRightArrowPath = 'M7 17L17 7M9 7h8v8';
+const approvedHomeEntries = [
+  {
+    href: 'learn.html',
+    title: 'AI 新手入门',
+    description: '我是 AI 小白，想从零开始系统学习：是什么、怎么用、如何进阶。',
+  },
+  {
+    href: 'video.html',
+    title: '录播回放',
+    description: '回看公司内部 AI 培训、分享会与专题课程，随时补课不落进度。',
+  },
+  {
+    href: 'resources.html',
+    title: 'AI 工具与资源',
+    description: '找工具、课程、博主、论文 —— 一个资源导航，解决「从哪开始」。',
+  },
+];
+const approvedXiaoACapabilities = [
+  '问流程：办公流程、SAP 流程、供应商创建与变更',
+  '查财务：费用报销、财务项目预算管理',
+  '查系统：Ariba、BIT 与 IT 服务指引',
+  '连续追问：理解上下文、简称和补充信息',
+  '看图表：识别图片与表格，回答更完整',
+];
 
 function scanLineCommentBoundary(source, start) {
   let index = start + 2;
@@ -516,6 +541,15 @@ assert.ok(
     && relTokenSet(homeShortcutCta).has('noopener'),
   'home Hero shortcut must open the exact Portal URL in a safe new tab',
 );
+const homeShortcutSvgs = extractSvgElements(homeShortcutCta.innerHtml);
+assert.equal(homeShortcutSvgs.length, 1, 'home Hero shortcut CTA must retain the upper-right arrow icon');
+const homeShortcutGraphicElements = findOpeningTags(homeShortcutSvgs[0].innerHtml);
+assert.equal(homeShortcutGraphicElements.length, 1, 'home Hero shortcut CTA arrow must contain one graphic element');
+assert.ok(
+  homeShortcutGraphicElements[0].tagName === 'path'
+    && normalizedPathData(homeShortcutGraphicElements[0].attributes.get('d') ?? '') === normalizedPathData(upperRightArrowPath),
+  'home Hero shortcut CTA must retain the upper-right arrow icon',
+);
 const homeShortcutParagraphs = findElementsByTag(homeXiaoAShortcut.innerHtml, 'p', 'home Hero shortcut');
 assert.equal(homeShortcutParagraphs.length, 1, 'home Hero shortcut must contain exactly one description paragraph');
 assertVisiblyRendered(homeShortcutParagraphs[0], 'home Hero shortcut description');
@@ -525,19 +559,66 @@ assert.equal(
   'home Hero shortcut description must match the approved copy exactly after normalization',
 );
 
-const homeEntryCards = findElementsByClass(files.index, 'a', 'entry-card', 'home learning path cards');
+const homeElements = parseHtmlElements(files.index, 'home');
+const homeMain = extractUniqueElementByTag(files.index, 'main', 'home main');
+const homeMainDirectElements = parseHtmlElements(homeMain.innerHtml, 'home main')
+  .filter(({ parent }) => parent === null);
+assert.equal(homeMainDirectElements.length, 2, 'home main must contain only the Hero and learning-path sections');
+const homeMainSections = homeMainDirectElements.filter(({ tagName }) => tagName === 'section');
+assert.equal(homeMainSections.length, 2, 'home main must contain exactly the Hero and learning-path sections');
+assert.equal(
+  homeElements.filter(({ tagName }) => tagName === 'section').length,
+  2,
+  'home must contain exactly two sections total',
+);
+assert.ok(hasClass(homeMainSections[0], 'home-hero'), 'home main first section must be the Hero');
+assert.ok(
+  hasClass(homeMainSections[1], 'section') && !hasClass(homeMainSections[1], 'home-hero'),
+  'home main second section must be the learning-path entry region',
+);
+assert.equal(
+  homeElements.filter(({ attributes }) => attributes.get('id') === 'gateway').length,
+  0,
+  'home must not contain #gateway',
+);
+
+const homeEntryCards = findElementsByClass(homeMainSections[1].innerHtml, 'a', 'entry-card', 'home learning path cards');
 assert.equal(homeEntryCards.length, 3, 'home must contain exactly three entry-card anchors');
 assert.deepEqual(
   homeEntryCards.map(({ attributes }) => attributes.get('href')),
-  ['learn.html', 'video.html', 'resources.html'],
+  approvedHomeEntries.map(({ href }) => href),
   'home entry-card hrefs must retain the approved order',
 );
-const learningPathTitles = findElementsByTag(files.index, 'h2', 'home').filter(
+homeEntryCards.forEach((entry, index) => {
+  const entryTitle = extractUniqueElementByTag(entry.innerHtml, 'h3', `home entry-card ${index + 1} title`);
+  const entryDescription = extractUniqueElementByTag(entry.innerHtml, 'p', `home entry-card ${index + 1} description`);
+  assert.equal(
+    normalizedText(entryTitle.innerHtml),
+    approvedHomeEntries[index].title,
+    `home entry-card ${index + 1} must retain its exact h3`,
+  );
+  assert.equal(
+    normalizedText(entryDescription.innerHtml),
+    approvedHomeEntries[index].description,
+    `home entry-card ${index + 1} must retain its exact description`,
+  );
+});
+const learningPathTitles = findElementsByTag(homeMainSections[1].innerHtml, 'h2', 'home learning-path region').filter(
   ({ innerHtml }) => normalizedText(innerHtml) === '选择你的 AI 学习路径',
 );
 assert.equal(learningPathTitles.length, 1, 'home must contain exactly one h2 “选择你的 AI 学习路径”');
+const learningPathDescription = extractUniqueElementByClass(
+  homeMainSections[1].innerHtml,
+  'p',
+  'desc',
+  'home learning-path region description',
+);
+assert.equal(
+  normalizedText(learningPathDescription.innerHtml),
+  '每个板块都是独立的完整页面，点击进入后内部还有细分目录。',
+  'home learning-path region must retain its exact description',
+);
 
-const homeElements = parseHtmlElements(files.index, 'home');
 assert.equal(
   homeElements.filter(({ tagName, attributes }) => tagName === 'section' && attributes.get('id') === 'xiaoa').length,
   0,
@@ -557,6 +638,40 @@ for (const forbiddenFullXiaoACopy of [
   );
 }
 
+const nonResourcesPages = new Map([
+  ['index.html', files.index],
+  ['learn.html', files.learn],
+  ['video.html', files.video],
+  ['progress.html', files.progress],
+  ['detail.html', files.detail],
+]);
+const fullXiaoACopyFragments = [
+  '接入了公司制度、流程和内部数据的 AI 助手。',
+  '小A 2.0 能帮你做什么',
+  '小A vs 微软 Copilot：什么时候用谁？',
+  portalInstructions,
+  ...approvedXiaoACapabilities,
+];
+for (const [fileName, content] of nonResourcesPages) {
+  const elements = parseHtmlElements(content, fileName);
+  for (const forbiddenClass of ['xiaoa-section', 'xa-hero', 'xa-vs']) {
+    assert.equal(
+      elements.filter((element) => hasClass(element, forbiddenClass)).length,
+      0,
+      `${fileName} must not contain .${forbiddenClass}`,
+    );
+  }
+  assert.equal(
+    elements.filter(({ attributes }) => attributes.get('id') === 'xiaoa').length,
+    0,
+    `${fileName} must not contain #xiaoa`,
+  );
+  const pageText = normalizedText(content);
+  for (const copyFragment of fullXiaoACopyFragments) {
+    assert.ok(!pageText.includes(copyFragment), `${fileName} must not retain full Xiao A capability copy: ${copyFragment}`);
+  }
+}
+
 const resourcesHero = extractUniqueElementByClass(files.resources, 'section', 'resources-hero', 'resources hero');
 const resourcesHeroCopy = extractUniqueElementByClass(resourcesHero.innerHtml, 'div', 'bh-left', 'resources hero copy');
 const resourcesHeroDescription = extractUniqueElementByTag(resourcesHeroCopy.innerHtml, 'p', 'resources hero description');
@@ -571,6 +686,10 @@ assertVisiblyRendered(resourcesXiaoA, 'resources internal Xiao A section');
 assert.equal(resourcesXiaoA.attributes.get('id'), 'xiaoa', 'resources internal Xiao A section must be section.xiaoa-section#xiaoa');
 const externalResources = extractUniqueElementByClass(files.resources, 'section', 'external-resources', 'resources external resources section');
 assertVisiblyRendered(externalResources, 'resources external resources section');
+assert.ok(
+  resourcesHero.openStart < resourcesXiaoA.openStart && resourcesXiaoA.openStart < externalResources.openStart,
+  'resources order must be Hero, internal Xiao A, then external resources',
+);
 assert.ok(
   resourcesXiaoA.openStart < externalResources.openStart,
   'resources internal Xiao A section must appear before the external resources section',
@@ -621,20 +740,28 @@ const xiaoAItems = findElementsByTag(xiaoASide.innerHtml, 'li', 'resources Xiao 
   .map(({ innerHtml }) => normalizedText(innerHtml));
 assert.deepEqual(
   xiaoAItems,
-  [
-    '问流程：办公流程、SAP 流程、供应商创建与变更',
-    '查财务：费用报销、财务项目预算管理',
-    '查系统：Ariba、BIT 与 IT 服务指引',
-    '连续追问：理解上下文、简称和补充信息',
-    '看图表：识别图片与表格，回答更完整',
-  ],
+  approvedXiaoACapabilities,
   'resources Xiao A capabilities must contain exactly the five approved normalized items',
 );
 
 const xiaoAVs = extractUniqueElementByClass(resourcesXiaoA.innerHtml, 'div', 'xa-vs', 'resources Xiao A comparison');
 const comparisonTitle = extractUniqueElementByTag(xiaoAVs.innerHtml, 'h3', 'resources Xiao A comparison title');
 assert.equal(normalizedText(comparisonTitle.innerHtml), '小A vs 微软 Copilot：什么时候用谁？', 'resources must retain the full comparison title');
-const comparisonTable = extractUniqueElementByTag(xiaoAVs.innerHtml, 'table', 'resources Xiao A comparison table');
+const comparisonScrollRegion = extractUniqueElementByClass(xiaoAVs.innerHtml, 'div', 'rt-table', 'resources comparison scroll region');
+assertVisiblyRendered(comparisonScrollRegion, 'resources comparison scroll region');
+assert.equal(comparisonScrollRegion.attributes.get('role'), 'region', 'resources comparison scroll region must retain role=region');
+assert.equal(comparisonScrollRegion.attributes.get('tabindex'), '0', 'resources comparison scroll region must retain tabindex=0');
+assert.equal(
+  comparisonScrollRegion.attributes.get('aria-label'),
+  '横向滚动查看小A与微软 Copilot 使用场景对比',
+  'resources comparison scroll region must retain its approved aria-label',
+);
+const comparisonTable = extractUniqueElementByTag(comparisonScrollRegion.innerHtml, 'table', 'resources Xiao A comparison table');
+assert.equal(
+  comparisonTable.attributes.get('aria-label'),
+  '小A 与微软 Copilot 使用场景对比',
+  'resources comparison table must retain its approved aria-label',
+);
 const comparisonRows = findElementsByTag(comparisonTable.innerHtml, 'tr', 'resources Xiao A comparison table').map((row) => (
   parseHtmlElements(row.innerHtml, 'resources Xiao A comparison row')
     .filter(({ tagName }) => tagName === 'th' || tagName === 'td')
@@ -654,6 +781,11 @@ assert.deepEqual(
 
 const externalTitle = extractUniqueElementByTag(externalResources.innerHtml, 'h2', 'resources external title');
 assert.equal(normalizedText(externalTitle.innerHtml), '外部 AI 学习资源', 'resources external section must use the approved h2');
+const visibleExternalText = normalizedVisibleText(externalResources.innerHtml, 'resources external section');
+assert.ok(
+  !visibleExternalText.includes('公司内部') && !visibleExternalText.includes('小A'),
+  'resources external section visible text must not include internal-company or Xiao A copy',
+);
 const resourceEntries = findElementsByClass(externalResources.innerHtml, 'a', 'res-entry', 'resources external entries');
 assert.equal(resourceEntries.length, 4, 'resources external section must contain exactly four res-entry anchors');
 assert.equal(
@@ -671,11 +803,25 @@ assert.deepEqual(
   ],
   'resources external entry hrefs must retain the approved order',
 );
+const toolsSubtitle = extractUniqueElementByClass(resourceEntries[0].innerHtml, 'div', 're-sub', 'AI tools subtitle');
+assertVisiblyRendered(resourceEntries[0], 'AI tools entry');
+assertVisiblyRendered(toolsSubtitle, 'AI tools subtitle');
+assert.equal(normalizedText(toolsSubtitle.innerHtml), '海外 · 国内', 'AI tools subtitle must be exactly “海外 · 国内”');
 const toolsPreview = extractUniqueElementByClass(resourceEntries[0].innerHtml, 'div', 're-preview', 'AI tools preview');
+assertVisiblyRendered(toolsPreview, 'AI tools preview');
 const toolsPreviewText = normalizedText(toolsPreview.innerHtml);
 assert.ok(!toolsPreviewText.includes('公司内部'), 'AI tools preview must not describe internal-company tools');
 assert.ok(!toolsPreviewText.includes('小A'), 'AI tools preview must not include Xiao A');
-assert.ok(toolsPreviewText.includes('DeepSeek'), 'AI tools preview must include DeepSeek');
+assert.equal(toolsPreviewText.match(/DeepSeek/g)?.length, 1, 'AI tools preview must contain DeepSeek exactly once');
+const deepSeekRows = findElementsByClass(toolsPreview.innerHtml, 'div', 'p-row', 'AI tools preview')
+  .filter(({ innerHtml }) => normalizedText(innerHtml).includes('DeepSeek'));
+assert.equal(deepSeekRows.length, 1, 'AI tools preview must contain exactly one DeepSeek replacement row');
+assertVisiblyRendered(deepSeekRows[0], 'AI tools DeepSeek replacement row');
+assert.equal(
+  normalizedVisibleText(deepSeekRows[0].innerHtml, 'AI tools DeepSeek replacement row').match(/DeepSeek/g)?.length,
+  1,
+  'AI tools DeepSeek replacement row must name DeepSeek exactly once',
+);
 
 const gatewayElements = resourcesPageElements.filter(({ attributes }) => attributes.get('id') === 'gateway');
 assert.equal(gatewayElements.length, 1, 'resources must contain exactly one real #gateway element');
@@ -686,7 +832,7 @@ assertVisiblyRendered(resourcesGateway, 'resources external sites');
 assert.equal(resourcesGateway.attributes.get('id'), 'gateway', 'resources external-sites must carry id="gateway"');
 const resourcesGatewayTitle = extractUniqueElementByTag(resourcesGateway.innerHtml, 'h3', 'resources external sites title');
 assert.equal(normalizedText(resourcesGatewayTitle.innerHtml), '精选站点', 'resources external-sites must use the approved h3');
-const visibleExternalText = normalizedVisibleText(externalResources.innerHtml, 'resources external section');
+assertVisiblyRendered(resourcesGatewayTitle, 'resources external sites title');
 assert.ok(!visibleExternalText.includes('GATEWAY · AI 网闸'), 'resources must not visibly render the old Gateway eyebrow');
 assert.ok(!visibleExternalText.includes('外部精选 AI 资源'), 'resources must not visibly render the old Gateway title');
 
@@ -699,6 +845,7 @@ for (const [name, href] of [
   const matches = resourcesGatewayLinks.filter(({ innerHtml }) => normalizedText(innerHtml).includes(name));
   assert.equal(matches.length, 1, `resources external-sites must retain the ${name} card`);
   const link = matches[0];
+  assertVisiblyRendered(link, `resources external-sites ${name} link`);
   assert.ok(
     link.attributes.get('href') === href
       && link.attributes.get('target') === '_blank'
