@@ -11,8 +11,25 @@
       id: 'ai-basics',
       number: '01',
       title: '认识 AI',
-      summary: '看懂 AI、生成式 AI、大模型与 Agent 的关系，用“预测下一个 Token”理解工作原理。',
-      image: 'images/ai-concept.webp',
+      description: '理解 AI、生成式 AI、大模型与 Agent 的关系。',
+      image: { webp: 'images/ai-concept.webp', fallback: 'images/ai-concept.png', alt: 'AI 与大模型概念关系插画' },
+      sections: [
+        {
+          title: '先把四个概念放对位置',
+          paragraphs: ['AI 是让机器完成智能任务的大范围；生成式 AI 专门生成文字、图像等新内容；大模型是它的一类核心能力；Agent 则在模型外加上目标拆解、工具调用与执行循环。'],
+          bullets: ['AI：最大的能力范围', '生成式 AI：创造新内容', '大模型：从海量数据中学会模式', 'Agent：模型 + 工具 + 执行循环'],
+        },
+        {
+          title: '大模型在做什么',
+          paragraphs: ['大模型会把内容切成 Token，根据当前上下文一步步预测下一个最可能的 Token。它在预训练阶段学习通用模式，在每次对话中则使用你当下提供的上下文来回答。'],
+          bullets: ['上下文像临时工作记忆', '新对话不等于自动记住过去', '输出流畅不代表已经查证'],
+        },
+      ],
+      history: {
+        title: '可选：五个节点看懂 AI 演进',
+        image: { webp: 'images/ai-history.webp', fallback: 'images/ai-history.png', alt: 'AI 发展历程插画' },
+        nodes: ['规则系统', '机器学习', '深度学习', '大模型', 'Agent'],
+      },
       caseStudy: {
         title: '为什么新对话不记得上次说过的事？',
         situation: '对话中的上下文像临时工作记忆，新对话通常需要重新提供必要背景。',
@@ -22,21 +39,29 @@
         type: 'token-and-concepts',
         title: '看看下一个 Token 可能是什么',
         instruction: '观察候选内容的概率，再把 AI、大模型与 Agent 放到正确关系中。',
+        candidates: [{ label: '初稿', probability: 52 }, { label: '摘要', probability: 31 }, { label: '图表', probability: 17 }],
+        steps: ['切分 Token', '读取上下文', '预测候选', '选择下一个 Token', '重复直到完成'],
       },
       quickCheck: [
         { question: '大模型生成回答时最接近哪种行为？', answer: '根据上下文预测后续 Token', explanation: '流畅输出来自连续预测，不等于模型已经查证事实。' },
+        { question: '为什么新对话里常要重新提供背景？', answer: '当前上下文是临时工作记忆', explanation: '不要把上次对话当成必然保留的长期记忆。' },
       ],
       takeaway: {
-        title: 'AI 概念关系图',
+        title: 'AI 概念关系图与 8 个工作必懂词',
         items: ['Token', '上下文', '多模态', '幻觉', 'RAG', 'Prompt', '工作流', 'Agent'],
+        template: 'AI 概念关系\nAI → 生成式 AI → 大模型\nAgent = 大模型 + 目标拆解 + 工具 + 执行循环\n必懂词：Token、上下文、多模态、幻觉、RAG、Prompt、工作流、Agent',
       },
     },
     {
       id: 'ai-boundaries',
       number: '02',
       title: '看清边界',
-      summary: '知道 AI 擅长什么、不擅长什么，以及为什么“说得像真的”不等于正确。',
-      image: 'images/ai-boundaries.webp',
+      description: '知道 AI 擅长什么、不擅长什么，以及为什么流畅不等于正确。',
+      image: { webp: 'images/ai-boundaries.webp', fallback: 'images/ai-boundaries.png', alt: '人员核验 AI 回答证据的插画' },
+      sections: [
+        { title: 'AI 擅长加速，人擅长把关', paragraphs: ['AI 很适合整理、改写、提取、归纳、生成初稿、发散思路和寻找模式。涉及事实确认、业务取舍、正式承诺和高代价判断时，人必须把关。'], bullets: ['可直接加速：整理、改写、初稿', '需要人机协作：分析、创作、决策准备', '最终由人决定：承诺、审批、高代价选择'] },
+        { title: '“说得像真的”为什么还会错', paragraphs: ['模型的目标是生成像答案的文本，不是主动查证每个事实。缺少资料时，它仍可能给出流畅、自信但无来源的内容。'], bullets: ['精确数字要找原始来源', '时效信息要确认日期', '内部信息要提供当前材料'] },
+      ],
       caseStudy: {
         title: '汇报里出现了原材料没有的增长数字',
         situation: 'AI 为了让叙述更完整，补出了一个看似合理的精确数字。',
@@ -46,21 +71,28 @@
         type: 'hallucination-spotter',
         title: '幻觉侦探',
         instruction: '点击句子，区分“可以保留”“需要核验”和“需要修改”。',
+        claims: [{ text: '原始表显示本月销量为 12,400 件。', category: '可以保留' }, { text: '本月同比增长 18%。', category: '需要核验' }, { text: '增长完全由新活动带来。', category: '需要修改' }],
       },
       quickCheck: [
         { question: '回答语气很自信时，可以省略哪一步？', answer: '不能因语气自信而省略核验', explanation: '表达流畅只是生成质量的一部分，关键事实仍需证据。' },
+        { question: '哪类信息最应该立即回到原文？', answer: '精确数字、时效信息和内部数据', explanation: '这些内容一旦错误，很容易影响汇报与决策。' },
       ],
       takeaway: {
         title: 'AI 能力边界清单',
-        items: ['放心交给 AI', '人机协作', '最终由人判断'],
+        items: ['绿：整理、改写、提取、初稿', '黄：分析、创作、决策准备', '红：承诺、审批、高代价判断'],
+        template: '边界检查\n绿：可以交给 AI 加速的环节：____\n黄：需要人机协作的环节：____\n红：必须由人判断的环节：____',
       },
     },
     {
       id: 'ai-delegation',
       number: '03',
       title: '学会分工',
-      summary: '判断一项工作应交给 AI、人机协作，还是必须由人负责。',
-      image: 'images/ai-delegation.webp',
+      description: '判断一项工作应交给 AI、人机协作，还是必须由人负责。',
+      image: { webp: 'images/ai-delegation.webp', fallback: 'images/ai-delegation.png', alt: '人与 AI 通过三条通道分工的插画' },
+      sections: [
+        { title: '三种分工方式', paragraphs: ['不是每项工作都要“全交给 AI”。有些任务可以委托，有些适合往返协作，有些必须保留在人手中。'], bullets: ['AI：格式化、整理、提取、初稿、方案发散', '人机协作：分析、汇报、决策准备、内容创作', '人负责：战略选择、优先级、对外口径、审批签字、利益协调'] },
+        { title: '分工前先问五个问题', paragraphs: ['一项任务越清晰、越容易检查、错误代价越低，越适合交给 AI。当任务依赖大量业务语境或涉及明确责任，人应该保留主导权。'], bullets: ['目标清晰吗？', '结果可验证吗？', '错误代价高吗？', '需要多少业务语境？', '最终责任归谁？'] },
+      ],
       caseStudy: {
         title: '一份月度汇报应该怎么分工？',
         situation: '数据整理、异常发现、优先级判断和跨部门建议的错误代价不同。',
@@ -70,21 +102,28 @@
         type: 'delegation-sort',
         title: '任务分拣台',
         instruction: '把任务放入 AI、人机协作、人负责三栏，再对照判断理由。',
+        tasks: [{ text: '把销售表格统一格式', lane: 'AI' }, { text: '根据数据分析异常原因', lane: '人机协作' }, { text: '决定下月跨部门优先级', lane: '人负责' }],
       },
       quickCheck: [
         { question: '哪类任务更适合先交给 AI？', answer: '目标清晰、结果可验证的整理与初稿任务', explanation: '任务越清晰、越容易检查，越适合委托给 AI。' },
+        { question: '月度汇报的优先级判断应由谁主导？', answer: '由人结合业务语境主导', explanation: 'AI 可以辅助整理选项，但最终判断与交付仍由人负责。' },
       ],
       takeaway: {
         title: 'AI 任务分工五问',
         items: ['目标清晰吗', '结果可验证吗', '错误代价高吗', '需要多少业务语境', '最终谁负责'],
+        template: 'AI 任务分工五问\n1. 目标清晰吗？\n2. 结果可验证吗？\n3. 错误代价高吗？\n4. 需要多少业务语境？\n5. 最终谁负责？',
       },
     },
     {
       id: 'ai-prompting',
       number: '04',
       title: '把需求说清楚',
-      summary: '用目标、背景、任务、输出要求四要素，把提示词变成可执行的工作 brief。',
-      image: 'images/ai-prompt.webp',
+      description: '用目标、背景、任务、输出要求四要素，把提示词变成可执行的工作 brief。',
+      image: { webp: 'images/ai-prompt.webp', fallback: 'images/ai-prompt.png', alt: '人员与 AI 整理提示词信息的插画' },
+      sections: [
+        { title: '提示词就是一份工作 brief', paragraphs: ['不用追求神奇口令。像给同事交代任务一样，把目标、背景、具体任务和输出要求说清楚。'], bullets: ['目标：为什么做，什么算成功', '背景：对象、材料和必要语境', '任务：要 AI 具体做什么', '输出要求：格式、长度、语气和限制'] },
+        { title: '用多轮协作逐步校准', paragraphs: ['可以补充一个好示例，也可以约定不确定时先提问。第一版不理想时，指出具体差距、给出修改标准，不必每次重新开始。'], bullets: ['先要结构', '再补信息', '对照标准检查', '针对差距修改'] },
+      ],
       caseStudy: {
         title: '从“帮我写汇报”到可执行的任务说明',
         situation: '只给一句宽泛需求，AI 不知道对象、重点、材料边界和输出格式。',
@@ -94,21 +133,29 @@
         type: 'prompt-builder',
         title: 'Prompt 拼装器',
         instruction: '填写四个字段，实时组合一份完整的任务说明。',
+        fields: ['目标', '背景', '任务', '输出要求'],
+        reference: '目标：让管理层快速理解本月进展。背景：仅使用所附数据。任务：提炼三项进展与两项风险。输出要求：一页简报，标注数据来源。',
       },
       quickCheck: [
         { question: '第一版结果不理想时，最有帮助的做法是什么？', answer: '指出具体差距并说明如何修改', explanation: '具体反馈能让下一轮更接近目标，不必每次重新开始。' },
+        { question: '除了四要素，哪种信息能进一步减少猜测？', answer: '好示例或不确定时的处理规则', explanation: '示例能表达期望，处理规则能让 AI 在信息不足时先提问。' },
       ],
       takeaway: {
         title: '四要素 Prompt 模板',
         items: ['目标', '背景', '任务', '输出要求'],
+        template: '四要素 Prompt\n目标：____\n背景：____\n任务：____\n输出要求：____\n如果信息不足，请先向我提问。',
       },
     },
     {
       id: 'ai-verification',
       number: '05',
       title: '验证结果',
-      summary: '区分事实、推论和观点，查来源、对原文，用明确标准检查质量。',
-      image: 'images/ai-verification.webp',
+      description: '区分事实、推论和观点，查来源、对原文，用明确标准检查质量。',
+      image: { webp: 'images/ai-verification.webp', fallback: 'images/ai-verification.png', alt: '原始材料、AI 回答与核验清单的插画' },
+      sections: [
+        { title: '先区分回答里的三种内容', paragraphs: ['事实是材料直接支持的内容；推论是基于事实做的解释；观点是一种判断或建议。三者都可以有，但不应该混在一起写成“已经证明”。'], bullets: ['事实：可回到原文', '推论：需说明推理链', '观点：需标注判断角度'] },
+        { title: '五步核验，再检查可用性', paragraphs: ['先查来源、对原文、看时间口径、检查推理关系，再对照任务标准。最后用准确、完整、相关、清晰、可追溯五项检查是否可交付。'], bullets: ['“写得完整”不等于真实', '“引用很多”不等于支持结论', 'AI 可以辅助分析，最终判断与交付仍由人负责'] },
+      ],
       caseStudy: {
         title: '“销量上升”能否直接证明“营销有效”？',
         situation: 'AI 把两个先后出现的现象直接写成因果结论，但材料没有排除其他因素。',
@@ -118,21 +165,28 @@
         type: 'evidence-check',
         title: '事实、推论、观点与证据',
         instruction: '逐句标记回答性质，再把关键结论连回原文证据。',
+        claims: [{ text: '本月销量比上月上升。', kind: '事实', evidence: '销量表' }, { text: '上升主要是营销活动带来。', kind: '推论', evidence: '尚无足够证据' }, { text: '下月应加大投放。', kind: '观点', evidence: '需要结合成本和其他因素' }],
       },
       quickCheck: [
         { question: '引用数量多，是否代表结论一定可信？', answer: '不一定，还要确认引用是否真实、相关并支持结论', explanation: '可追溯不只是有链接，还要对原文、时间口径和推理关系。' },
+        { question: '“销量上升，所以营销活动有效”属于什么？', answer: '尚需证据的推论', explanation: '销量上升是事实，但归因还要排除促销、季节或渠道变化等其他因素。' },
       ],
       takeaway: {
         title: 'AI 结果核验五步卡',
         items: ['查来源', '对原文', '看时间口径', '检查推理', '对照任务标准'],
+        template: 'AI 结果核验五步\n1. 来源在哪里？\n2. 原文真正说了什么？\n3. 时间和统计口径一致吗？\n4. 推理关系成立吗？\n5. 结果符合任务标准吗？',
       },
     },
     {
       id: 'ai-workflow',
       number: '06',
       title: '从对话走向工作流',
-      summary: '拆任务、定义输入输出、设置检查点，把一次成功对话沉淀为可复用方法。',
-      image: 'images/ai-workflow.webp',
+      description: '拆任务、定义输入输出、设置检查点，把一次成功对话沉淀为可复用方法。',
+      image: { webp: 'images/ai-workflow.webp', fallback: 'images/ai-workflow.png', alt: '对话、模板、工作流与 Agent 四阶段插画' },
+      sections: [
+        { title: '从一次成功，到稳定复用', paragraphs: ['一次对话解决临时问题；Prompt 模板让同类任务可以重复使用；工作流则固定输入、步骤、检查点与输出。'], bullets: ['对话：一次临时解决', '模板：复用任务说明', '工作流：固定过程与检查点', 'Agent：在明确边界内调用工具、循环执行'] },
+        { title: '沉淀一条工作流的五步', paragraphs: ['先拆任务，再定义每步的输入输出，明确 AI、人机协作和人负责的边界，在关键节点加人工检查，最后保存为模板。'], bullets: ['拆任务', '定义输入输出', '明确分工', '设置检查点', '保存模板'] },
+      ],
       caseStudy: {
         title: '把每月重复的汇报从对话变成流程',
         situation: '每次都重新解释材料、步骤和格式，结果不稳定也难以复用。',
@@ -142,13 +196,16 @@
         type: 'workflow-builder',
         title: '工作流排序与检查点',
         instruction: '将步骤排序，标出 AI、人机协作与人负责，再加入人工检查点。',
+        steps: [{ text: '收集当月数据', owner: 'AI' }, { text: '提取变化与异常', owner: '人机协作' }, { text: '核对来源和口径', owner: '人负责', checkpoint: true }, { text: '生成汇报初稿', owner: 'AI' }, { text: '确定优先级并交付', owner: '人负责', checkpoint: true }],
       },
       quickCheck: [
         { question: '什么时候值得把一次对话沉淀为工作流？', answer: '同类任务会重复出现，且输入、步骤和输出可以被说清时', explanation: '重复性和可标准化是沉淀流程的两个重要信号。' },
+        { question: 'Agent 和普通对话的重要区别是什么？', answer: 'Agent 会在明确边界内围绕目标调用工具并循环执行', explanation: '边界、工具和检查点比“自动化”三个字更重要。' },
       ],
       takeaway: {
         title: '个人 AI 工作流画布',
         items: ['拆任务', '定义输入输出', '明确分工', '设置检查点', '保存模板'],
+        template: '个人 AI 工作流画布\n目标：____\n输入：____\n步骤：1.___ 2.___ 3.___\nAI 负责：____\n人工判断点：____\n输出与最终交付：____',
       },
     },
   ];
@@ -448,7 +505,7 @@
   }
 
   function resolveTarget(target) {
-    if (target && typeof target === 'object' && 'innerHTML' in target) return target;
+    if (target && typeof target === 'object' && ('innerHTML' in target || typeof target.appendChild === 'function')) return target;
     if (typeof document === 'undefined') return null;
     if (typeof target === 'string' && typeof document.querySelector === 'function') return document.querySelector(target);
     if (typeof document.getElementById === 'function') return document.getElementById('learningExperience');
@@ -464,6 +521,69 @@
       '</section>';
   }
 
+  function canonicalizeLearningUrl(originalId, resolvedId) {
+    if (originalId === resolvedId || typeof history === 'undefined' || typeof history.replaceState !== 'function' ||
+      typeof location === 'undefined') return;
+    try {
+      var url = new URL(location.href);
+      url.searchParams.set('type', 'learn');
+      url.searchParams.set('id', resolvedId);
+      history.replaceState(history.state || null, '', url.pathname + url.search + url.hash);
+    } catch (error) {}
+  }
+
+  function clearNode(node) {
+    if (typeof node.replaceChildren === 'function') node.replaceChildren();
+    else if ('textContent' in node) node.textContent = '';
+  }
+
+  function element(ownerDocument, name, className, text) {
+    var node = ownerDocument.createElement(name);
+    if (className) node.className = className;
+    if (text !== undefined && text !== null) node.textContent = String(text);
+    return node;
+  }
+
+  function appendParagraphs(ownerDocument, target, paragraphs) {
+    for (var index = 0; index < paragraphs.length; index += 1) {
+      target.appendChild(element(ownerDocument, 'p', '', paragraphs[index]));
+    }
+  }
+
+  function appendBulletList(ownerDocument, target, items) {
+    var list = element(ownerDocument, 'ul', 'lesson-bullets');
+    for (var index = 0; index < items.length; index += 1) list.appendChild(element(ownerDocument, 'li', '', items[index]));
+    target.appendChild(list);
+    return list;
+  }
+
+  function createLessonNav(ownerDocument, chapter, resolvedId, bottom) {
+    var nav = element(ownerDocument, 'nav', bottom ? 'lesson-nav lesson-nav-bottom' : 'lesson-nav');
+    nav.setAttribute('aria-label', bottom ? '本章底部导航' : '学习导航');
+    var back = element(ownerDocument, 'a', '', '← 返回 AI 新手入门');
+    back.setAttribute('href', 'learn.html#chapter-' + encodeURIComponent(resolvedId));
+    var progress = element(ownerDocument, 'span', 'lesson-progress', chapter.number + ' / 06');
+    progress.setAttribute('aria-label', '第 ' + Number(chapter.number) + ' 章，共 6 章');
+    nav.appendChild(back);
+    nav.appendChild(progress);
+    return nav;
+  }
+
+  function renderUnknownNotice(target) {
+    var ownerDocument = target.ownerDocument || (typeof document !== 'undefined' ? document : null);
+    if (!ownerDocument || typeof ownerDocument.createElement !== 'function') return false;
+    clearNode(target);
+    var section = element(ownerDocument, 'section', 'lesson-moved');
+    section.appendChild(element(ownerDocument, 'p', 'lesson-kicker', '轻量学习'));
+    section.appendChild(element(ownerDocument, 'h1', '', '暂未找到这一章'));
+    section.appendChild(element(ownerDocument, 'p', '', '可以返回学习路径，从六个入门章节中重新选择。'));
+    var back = element(ownerDocument, 'a', 'lesson-primary-action', '返回 AI 新手入门');
+    back.setAttribute('href', 'learn.html');
+    section.appendChild(back);
+    target.appendChild(section);
+    return true;
+  }
+
   function renderChapter(id, target) {
     var container = resolveTarget(target);
     if (!container) return false;
@@ -474,41 +594,169 @@
 
     var resolvedId = aliases[id] || id;
     var chapter = chapterById[resolvedId];
-    if (!chapter) return false;
+    if (!chapter) return renderUnknownNotice(container);
+    canonicalizeLearningUrl(id, resolvedId);
     markStarted(resolvedId);
+    var ownerDocument = container.ownerDocument || (typeof document !== 'undefined' ? document : null);
+    if (!ownerDocument || typeof ownerDocument.createElement !== 'function') return false;
+    clearNode(container);
 
-    var items = chapter.takeaway.items.map(function (item) {
-      return '<li>' + escapeHtml(item) + '</li>';
-    }).join('');
     var nextId = null;
     for (var index = 0; index < chapters.length; index += 1) {
       if (chapters[index].id === resolvedId && chapters[index + 1]) nextId = chapters[index + 1].id;
     }
-    var nextAction = nextId
-      ? '<a class="lesson-primary-action" href="detail.html?type=learn&amp;id=' + encodeURIComponent(nextId) + '">下一章</a>'
-      : '';
 
-    container.innerHTML = '<article class="lesson" data-chapter-id="' + escapeHtml(resolvedId) + '">' +
-      '<nav class="lesson-nav" aria-label="学习导航"><a href="learn.html#chapter-' + escapeHtml(resolvedId) + '">← 返回 AI 新手入门</a><span>' + escapeHtml(chapter.number) + ' / 06</span></nav>' +
-      '<header class="lesson-header"><p class="lesson-kicker">轻量学习章节</p><h1>' + escapeHtml(chapter.title) + '</h1><p>' + escapeHtml(chapter.summary) + '</p></header>' +
-      '<figure class="lesson-figure"><img src="' + escapeHtml(chapter.image) + '" alt=""><figcaption>' + escapeHtml(chapter.title) + '概念图</figcaption></figure>' +
-      '<section class="lesson-case"><p class="lesson-section-label">工作案例</p><h2>' + escapeHtml(chapter.caseStudy.title) + '</h2><p>' + escapeHtml(chapter.caseStudy.situation) + '</p><p><strong>关键启发：</strong>' + escapeHtml(chapter.caseStudy.lesson) + '</p></section>' +
-      '<section class="lesson-exercise" data-exercise-type="' + escapeHtml(chapter.exercise.type) + '"><p class="lesson-section-label">2–5 分钟小练习</p><h2>' + escapeHtml(chapter.exercise.title) + '</h2><p>' + escapeHtml(chapter.exercise.instruction) + '</p><div class="lesson-feedback" aria-live="polite"></div></section>' +
-      '<section class="lesson-check"><p class="lesson-section-label">快速想一想</p><h2>' + escapeHtml(chapter.quickCheck[0].question) + '</h2><details><summary>查看思路</summary><p><strong>' + escapeHtml(chapter.quickCheck[0].answer) + '</strong></p><p>' + escapeHtml(chapter.quickCheck[0].explanation) + '</p></details></section>' +
-      '<aside class="lesson-takeaway"><p class="lesson-section-label">本章带走</p><h2>' + escapeHtml(chapter.takeaway.title) + '</h2><ul>' + items + '</ul></aside>' +
-      '<div class="lesson-actions"><button type="button" data-mark-seen>我看完了</button>' + nextAction + '<a href="learn.html#chapter-' + escapeHtml(resolvedId) + '">返回学习路径</a></div>' +
-      '</article>';
+    var article = element(ownerDocument, 'article', 'lesson');
+    article.setAttribute('data-chapter-id', resolvedId);
+    article.appendChild(createLessonNav(ownerDocument, chapter, resolvedId, false));
 
-    if (typeof container.querySelector === 'function') {
-      var seenButton = container.querySelector('[data-mark-seen]');
-      if (seenButton && typeof seenButton.addEventListener === 'function') {
-        seenButton.addEventListener('click', function () {
-          markSeen(resolvedId);
-          seenButton.textContent = '已看过';
-          seenButton.setAttribute('aria-pressed', 'true');
-        });
-      }
+    var header = element(ownerDocument, 'header', 'lesson-header');
+    header.appendChild(element(ownerDocument, 'p', 'lesson-kicker', '轻量学习章节'));
+    header.appendChild(element(ownerDocument, 'h1', '', chapter.title));
+    header.appendChild(element(ownerDocument, 'p', '', chapter.description));
+    article.appendChild(header);
+
+    var figure = element(ownerDocument, 'figure', 'lesson-figure');
+    var picture = element(ownerDocument, 'picture', '');
+    var source = element(ownerDocument, 'source', '');
+    source.setAttribute('srcset', chapter.image.webp);
+    source.setAttribute('type', 'image/webp');
+    var image = element(ownerDocument, 'img', '');
+    image.setAttribute('src', chapter.image.fallback);
+    image.setAttribute('alt', chapter.image.alt);
+    image.setAttribute('width', '1200');
+    image.setAttribute('height', '800');
+    image.setAttribute('loading', 'eager');
+    picture.appendChild(source);
+    picture.appendChild(image);
+    figure.appendChild(picture);
+    figure.appendChild(element(ownerDocument, 'figcaption', '', chapter.image.alt));
+    article.appendChild(figure);
+
+    var content = element(ownerDocument, 'div', 'lesson-content');
+    for (var sectionIndex = 0; sectionIndex < chapter.sections.length; sectionIndex += 1) {
+      var sectionData = chapter.sections[sectionIndex];
+      var section = element(ownerDocument, 'section', 'lesson-core-section');
+      section.appendChild(element(ownerDocument, 'h2', '', sectionData.title));
+      appendParagraphs(ownerDocument, section, sectionData.paragraphs);
+      appendBulletList(ownerDocument, section, sectionData.bullets);
+      content.appendChild(section);
     }
+    article.appendChild(content);
+
+    if (chapter.history) {
+      var historyDetails = element(ownerDocument, 'details', 'lesson-history');
+      historyDetails.appendChild(element(ownerDocument, 'summary', '', chapter.history.title));
+      var historyPicture = element(ownerDocument, 'picture', '');
+      var historySource = element(ownerDocument, 'source', '');
+      historySource.setAttribute('srcset', chapter.history.image.webp);
+      historySource.setAttribute('type', 'image/webp');
+      var historyImage = element(ownerDocument, 'img', '');
+      historyImage.setAttribute('src', chapter.history.image.fallback);
+      historyImage.setAttribute('alt', chapter.history.image.alt);
+      historyImage.setAttribute('loading', 'lazy');
+      historyPicture.appendChild(historySource);
+      historyPicture.appendChild(historyImage);
+      historyDetails.appendChild(historyPicture);
+      appendBulletList(ownerDocument, historyDetails, chapter.history.nodes);
+      article.appendChild(historyDetails);
+    }
+
+    var caseSection = element(ownerDocument, 'section', 'lesson-case');
+    caseSection.appendChild(element(ownerDocument, 'p', 'lesson-section-label', '工作案例'));
+    caseSection.appendChild(element(ownerDocument, 'h2', '', chapter.caseStudy.title));
+    caseSection.appendChild(element(ownerDocument, 'p', '', chapter.caseStudy.situation));
+    var lesson = element(ownerDocument, 'p', '');
+    lesson.appendChild(element(ownerDocument, 'strong', '', '关键启发：'));
+    lesson.appendChild(ownerDocument.createTextNode(chapter.caseStudy.lesson));
+    caseSection.appendChild(lesson);
+    article.appendChild(caseSection);
+
+    var exerciseSection = element(ownerDocument, 'section', 'lesson-exercise');
+    exerciseSection.setAttribute('data-exercise-type', chapter.exercise.type);
+    exerciseSection.appendChild(element(ownerDocument, 'p', 'lesson-section-label', '2–5 分钟小练习'));
+    exerciseSection.appendChild(element(ownerDocument, 'h2', '', chapter.exercise.title));
+    exerciseSection.appendChild(element(ownerDocument, 'p', '', chapter.exercise.instruction));
+    var exercisePlaceholder = element(ownerDocument, 'fieldset', 'lesson-exercise-placeholder');
+    exercisePlaceholder.appendChild(element(ownerDocument, 'legend', '', '练习准备'));
+    exercisePlaceholder.appendChild(element(ownerDocument, 'p', '', '先试着自己做一次。这不是考试，可以随时查看说明。'));
+    var revealExercise = element(ownerDocument, 'button', 'lesson-secondary-action', '查看练习说明');
+    revealExercise.setAttribute('type', 'button');
+    revealExercise.setAttribute('data-exercise-reveal', '');
+    exercisePlaceholder.appendChild(revealExercise);
+    exerciseSection.appendChild(exercisePlaceholder);
+    var feedback = element(ownerDocument, 'div', 'lesson-feedback');
+    feedback.setAttribute('aria-live', 'polite');
+    exerciseSection.appendChild(feedback);
+    article.appendChild(exerciseSection);
+
+    var checkSection = element(ownerDocument, 'section', 'lesson-check');
+    checkSection.appendChild(element(ownerDocument, 'p', 'lesson-section-label', '快速想一想'));
+    checkSection.appendChild(element(ownerDocument, 'h2', '', '不计分，对照思路就好'));
+    for (var checkIndex = 0; checkIndex < chapter.quickCheck.length; checkIndex += 1) {
+      var check = chapter.quickCheck[checkIndex];
+      var details = element(ownerDocument, 'details', 'lesson-check-item');
+      details.appendChild(element(ownerDocument, 'summary', '', check.question));
+      var answer = element(ownerDocument, 'p', '');
+      answer.appendChild(element(ownerDocument, 'strong', '', check.answer));
+      details.appendChild(answer);
+      details.appendChild(element(ownerDocument, 'p', '', check.explanation));
+      checkSection.appendChild(details);
+    }
+    article.appendChild(checkSection);
+
+    var takeaway = element(ownerDocument, 'aside', 'lesson-takeaway');
+    takeaway.appendChild(element(ownerDocument, 'p', 'lesson-section-label', '这一章你带走什么'));
+    takeaway.appendChild(element(ownerDocument, 'h2', '', chapter.takeaway.title));
+    appendBulletList(ownerDocument, takeaway, chapter.takeaway.items);
+    var template = element(ownerDocument, 'pre', 'lesson-template', chapter.takeaway.template);
+    template.setAttribute('tabindex', '0');
+    takeaway.appendChild(template);
+    article.appendChild(takeaway);
+
+    var liveStatus = element(ownerDocument, 'p', 'lesson-status-live');
+    liveStatus.setAttribute('aria-live', 'polite');
+    liveStatus.setAttribute('data-lesson-status', '');
+    article.appendChild(liveStatus);
+    var actions = element(ownerDocument, 'div', 'lesson-actions');
+    var seenButton = element(ownerDocument, 'button', '', getStatus(resolvedId) === STATUS_SEEN ? '已看过' : '我看完了');
+    seenButton.setAttribute('type', 'button');
+    seenButton.setAttribute('data-mark-seen', '');
+    if (getStatus(resolvedId) !== STATUS_SEEN) seenButton.disabled = true;
+    else seenButton.setAttribute('aria-pressed', 'true');
+    actions.appendChild(seenButton);
+    if (nextId) {
+      var nextAction = element(ownerDocument, 'a', 'lesson-primary-action', '下一章');
+      nextAction.setAttribute('href', 'detail.html?type=learn&id=' + encodeURIComponent(nextId));
+      actions.appendChild(nextAction);
+    }
+    var returnAction = element(ownerDocument, 'a', '', '返回学习路径');
+    returnAction.setAttribute('href', 'learn.html#chapter-' + encodeURIComponent(resolvedId));
+    actions.appendChild(returnAction);
+    article.appendChild(actions);
+    article.appendChild(createLessonNav(ownerDocument, chapter, resolvedId, true));
+    container.appendChild(article);
+
+    function enableCompletion(message) {
+      seenButton.disabled = false;
+      feedback.textContent = message;
+    }
+    revealExercise.addEventListener('click', function () {
+      enableCompletion('已查看练习说明。完成一次尝试后，就可以记为看过。');
+      revealExercise.disabled = true;
+    });
+    var checkItems = checkSection.querySelectorAll('details');
+    for (var itemIndex = 0; itemIndex < checkItems.length; itemIndex += 1) {
+      checkItems[itemIndex].addEventListener('toggle', function (event) {
+        if (event.currentTarget.open) enableCompletion('已查看快速自测思路，你可以继续尝试或记为看过。');
+      });
+    }
+    seenButton.addEventListener('click', function () {
+      markSeen(resolvedId);
+      seenButton.textContent = '已看过';
+      seenButton.setAttribute('aria-pressed', 'true');
+      liveStatus.textContent = '本章已记为看过。你可以继续下一章，也可以随时返回学习路径。';
+    });
     return true;
   }
 

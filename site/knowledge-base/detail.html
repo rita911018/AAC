@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="learning-experience.css">
 <style>
 /* 视频列表骨架专用 */
 .sk-vlist{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
@@ -177,18 +178,21 @@
   </div>
 </footer>
 
+<script src="learning-experience.js"></script>
 <script>
 /* ================= 子板块配置（含各自 accent 配色） ================= */
 var CONFIG = {
   learn: {
     nav: 'learn', title: 'AI 新手入门', crumb: 'AI 新手入门', num: '01 · LEARN',
     subs: {
-      'ai-what':      { name:'AI 是什么',        accent:'#2563EB', structure:'article',  desc:'用最通俗的方式理解人工智能：它能做什么、不能做什么，以及它和我们的日常工作有什么关系。', meta:['入门','必读','约 15 分钟'] },
-      'ai-history':   { name:'AI 发展史',        accent:'#3B82F6', structure:'article', desc:'从 1950 年图灵之问到今天，看懂 AI 76 年的三起两落、八个时代与大模型崛起。', meta:['时间线','认知','约 15 分钟'] },
-      'prompt-basics':{ name:'Prompt / 提示词基础', accent:'#1D4FD7', structure:'article', desc:'掌握与 AI 对话的核心方法：结构化的提示词模板、常见误区与实战示例。', meta:['核心技能','实操','约 30 分钟'] },
-      'ai-companies': { name:'AI 公司介绍',      accent:'#3B82F6', structure:'article',  desc:'认识 AI 领域的重要玩家：OpenAI、Google、Anthropic、Meta 与国内主要厂商。', meta:['认知','行业','约 20 分钟'] },
-      'ai-models':    { name:'主流 AI 模型介绍',  accent:'#60A5FA', structure:'list',    desc:'GPT、Claude、Gemini、DeepSeek、Qwen…… 各家模型的擅长领域与选型建议。', meta:['选型','对比','约 25 分钟'] },
-      'ai-other':     { name:'AI 高频术语速查',  accent:'#2563EB', structure:'article',  desc:'12 个高频 AI 术语的完整解释：是什么、为什么重要、典型例子，一页查清。', meta:['术语表','12 词','随时查阅'] }
+      'ai-basics':       { name:'认识 AI',             accent:'#2563EB', structure:'learning', desc:'理解 AI、生成式 AI、大模型与 Agent 的关系。', meta:['概念','轻实操','约 8 分钟'] },
+      'ai-boundaries':   { name:'看清边界',           accent:'#2563EB', structure:'learning', desc:'看懂 AI 擅长什么，为什么流畅回答仍可能出错。', meta:['判断','案例','约 7 分钟'] },
+      'ai-delegation':   { name:'学会分工',           accent:'#2563EB', structure:'learning', desc:'判断任务应交给 AI、人机协作，还是由人负责。', meta:['分工','练习','约 8 分钟'] },
+      'ai-prompting':    { name:'把需求说清楚',       accent:'#2563EB', structure:'learning', desc:'用四要素把提示词变成可执行的工作 brief。', meta:['表达','实操','约 10 分钟'] },
+      'ai-verification': { name:'验证结果',           accent:'#2563EB', structure:'learning', desc:'区分事实、推论和观点，把关键结论连回证据。', meta:['验证','练习','约 9 分钟'] },
+      'ai-workflow':     { name:'从对话走向工作流', accent:'#2563EB', structure:'learning', desc:'把一次成功对话沉淀为可复用的流程。', meta:['工作流','沉淀','约 8 分钟'] },
+      'ai-companies':    { name:'AI 公司与资源',     accent:'#2563EB', structure:'learning', desc:'该内容已移至 AI 工具与资源。', meta:['内容迁移'] },
+      'ai-models':       { name:'AI 模型与工具',     accent:'#2563EB', structure:'learning', desc:'该内容已移至 AI 工具与资源。', meta:['内容迁移'] }
     }
   },
   video: {
@@ -830,9 +834,18 @@ function renderVideoList(id){
 /* ================= 渲染主流程 ================= */
 (function(){
   var type = qs('type'), id = qs('id');
+  if(type === 'learn' && window.AIBeginner && window.AIBeginner.aliases && window.AIBeginner.aliases[id]){
+    id = window.AIBeginner.aliases[id];
+    try {
+      var canonicalUrl = new URL(window.location.href);
+      canonicalUrl.searchParams.set('type', 'learn');
+      canonicalUrl.searchParams.set('id', id);
+      history.replaceState(history.state || null, '', canonicalUrl.pathname + canonicalUrl.search + canonicalUrl.hash);
+    } catch(aliasError) {}
+  }
   var board = CONFIG[type];
   var sub = board ? board.subs[id] : null;
-  if(!sub){ type = 'learn'; id = 'ai-what'; board = CONFIG.learn; sub = board.subs['ai-what']; }
+  if(!sub){ type = 'learn'; id = 'ai-basics'; board = CONFIG.learn; sub = board.subs['ai-basics']; }
 
   var accent = sub.accent;
 
@@ -872,6 +885,14 @@ function renderVideoList(id){
 
   var content = CONTENT[id];
   switch(sub.structure){
+    case 'learning':
+      titleEl.textContent = '轻量学习'; noteEl.textContent = 'LEARN · TRY · REVIEW';
+      if(window.AIBeginner && typeof window.AIBeginner.renderChapter === 'function'){
+        window.AIBeginner.renderChapter(id, bodyEl);
+      } else {
+        bodyEl.textContent = '学习内容暂时无法加载，请返回 AI 新手入门重试。';
+      }
+      break;
     case 'article':
       titleEl.textContent = '正文'; noteEl.textContent = 'ARTICLE';
       bodyEl.innerHTML = content ? renderArticle(content) : '';

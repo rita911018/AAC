@@ -38,6 +38,15 @@ const aliases = {
 const newImageNames = ['ai-boundaries', 'ai-delegation', 'ai-verification', 'ai-workflow'];
 const requiredApiMethods = ['getStatus', 'markStarted', 'markSeen', 'nextIncomplete', 'initHub', 'renderChapter'];
 const storageKey = 'amersports-ai-beginner-session-v1';
+const chapterMinutes = ['约 8 分钟', '约 7 分钟', '约 8 分钟', '约 10 分钟', '约 9 分钟', '约 8 分钟'];
+const chapterImages = [
+  ['images/ai-concept.webp', 'images/ai-concept.png'],
+  ['images/ai-boundaries.webp', 'images/ai-boundaries.png'],
+  ['images/ai-delegation.webp', 'images/ai-delegation.png'],
+  ['images/ai-prompt.webp', 'images/ai-prompt.png'],
+  ['images/ai-verification.webp', 'images/ai-verification.png'],
+  ['images/ai-workflow.webp', 'images/ai-workflow.png'],
+];
 const allowedRuntimeStatuses = new Set(['unseen', 'in-progress', 'seen']);
 const learnHeroDescription = '从看懂 AI 到会协作，用六个轻量章节掌握分工、表达与判断。每章都有案例和小练习，无需技术背景。';
 const learnHubHeading = '选择一个章节，轻松开始';
@@ -874,13 +883,39 @@ function runContract() {
   assert.deepEqual(api.chapters.map(({ id }) => id), chapterIds, 'learning chapter IDs must match the approved order');
   assert.deepEqual(api.chapters.map(({ title }) => title), titles, 'learning chapter titles must match the approved order');
   for (const [index, chapter] of api.chapters.entries()) {
-    for (const field of ['caseStudy', 'exercise', 'quickCheck', 'takeaway']) {
+    for (const field of ['id', 'number', 'title', 'description', 'image', 'sections', 'caseStudy', 'exercise', 'quickCheck', 'takeaway']) {
       assert.ok(Object.hasOwn(chapter, field), `${chapterIds[index]} must define ${field}`);
       assert.ok(chapter[field] !== null && chapter[field] !== undefined && !(typeof chapter[field] === 'string' && !chapter[field].trim()),
         `${chapterIds[index]}.${field} must contain learning content`);
     }
+    assert.equal(chapter.number, String(index + 1).padStart(2, '0'), `${chapterIds[index]} must use its canonical chapter number`);
+    assert.deepEqual([chapter.image.webp, chapter.image.fallback], chapterImages[index], `${chapterIds[index]} must use the approved WebP and fallback image`);
+    assert.ok(typeof chapter.image.alt === 'string' && chapter.image.alt.trim(), `${chapterIds[index]} image must have meaningful alt text`);
+    assert.ok(Array.isArray(chapter.sections) && chapter.sections.length >= 2, `${chapterIds[index]} must include complete core-content sections`);
+    assert.ok(Array.isArray(chapter.quickCheck) && chapter.quickCheck.length >= 2, `${chapterIds[index]} must include at least two low-pressure review prompts`);
   }
   assert.deepEqual(api.aliases, aliases, 'legacy learning URL aliases must map to the approved new chapters');
+  const renderChapterSource = learningScript.slice(
+    learningScript.indexOf('function renderChapter('),
+    learningScript.indexOf('window.AIBeginner ='),
+  );
+  assert.ok(renderChapterSource.length > 0, 'renderChapter implementation must be inspectable');
+  assert.ok(!/\.innerHTML\s*=/.test(renderChapterSource), 'chapter metadata and questions must render without innerHTML string assembly');
+  assert.match(renderChapterSource, /if\s*\(\s*nextId\s*\)[\s\S]*?detail\.html\?type=learn&id=/,
+    'next chapter action must be conditional so chapter six has no next button');
+  assert.match(learningScript, /createTextNode\s*\(\s*chapter\.caseStudy\.lesson\s*\)/,
+    'chapter case content must be inserted as text, not executable markup');
+  assert.match(renderChapterSource, /element\s*\(\s*ownerDocument\s*,\s*['"]fieldset['"]/,
+    'exercise skeleton must use a semantic fieldset');
+  assert.match(renderChapterSource, /element\s*\(\s*ownerDocument\s*,\s*['"]legend['"]/,
+    'exercise skeleton must label its fieldset with a legend');
+  const movedNoticeSource = learningScript.slice(
+    learningScript.indexOf('function renderMovedNotice('),
+    learningScript.indexOf('function canonicalizeLearningUrl('),
+  );
+  assert.ok(movedNoticeSource.length > 0, 'legacy moved-route renderer must be inspectable');
+  assert.ok(!/(?:OpenAI|Claude|Gemini|DeepSeek|Qwen|GPT)/i.test(movedNoticeSource),
+    'legacy moved-route renderer must not retain old company or model directory content');
 
   const learningCss = readRequired('learning-experience.css');
   const requiredCssClasses = [
@@ -907,6 +942,19 @@ function runContract() {
   const detailElements = parseElements(detail, 'detail.html');
   const learningScriptTags = detailElements.filter((element) => element.tagName === 'script' && element.attributes.get('src') === 'learning-experience.js');
   assert.equal(learningScriptTags.length, 1, 'detail.html must load learning-experience.js exactly once');
+  const detailLearningStyles = detailElements.filter((element) => element.tagName === 'link' && element.attributes.get('rel') === 'stylesheet' && element.attributes.get('href') === 'learning-experience.css');
+  assert.equal(detailLearningStyles.length, 1, 'detail.html must load learning-experience.css exactly once');
+  const inlineRendererStart = detail.indexOf('/* ================= 渲染主流程 ================= */');
+  const learningScriptStart = detail.indexOf('<script src="learning-experience.js"></script>');
+  assert.ok(learningScriptStart >= 0 && learningScriptStart < inlineRendererStart,
+    'detail.html must load learning-experience.js before the inline renderer');
+  assert.match(detail, /case\s+['"]learning['"]\s*:[\s\S]*?titleEl\.textContent\s*=\s*['"]轻量学习['"][\s\S]*?noteEl\.textContent\s*=\s*['"]LEARN · TRY · REVIEW['"][\s\S]*?AIBeginner\.renderChapter\s*\(\s*id\s*,\s*bodyEl\s*\)/,
+    'detail learning renderer must delegate to AIBeginner with the approved labels');
+  for (const [index, id] of chapterIds.entries()) {
+    const configPattern = new RegExp(`['"]${id}['"]\\s*:\\s*\\{[^}]*structure\\s*:\\s*['"]learning['"][^}]*meta\\s*:\\s*\\[[^\\]]*${chapterMinutes[index].replace(/ /g, '\\s*')}[^\\]]*\\]`, 's');
+    assert.match(detail, configPattern, `${id} detail config must be a learning route with ${chapterMinutes[index]}`);
+  }
+  assert.match(detail, /history\.replaceState\s*\(/, 'legacy learning aliases must canonicalize the URL with history.replaceState');
 
   for (const imageName of newImageNames) {
     for (const extension of ['png', 'webp']) {
@@ -989,9 +1037,12 @@ function fixtureFiles(order = chapterIds) {
     return `<a class="learning-card" id="chapter-${id}" data-chapter-id="${id}" href="${chapterHrefs[index]}"><h2>${titles[index]}</h2><p>章节说明</p><span class="learning-status">未看</span><span class="learning-card-action">开始学习</span></a>`;
   }).join('\n');
   const chapters = chapterIds.map((id, index) => `{
-    id:${JSON.stringify(id)}, title:${JSON.stringify(titles[index])},
-    caseStudy:{title:'案例'}, exercise:{type:'互动'}, quickCheck:[{q:'想一想'}], takeaway:{title:'模板'}
+    id:${JSON.stringify(id)}, number:${JSON.stringify(String(index + 1).padStart(2, '0'))}, title:${JSON.stringify(titles[index])}, description:'章节说明',
+    image:{webp:${JSON.stringify(chapterImages[index][0])},fallback:${JSON.stringify(chapterImages[index][1])},alt:'章节插画'},
+    sections:[{title:'核心一',paragraphs:['内容'],bullets:['要点']},{title:'核心二',paragraphs:['内容'],bullets:['要点']}],
+    caseStudy:{title:'案例'}, exercise:{type:'互动'}, quickCheck:[{q:'想一想'},{q:'再想一想'}], takeaway:{title:'模板'}
   }`).join(',\n');
+  const detailConfigs = chapterIds.map((id, index) => `'${id}':{name:${JSON.stringify(titles[index])},structure:'learning',meta:['轻量学习','${chapterMinutes[index]}']}`).join(',');
   const searchEntries = chapterIds.map((id, index) => `{t:${JSON.stringify(titles[index])},d:'章节',tag:'入门',href:${JSON.stringify(chapterHrefs[index])}}`).join(',\n');
   const toolCards = toolkitTitles.map((title, index) => `<article class="learning-tool-card"><h3>${title}</h3><p>轻量说明</p><pre><code data-template-content>${toolkitFields[index].join('：\n')}：</code></pre><button class="learning-tool-copy" type="button" data-copy-template>复制模板</button><span class="tool-copy-feedback" data-copy-feedback aria-live="polite"></span></article>`).join('');
   return {
@@ -999,7 +1050,7 @@ function fixtureFiles(order = chapterIds) {
       <!-- <a class="learning-card"><h2>decoy 未通过</h2></a> -->
       <script>var decoy='<a class="learning-card">decoy 未通过</a>';</script>
       <main><h1>AI 新手入门</h1><p>${learnHeroDescription}</p><picture><source srcset="img/xiaoa-learn.webp" type="image/webp"><img src="img/xiaoa-learn.png" width="432" height="480" alt="小A学习插画"></picture><h2>${learnHubHeading}</h2><a href="${chapterHrefs[0]}" data-learning-continue>继续学习</a><p class="learning-session-summary" data-learning-summary>已看 <span data-learning-seen-count>0</span> / 6</p><p>章节案例可以自然提到 AI 公司、主流 AI 模型、推荐课程、精选视频或值得关注的博主，不代表这里承载资源目录。必要时可引用<a href="https://www.anthropic.com/research">单一权威来源</a>。</p><section class="learning-hub"><a class="learning-card" hidden href="detail.html?type=learn&id=hidden"><h2>隐藏占位</h2><span class="learning-status">未看</span></a>${cards}</section><section class="learning-toolkit"><h2>可复制工具</h2>${toolCards}</section></main><footer><a href="learn.html">继续学习</a></footer><script src="learning-experience.js"></script><script>window.AIBeginner.initHub();</script></body></html>`,
-    'detail.html': '<!doctype html><html><head><link rel="stylesheet" href="learning-experience.css"></head><body><main id="learningExperience"></main><script src="learning-experience.js"></script></body></html>',
+    'detail.html': `<!doctype html><html><head><link rel="stylesheet" href="learning-experience.css"></head><body><main id="learningExperience"></main><script src="learning-experience.js"></script><script>var CONFIG={learn:{subs:{${detailConfigs}}}}; history.replaceState(null,'',''); /* ================= 渲染主流程 ================= */ switch(sub.structure){case 'learning':titleEl.textContent='轻量学习';noteEl.textContent='LEARN · TRY · REVIEW';window.AIBeginner.renderChapter(id,bodyEl);break;}</script></body></html>`,
     'progress.html': '<!doctype html><html><head><link rel="stylesheet" href="learning-experience.css"></head><body><main><p>进度只在本次标签会话有效。</p><article class="progress-compat-card"><p>兼容说明</p><a class="progress-compat-cta" href="learn.html">进入 AI 新手入门</a></article></main><footer><a href="learn.html">继续学习</a></footer></body></html>',
     'search.js': `(function(){ var SEARCH_INDEX=[${searchEntries},{t:'本次学习进度',tag:'功能',href:'learn.html'},{t:'AI 公司介绍',tag:'资源',href:'resources.html'}]; var decoy='SEARCH_INDEX.push({tag:"入门"})'; /* SEARCH_INDEX = []; */ window.search=SEARCH_INDEX; }());`,
     'index.html': '<!doctype html><html><body><main></main><footer><a href="learn.html">继续学习</a></footer></body></html>',
@@ -1020,7 +1071,9 @@ function fixtureFiles(order = chapterIds) {
       function markSeen(){ return 'seen'; }
       function nextIncomplete(){ return 'ai-basics'; }
       function initHub(){ return true; }
-      function renderChapter(){ return true; }
+      function renderMovedNotice(){ return '已移至 AI 工具与资源'; }
+      function canonicalizeLearningUrl(){ return true; }
+      function renderChapter(){ var nextId=''; var chapter={caseStudy:{lesson:''}}; var ownerDocument={createTextNode:function(){}}; function element(){} element(ownerDocument,'fieldset'); element(ownerDocument,'legend'); ownerDocument.createTextNode(chapter.caseStudy.lesson); if(nextId){ return 'detail.html?type=learn&id='; } return true; }
       window.AIBeginner={chapters:chapters,aliases:aliases,getStatus:getStatus,markStarted:markStarted,markSeen:markSeen,nextIncomplete:nextIncomplete,initHub:initHub,renderChapter:renderChapter,read:read};
     }());`,
     'learning-experience.css': `.learning-hub,.learning-card,.learning-status,.lesson-nav,.lesson-figure,.lesson-case,.lesson-exercise,.lesson-check,.lesson-takeaway,.lesson-actions,.learning-session-summary,.learning-toolkit,.learning-tool-card,.learning-tool-copy,.tool-copy-fallback,.progress-compat-cta { color: #0e2144; }
@@ -1282,6 +1335,8 @@ function runRuntimeUnitTest() {
   assert.equal(fresh.renderChapter('ai-models', movedTarget), true, 'legacy company/model routes must render a moved notice');
   assert.match(movedTarget.innerHTML, /已移至\s*AI 工具与资源/, 'legacy route notice must explain where the content moved');
   assert.match(movedTarget.innerHTML, /href=["']resources\.html["']/, 'legacy route notice must link to resources.html');
+  assert.ok(!/(?:OpenAI|Claude|Gemini|DeepSeek|Qwen|GPT)/i.test(movedTarget.innerHTML),
+    'legacy moved notice must not leak the old company or model directory');
   assert.doesNotThrow(() => fresh.initHub(), 'initHub must remain safe without a matching DOM hub');
 
   function assertReturnScroll(name, expectedBehavior, matchMedia) {
@@ -1461,6 +1516,31 @@ function runSelfTest() {
   expectMutation('missing runtime API', (root) => {
     replaceIn(root, 'learning-experience.js', 'renderChapter:renderChapter,read:read', 'read:read');
   }, 'window.AIBeginner.renderChapter must be a function');
+  expectMutation('duplicate detail learning script', (root) => {
+    replaceIn(root, 'detail.html', '<script src="learning-experience.js"></script>', '<script src="learning-experience.js"></script><script src="learning-experience.js"></script>');
+  }, 'detail.html must load learning-experience.js exactly once');
+  expectMutation('detail learning script after renderer', (root) => {
+    replaceIn(root, 'detail.html', '<script src="learning-experience.js"></script><script>', '<script>');
+    replaceIn(root, 'detail.html', '</script></body>', '</script><script src="learning-experience.js"></script></body>');
+  }, 'detail.html must load learning-experience.js before the inline renderer');
+  expectMutation('missing canonical chapter', (root) => {
+    replaceIn(root, 'learning-experience.js', 'id:"ai-workflow"', 'id:"ai-workflow-missing"');
+  }, 'learning chapter IDs must match the approved order');
+  expectMutation('wrong chapter minutes', (root) => {
+    replaceIn(root, 'detail.html', '约 8 分钟', '约 18 分钟');
+  }, 'ai-basics detail config must be a learning route with 约 8 分钟');
+  expectMutation('wrong approved chapter image', (root) => {
+    replaceIn(root, 'learning-experience.js', 'images/ai-concept.webp', 'images/ai-history.webp');
+  }, 'ai-basics must use the approved WebP and fallback image');
+  expectMutation('chapter six next button', (root) => {
+    replaceIn(root, 'learning-experience.js', 'if(nextId)', 'if(true)');
+  }, 'next chapter action must be conditional so chapter six has no next button');
+  expectMutation('moved route leaks model directory', (root) => {
+    replaceIn(root, 'learning-experience.js', "return '已移至 AI 工具与资源'", "return 'OpenAI 与 GPT 目录'");
+  }, 'legacy moved-route renderer must not retain old company or model directory content');
+  expectMutation('unsafe chapter metadata rendering', (root) => {
+    replaceIn(root, 'learning-experience.js', 'ownerDocument.createTextNode(chapter.caseStudy.lesson)', 'container.innerHTML=chapter.caseStudy.lesson');
+  }, 'chapter metadata and questions must render without innerHTML string assembly');
   expectMutation('hidden failed status', (root) => {
     replaceIn(root, 'learn.html', '<main>', '<main><span hidden>未通过</span>');
   }, 'learn.html must not contain prohibited status or assessment copy: 未通过');
@@ -1534,7 +1614,7 @@ function runSelfTest() {
     },
   ]);
 
-  console.log('PASS learning experience contract self-test (valid fixture + 32 mutations)');
+  console.log('PASS learning experience contract self-test (valid fixture + 40 mutations)');
 }
 
 if (process.argv.includes('--runtime-test')) runRuntimeUnitTest();
