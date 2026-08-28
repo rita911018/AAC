@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 
 const portalUrl = 'https://portal.amersports.cn/portal/indexs';
 const oldUatUrl = 'ai-uat.amersports.cn:9093';
-const portalInstructions = '进入 Portal 后，点击右侧「小A智助」';
+const portalInstructions = '进入 Portal 后，点击右侧「小A智助」打开助手';
 
 const files = {
   index: readFileSync('site/knowledge-base/index.html', 'utf8'),
