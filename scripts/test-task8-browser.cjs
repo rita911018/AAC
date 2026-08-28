@@ -26,6 +26,26 @@ function expect(condition, message) {
   if (!condition) failures.push(message);
 }
 
+async function waitForScrollPositionToSettle(page, {
+  timeoutMs = 3000,
+  minimumObservationMs = 250,
+  intervalMs = 50,
+  stableSamplesRequired = 4,
+} = {}) {
+  const startedAt = Date.now();
+  let previousScrollY = null;
+  let stableSamples = 0;
+  while (Date.now() - startedAt < timeoutMs) {
+    const currentScrollY = await page.evaluate(() => scrollY);
+    if (previousScrollY !== null && Math.abs(currentScrollY - previousScrollY) < .5) stableSamples += 1;
+    else stableSamples = 0;
+    if (Date.now() - startedAt >= minimumObservationMs && stableSamples >= stableSamplesRequired) return currentScrollY;
+    previousScrollY = currentScrollY;
+    await page.waitForTimeout(intervalMs);
+  }
+  return page.evaluate(() => scrollY);
+}
+
 const allPages = [
   ['index', 'index.html'],
   ['learn', 'learn.html'],
@@ -315,20 +335,29 @@ const viewports = mutationMode ? [[390, 844]] : allViewports;
 
       if (name === 'resources') {
         await page.goto(`${base}/resources.html?anchorQa=${width}#gateway`, { waitUntil: 'domcontentloaded' });
-        await page.waitForTimeout(900);
+        await waitForScrollPositionToSettle(page);
         const anchorGeometry = await page.evaluate(() => {
           const gateway = document.querySelector('div.external-sites#gateway');
+          const heading = gateway?.querySelector('.external-sites-head h3');
           const topbar = document.querySelector('#topbar');
           const gatewayRect = gateway?.getBoundingClientRect();
+          const headingRect = heading?.getBoundingClientRect();
           const topbarRect = topbar?.getBoundingClientRect();
           return {
             gatewayTop: gatewayRect?.top ?? -1,
+            headingTop: headingRect?.top ?? -1,
+            headingBottom: headingRect?.bottom ?? -1,
+            headingHeight: headingRect?.height ?? 0,
             topbarBottom: topbarRect?.bottom ?? -1,
+            viewportHeight: innerHeight,
             scrollY,
             scrollMarginTop: gateway ? getComputedStyle(gateway).scrollMarginTop : '',
           };
         });
-        expect(anchorGeometry.gatewayTop >= anchorGeometry.topbarBottom - 1, `resources ${width}px: #gateway deep-link heading is hidden by the sticky header (${anchorGeometry.gatewayTop}/${anchorGeometry.topbarBottom})`);
+        expect(anchorGeometry.scrollY > 0, `resources ${width}px: #gateway deep link did not scroll the document (${anchorGeometry.scrollY})`);
+        expect(anchorGeometry.headingHeight > 0, `resources ${width}px: #gateway deep-link heading has no rendered geometry`);
+        expect(anchorGeometry.headingTop >= anchorGeometry.topbarBottom - 1, `resources ${width}px: #gateway deep-link heading is hidden by the sticky header (${anchorGeometry.headingTop}/${anchorGeometry.topbarBottom})`);
+        expect(anchorGeometry.headingTop < anchorGeometry.viewportHeight && anchorGeometry.headingBottom > 0, `resources ${width}px: #gateway deep-link heading is outside the viewport (${anchorGeometry.headingTop}-${anchorGeometry.headingBottom}/${anchorGeometry.viewportHeight})`);
         gatewayViewportEvidence.push({ width, ...anchorGeometry });
       }
     }
