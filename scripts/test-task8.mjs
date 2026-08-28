@@ -70,9 +70,26 @@ function verifierAccepts(mutator, description) {
   }
 }
 
+function prepareExistingBackupFixture(fixture) {
+  const backupRoot = join(fixture, 'backups');
+  const sentinel = join(backupRoot, 'task8-existing-backup-sentinel.txt');
+  const sentinelContents = 'pre-existing backup content must remain unchanged';
+  mkdirSync(backupRoot, { recursive: true });
+  writeFileSync(sentinel, sentinelContents);
+  return {
+    backupRoot,
+    assertPreserved: () => expect(
+      readFileSync(sentinel, 'utf8') === sentinelContents,
+      'temporary verifier fixture must preserve pre-existing backup contents',
+    ),
+  };
+}
+
 verifierAccepts((fixture) => {
-  mkdirSync(join(fixture, 'backups'));
-  writeFileSync(join(fixture, 'backups', 'legacy.css'), '.legacy{background:linear-gradient(red,blue)}');
+  const { backupRoot, assertPreserved } = prepareExistingBackupFixture(fixture);
+  mkdirSync(backupRoot, { recursive: true });
+  writeFileSync(join(backupRoot, 'task8-legacy-gradient.css'), '.legacy{background:linear-gradient(red,blue)}');
+  return assertPreserved;
 }, 'top-level backups descendants are excluded from active-site scanning');
 
 verifierRejects((fixture) => {
@@ -90,11 +107,13 @@ verifierRejects((fixture) => {
 }, 'active/backups/bad.css: gradients are not allowed', 'nested active backups-named directory is not broadly ignored');
 
 verifierRejects((fixture) => {
-  mkdirSync(join(fixture, 'backups'));
-  writeFileSync(join(fixture, 'backups', 'archived.svg'), '<svg xmlns="http://www.w3.org/2000/svg"></svg>');
+  const { backupRoot, assertPreserved } = prepareExistingBackupFixture(fixture);
+  mkdirSync(backupRoot, { recursive: true });
+  writeFileSync(join(backupRoot, 'task8-archived.svg'), '<svg xmlns="http://www.w3.org/2000/svg"></svg>');
   const file = join(fixture, 'index.html');
-  writeFileSync(file, readFileSync(file, 'utf8').replace('</body>', '<img src="backups/archived.svg" alt=""></body>'));
-}, 'index.html: image must not target top-level backups: backups/archived.svg', 'active local reference into top-level backups fails closed');
+  writeFileSync(file, readFileSync(file, 'utf8').replace('</body>', '<img src="backups/task8-archived.svg" alt=""></body>'));
+  return assertPreserved;
+}, 'index.html: image must not target top-level backups: backups/task8-archived.svg', 'active local reference into top-level backups fails closed');
 
 verifierRejects((fixture) => {
   const file = join(fixture, 'index.html');

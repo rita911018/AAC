@@ -13,6 +13,7 @@ const { chromium } = playwright;
 const base = process.argv[2] || 'http://127.0.0.1:4173';
 const output = resolve(process.argv[3] || '/private/tmp/knowledge-base-qa');
 const mutationMode = process.env.KB_QA_MUTATION === '1';
+const cleanupTrace = process.env.KB_QA_CLEANUP_TRACE === '1';
 mkdirSync(output, { recursive: true });
 
 const portalUrl = 'https://portal.amersports.cn/portal/indexs';
@@ -73,12 +74,16 @@ const learningChapters = [
 ];
 
 (async () => {
-  const browser = await chromium.launch({ headless: true });
-  const page = await browser.newPage();
+  let browser = null;
+  let runError = null;
   const runtimeErrors = [];
   const homeViewportEvidence = [];
   const gatewayViewportEvidence = [];
-  page.on('pageerror', (error) => runtimeErrors.push(error.message));
+  try {
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    if (process.env.KB_QA_EARLY_FAIL === '1') throw new Error('QA_EARLY_FAILURE_PROBE');
+    page.on('pageerror', (error) => runtimeErrors.push(error.message));
 
   for (const [name, path] of pages) {
     for (const [width, height] of viewports) {
@@ -591,17 +596,32 @@ const learningChapters = [
     expect(chromiumEntityStyles.decimal.includes('radial-gradient'), 'Chromium fixture did not decode semicolonless decimal character reference');
   }
 
-  expect(runtimeErrors.length === 0, `browser runtime errors: ${runtimeErrors.join(' | ')}`);
-  await browser.close();
+    expect(runtimeErrors.length === 0, `browser runtime errors: ${runtimeErrors.join(' | ')}`);
+  } catch (error) {
+    runError = error;
+  } finally {
+    if (browser) {
+      try {
+        await browser.close();
+        if (cleanupTrace) console.error('CLEANUP: browser closed');
+      } catch (closeError) {
+        if (!runError) runError = closeError;
+        else console.error(`CLEANUP ERROR (original error preserved): ${closeError?.stack ?? closeError}`);
+      }
+    }
+  }
+
+  if (runError) throw runError;
 
   if (failures.length) {
     console.error(failures.map((failure) => `FAIL: ${failure}`).join('\n'));
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
   console.log(`HOME HERO: ${JSON.stringify(homeViewportEvidence)}`);
   console.log(`GATEWAY ANCHOR: ${JSON.stringify(gatewayViewportEvidence)}`);
   console.log(`PASS: Task 8 browser QA (${checks} checks, ${pages.length * viewports.length} screenshots at ${output})`);
 })().catch((error) => {
   console.error(error);
-  process.exit(1);
+  process.exitCode = 1;
 });
