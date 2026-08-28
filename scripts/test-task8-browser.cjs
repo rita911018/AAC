@@ -48,7 +48,7 @@ const viewports = [
     for (const [width, height] of viewports) {
       await page.setViewportSize({ width, height });
       await page.goto(`${base}/${path}`, { waitUntil: 'domcontentloaded' });
-      await page.waitForTimeout(100);
+      await page.waitForTimeout(500);
       const metrics = await page.evaluate(() => {
         const bodyStyle = getComputedStyle(document.body);
         const mascot = document.querySelector('.hero-mascot');
