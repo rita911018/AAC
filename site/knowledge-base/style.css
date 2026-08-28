@@ -364,6 +364,7 @@ body .mod-go{width:auto;min-width:44px;min-height:44px;padding-inline:8px;displa
 .xa-prompt-card .xp-cta,.xa-hero .xh-cta,.home-hero .hero-xiaoa-cta{min-height:44px;padding:9px 16px;display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid var(--blue);border-radius:7px;background:var(--blue);color:var(--white);font-size:14px;font-weight:720}
 .xa-prompt-card .xp-cta:hover,.xa-hero .xh-cta:hover,.home-hero .hero-xiaoa-cta:hover{border-color:var(--navy-2);background:var(--navy-2);box-shadow:none;color:var(--white);transform:none}
 .xa-prompt-card .xp-cta svg,.xa-hero .xh-cta svg,.home-hero .hero-xiaoa-cta svg{width:16px;height:16px;stroke:currentColor}
+.home-hero .hero-xiaoa-cta:focus-visible{outline:3px solid var(--white);outline-offset:-4px;box-shadow:inset 0 0 0 1px var(--navy)}
 .xa-prompt-card .xp-deco{position:relative;isolation:isolate;width:168px;height:124px;display:grid;place-items:center;flex:none;overflow:hidden;border:1px solid var(--navy-2);border-radius:8px;background:var(--navy);color:var(--white)}
 .xa-prompt-card .xp-deco::after{content:none;background-image:none}
 .xa-prompt-card .xp-deco svg{position:relative;z-index:2;width:42px;height:42px;stroke:currentColor}

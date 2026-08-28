@@ -172,6 +172,42 @@ const viewports = [
           titleOverlap: metrics.homeTitleMascotOverlap,
           horizontalOverflow: metrics.scrollWidth > metrics.viewportWidth + 1,
         });
+        if (width <= 560) {
+          const shortcutCta = page.locator('.home-hero .hero-xiaoa-cta');
+          await shortcutCta.focus();
+          const focusRing = await shortcutCta.evaluate((node) => {
+            const style = getComputedStyle(node);
+            const bounds = node.getBoundingClientRect();
+            const outlineWidth = Number.parseFloat(style.outlineWidth) || 0;
+            const outlineOffset = Number.parseFloat(style.outlineOffset) || 0;
+            const parseRgb = (value) => (value.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
+            const luminance = (value) => {
+              const channels = parseRgb(value).map((channel) => {
+                const normalized = channel / 255;
+                return normalized <= .03928 ? normalized / 12.92 : ((normalized + .055) / 1.055) ** 2.4;
+              });
+              return .2126 * channels[0] + .7152 * channels[1] + .0722 * channels[2];
+            };
+            const foreground = luminance(style.outlineColor);
+            const background = luminance(style.backgroundColor);
+            const contrastRatio = (Math.max(foreground, background) + .05) / (Math.min(foreground, background) + .05);
+            const externalExtent = Math.max(0, outlineWidth + outlineOffset);
+            return {
+              focusVisible: node.matches(':focus-visible'),
+              outlineStyle: style.outlineStyle,
+              outlineWidth,
+              outlineOffset,
+              contrastRatio,
+              ringRight: bounds.right + externalExtent,
+              viewportRight: innerWidth,
+            };
+          });
+          expect(focusRing.focusVisible, `index ${width}px: Xiao A CTA does not enter :focus-visible state`);
+          expect(focusRing.outlineStyle !== 'none' && focusRing.outlineWidth >= 3, `index ${width}px: Xiao A CTA focus ring is not clearly rendered`);
+          expect(focusRing.outlineOffset <= -focusRing.outlineWidth, `index ${width}px: Xiao A CTA focus ring is not contained inside the clipped Hero (${focusRing.outlineOffset}/${focusRing.outlineWidth})`);
+          expect(focusRing.contrastRatio >= 3, `index ${width}px: Xiao A CTA focus ring contrast is too low (${focusRing.contrastRatio.toFixed(2)}:1)`);
+          expect(focusRing.ringRight <= focusRing.viewportRight + .5, `index ${width}px: Xiao A CTA focus ring crosses the viewport edge (${focusRing.ringRight}/${focusRing.viewportRight})`);
+        }
       }
       if (name === 'resources') {
         expect(metrics.resourcesGatewayCount === 1, `resources ${width}px: expected one real section#gateway (${metrics.resourcesGatewayCount})`);
