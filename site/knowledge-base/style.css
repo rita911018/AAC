@@ -511,3 +511,26 @@ body .xa-hero .xh-side li b{color:var(--white)}
   html.is-ready .reveal{animation:none!important;opacity:1;transform:none}
   .reveal,body .rv{opacity:1;transform:none}
 }
+
+/* Homepage WorkBuddy-style Xiao A composition */
+.home-hero .container{min-height:360px;padding-block:0;grid-template-columns:minmax(0,1fr) minmax(340px,440px);align-items:center;gap:clamp(40px,5vw,72px)}
+.home-hero .bh-left{grid-column:1;grid-row:1}
+.home-hero .hero-mascot{position:relative;right:auto;bottom:auto;grid-column:2;grid-row:1;width:100%;max-width:440px;height:360px;max-height:none;margin:0;overflow:visible;justify-self:end;align-self:end;animation:none!important;transform:none;opacity:1}
+.home-hero .hero-mascot picture{position:absolute;inset:0;display:block;overflow:visible}
+.home-hero .hero-mascot img{position:absolute;right:0;bottom:-165px;width:auto;height:520px;max-width:none;max-height:none;object-fit:contain;object-position:center bottom}
+.home-hero .hero-mascot .mascot-status{right:14px;bottom:24px}
+
+@media(max-width:820px){
+  .home-hero .container{min-height:0;padding-block:46px 0;grid-template-columns:1fr;align-items:start;gap:24px}
+  .home-hero .bh-left{grid-column:1;grid-row:1}
+  .home-hero .hero-mascot{grid-column:1;grid-row:2;width:340px;max-width:100%;height:280px;max-height:none;margin:0;justify-self:end;align-self:end}
+  .home-hero .hero-mascot img{right:0;bottom:-110px;width:auto;height:390px;max-width:none;max-height:none}
+  .home-hero .hero-mascot .mascot-status{right:0;bottom:20px}
+}
+
+@media(max-width:560px){
+  .home-hero .container{padding-block:42px 0;gap:20px}
+  .home-hero .hero-mascot{width:300px;height:250px}
+  .home-hero .hero-mascot img{bottom:-80px;height:330px}
+  .home-hero .hero-mascot .mascot-status{bottom:18px}
+}

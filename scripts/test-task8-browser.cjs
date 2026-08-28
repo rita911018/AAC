@@ -41,6 +41,7 @@ const viewports = [
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
   const runtimeErrors = [];
+  const homeViewportEvidence = [];
   page.on('pageerror', (error) => runtimeErrors.push(error.message));
 
   for (const [name, path] of pages) {
@@ -56,6 +57,10 @@ const viewports = [
         const overlap = (a, b) => Boolean(a && b && a.right > b.left && b.right > a.left && a.bottom > b.top && b.bottom > a.top);
         const mascotRect = rect(mascot);
         const copyRect = rect(copy);
+        const homeSectionRect = rect(document.querySelector('.home-hero'));
+        const homeHeroRect = rect(document.querySelector('.home-hero .hero-mascot'));
+        const homeImageRect = rect(document.querySelector('.home-hero .hero-mascot img'));
+        const homeTitleRect = rect(document.querySelector('.home-hero .bh-left h1'));
         return {
           scrollWidth: document.documentElement.scrollWidth,
           viewportWidth: innerWidth,
@@ -67,6 +72,15 @@ const viewports = [
           navTargetHeights: [...document.querySelectorAll('.nav-links a')].map((node) => node.getBoundingClientRect().height),
           footerTargetHeights: [...document.querySelectorAll('.footer a')].map((node) => node.getBoundingClientRect().height),
           searchInput: rect(document.querySelector('#searchInput')),
+          homeSectionRect,
+          homeHeroRect,
+          homeImageRect,
+          homeTitleRect,
+          homeCopyRect: rect(document.querySelector('.home-hero .bh-left')),
+          homeMascotRect: rect(document.querySelector('.home-hero .hero-mascot')),
+          homeImageCurrentSrc: document.querySelector('.home-hero .hero-mascot img')?.currentSrc || '',
+          homeImageCopyOverlap: overlap(homeImageRect, copyRect),
+          homeTitleMascotOverlap: overlap(homeTitleRect, mascotRect),
         };
       });
       expect(metrics.scrollWidth <= metrics.viewportWidth + 1, `${name} ${width}px: horizontal overflow ${metrics.scrollWidth}/${metrics.viewportWidth}`);
@@ -78,9 +92,33 @@ const viewports = [
       expect(metrics.navTargetHeights.every((value) => value === 0 || value >= 44), `${name} ${width}px: navigation target below 44px`);
       expect(metrics.footerTargetHeights.every((value) => value >= 44), `${name} ${width}px: footer target below 44px`);
       expect(metrics.searchInput && metrics.searchInput.width >= 44 && metrics.searchInput.height >= 44, `${name} ${width}px: search input target below 44x44 (${metrics.searchInput?.width || 0}x${metrics.searchInput?.height || 0})`);
+      if (name === 'index') {
+        expect(Boolean(metrics.homeSectionRect && metrics.homeHeroRect && metrics.homeImageRect && metrics.homeTitleRect && metrics.homeCopyRect && metrics.homeMascotRect), `index ${width}px: missing home hero geometry target`);
+        expect(!metrics.homeImageCopyOverlap, `index ${width}px: actual mascot image overlaps hero copy`);
+        expect(!metrics.homeTitleMascotOverlap, `index ${width}px: title and mascot rectangles overlap`);
+        expect(Math.abs(metrics.homeHeroRect.bottom - metrics.homeSectionRect.bottom) <= 3.1, `index ${width}px: mascot crop boundary is not aligned to hero bottom (${metrics.homeHeroRect.bottom}/${metrics.homeSectionRect.bottom})`);
+        expect(metrics.homeImageRect.top >= metrics.homeHeroRect.top - 1, `index ${width}px: mascot rises above hero (${metrics.homeImageRect.top}/${metrics.homeHeroRect.top})`);
+        expect(metrics.homeImageRect.bottom >= metrics.homeHeroRect.bottom + 20, `index ${width}px: mascot legs are not cropped by hero (${metrics.homeImageRect.bottom}/${metrics.homeHeroRect.bottom})`);
+        expect(metrics.homeImageRect.height / metrics.homeHeroRect.height >= 1.12, `index ${width}px: mascot is not sufficiently enlarged (${metrics.homeImageRect.height}/${metrics.homeHeroRect.height})`);
+        expect(metrics.homeImageCurrentSrc.endsWith('/img/xiaoa-home-480.webp'), `index ${width}px: browser did not select the WebP mascot (${metrics.homeImageCurrentSrc})`);
+        homeViewportEvidence.push({
+          width,
+          sectionHeight: Number(metrics.homeSectionRect.height.toFixed(2)),
+          mascotHeight: Number(metrics.homeHeroRect.height.toFixed(2)),
+          imageHeight: Number(metrics.homeImageRect.height.toFixed(2)),
+          imageTopOffset: Number((metrics.homeImageRect.top - metrics.homeHeroRect.top).toFixed(2)),
+          imageBottomExcess: Number((metrics.homeImageRect.bottom - metrics.homeHeroRect.bottom).toFixed(2)),
+          imageHeightRatio: Number((metrics.homeImageRect.height / metrics.homeHeroRect.height).toFixed(2)),
+          copyOverlap: metrics.homeImageCopyOverlap,
+          titleOverlap: metrics.homeTitleMascotOverlap,
+          horizontalOverflow: metrics.scrollWidth > metrics.viewportWidth + 1,
+        });
+      }
       await page.screenshot({ path: resolve(output, `${name}-${width}.png`), fullPage: true });
     }
   }
+
+  expect(homeViewportEvidence.length === viewports.length, `home hero geometry did not run at all four viewports (${homeViewportEvidence.length}/${viewports.length})`);
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${base}/index.html`, { waitUntil: 'domcontentloaded' });
@@ -183,6 +221,7 @@ const viewports = [
     console.error(failures.map((failure) => `FAIL: ${failure}`).join('\n'));
     process.exit(1);
   }
+  console.log(`HOME HERO: ${JSON.stringify(homeViewportEvidence)}`);
   console.log(`PASS: Task 8 browser QA (${checks} checks, ${pages.length * viewports.length} screenshots at ${output})`);
 })().catch((error) => {
   console.error(error);
