@@ -460,6 +460,28 @@ function runContract() {
   for (const forbidden of ['AI 公司', '主流 AI 模型', '课程目录', '视频目录', '博主目录']) {
     assert.ok(!visibleMainCopy.includes(forbidden), `learn hub must not contain the external-resource directory copy: ${forbidden}`);
   }
+  const mainElements = parseElements(main.innerHtml, 'learn main');
+  const directoryHeadingPattern = /(?:(?:精选|推荐|值得关注(?:的)?|延伸学习|资源导航|资源推荐).{0,12}(?:视频|课程|博主|创作者|信息源)|(?:视频|课程|博主|创作者|信息源).{0,12}(?:精选|推荐|目录|导航|资源|信息源))/;
+  const directoryHeadings = mainElements.filter((element) => /^h[1-6]$/.test(element.tagName) && isVisible(element))
+    .map((element) => visibleText(element.innerHtml, 'learn directory heading'))
+    .filter((heading) => directoryHeadingPattern.test(heading));
+  assert.deepEqual(directoryHeadings, [], 'learn main must not contain course, video, or creator directory headings');
+
+  const legacyDirectoryClasses = new Set([
+    'video-grid', 'video-card',
+    'lp-blog', 'lp-blog-card',
+    'course-directory', 'course-grid', 'course-card',
+    'media-directory', 'media-grid', 'media-card',
+  ]);
+  const visibleLegacyDirectories = mainElements.filter((element) => isVisible(element) &&
+    (element.attributes.get('class') ?? '').split(/\s+/).some((className) => legacyDirectoryClasses.has(className)));
+  assert.equal(visibleLegacyDirectories.length, 0, 'learn main must not retain legacy course, video, or creator directory structures');
+  const visibleLegacyMediaSections = mainElements.filter((element) => isVisible(element) && element.attributes.get('id') === 'sec-media');
+  assert.equal(visibleLegacyMediaSections.length, 0, 'learn main must not retain the legacy #sec-media directory');
+
+  const externalDirectoryLinks = mainElements.filter((element) => element.tagName === 'a' && isVisible(element) &&
+    /^(?:https?:)?\/\//i.test((element.attributes.get('href') ?? '').trim()));
+  assert.equal(externalDirectoryLinks.length, 0, 'learn main must not contain external resource-directory links');
   const forbiddenLearningIds = ['ai-companies', 'ai-models'];
   for (const anchor of learnElements.filter((element) => element.tagName === 'a' && isVisible(element))) {
     const href = anchor.attributes.get('href') ?? '';
@@ -557,7 +579,7 @@ function fixtureFiles(order = chapterIds) {
     'learn.html': `<!doctype html><html><head><link rel="stylesheet" href="learning-experience.css"></head><body>
       <!-- <a class="learning-card"><h2>decoy 未通过</h2></a> -->
       <script>var decoy='<a class="learning-card">decoy 未通过</a>';</script>
-      <main><section class="learning-hub"><a class="learning-card" hidden href="detail.html?type=learn&id=hidden"><h2>隐藏占位</h2><span class="learning-status">未看</span></a>${cards}</section></main></body></html>`,
+      <main><p>章节案例可以自然提到推荐课程、精选视频或值得关注的博主，不代表这里承载资源目录。</p><section class="learning-hub"><a class="learning-card" hidden href="detail.html?type=learn&id=hidden"><h2>隐藏占位</h2><span class="learning-status">未看</span></a>${cards}</section></main></body></html>`,
     'detail.html': '<!doctype html><html><head><link rel="stylesheet" href="learning-experience.css"></head><body><main id="learningExperience"></main><script src="learning-experience.js"></script></body></html>',
     'progress.html': '<!doctype html><html><body><main><p>进度只在本次标签会话有效。</p><a href="learn.html">进入 AI 新手入门</a></main></body></html>',
     'search.js': `(function(){ var SEARCH_INDEX=[${searchEntries},{t:'AI 公司介绍',tag:'资源',href:'resources.html'}]; window.search=SEARCH_INDEX; }());`,
@@ -652,8 +674,23 @@ function runSelfTest() {
   expectMutation('old model search entry', (root) => {
     replaceIn(root, 'search.js', chapterHrefs[0], 'detail.html?type=learn&id=ai-models');
   }, 'search beginner links must match the six approved chapter URLs');
+  expectMutation('recommended creator directory', (root) => {
+    replaceIn(root, 'learn.html', '<main>', '<main><section class="lp-blog"><h2>值得关注的博主</h2><a class="lp-blog-card" href="https://example.test/creator">AI 创作者</a></section>');
+  }, 'learn main must not contain course, video, or creator directory headings');
+  expectMutation('selected video directory', (root) => {
+    replaceIn(root, 'learn.html', '<main>', '<main><section class="video-grid"><h2>精选视频</h2><a class="video-card" href="https://example.test/video">AI 讲解</a></section>');
+  }, 'learn main must not contain course, video, or creator directory headings');
+  expectMutation('recommended course directory', (root) => {
+    replaceIn(root, 'learn.html', '<main>', '<main><section class="course-directory"><h2>推荐课程</h2><a class="course-card" href="https://example.test/course">AI 入门课</a></section>');
+  }, 'learn main must not contain course, video, or creator directory headings');
+  expectMutation('legacy media directory structure', (root) => {
+    replaceIn(root, 'learn.html', '<main>', '<main><section id="sec-media"><div class="video-grid"><p>延伸内容</p></div></section>');
+  }, 'learn main must not retain legacy course, video, or creator directory structures');
+  expectMutation('external resource-directory link', (root) => {
+    replaceIn(root, 'learn.html', '<main>', '<main><a href="https://example.test/resource">延伸阅读</a>');
+  }, 'learn main must not contain external resource-directory links');
 
-  console.log('PASS learning experience contract self-test (valid fixture + 10 mutations)');
+  console.log('PASS learning experience contract self-test (valid fixture + 15 mutations)');
 }
 
 if (process.argv.includes('--self-test')) runSelfTest();
