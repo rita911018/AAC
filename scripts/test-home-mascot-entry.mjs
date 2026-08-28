@@ -283,17 +283,11 @@ for (const [fileName, content] of htmlFiles) {
     `${fileName} header and footer must contain exactly two knowledge-book brand icons`,
   );
 
-  const logoRegions = brandRegions.map((region, index) => extractUniqueElementByClass(
-    region,
-    'span',
-    'logo',
-    `${fileName} ${index === 0 ? 'header' : 'footer'} logo`,
-  ).innerHtml);
-  const oldStarPaths = logoRegions.flatMap(findOpeningTags).filter(
+  const oldStarPaths = findOpeningTags(content).filter(
     ({ tagName, attributes }) => tagName === 'path'
       && normalizedPathData(attributes.get('d') ?? '') === normalizedPathData(oldStarPath),
   );
-  assert.equal(oldStarPaths.length, 0, `${fileName} header and footer must not contain the old star path`);
+  assert.equal(oldStarPaths.length, 0, `${fileName} must not contain the old star path in real HTML markup`);
 }
 
 const homeHero = extractUniqueElementByClass(files.index, 'section', 'home-hero', 'home hero');
