@@ -406,7 +406,7 @@ body .xa-hero .xh-side li b{color:var(--white)}
 .gate-home-card .gh-name{color:var(--ink);font-size:16px;font-weight:730}
 .gate-home-card .gh-desc{margin-top:2px;color:var(--muted);font-size:17px;line-height:1.8}
 .gate-home-card .gh-go{margin:0 0 0 auto;flex:none}
-.external-sites{margin-top:44px;padding-top:30px;border-top:1px solid var(--line)}
+.external-sites{margin-top:44px;padding-top:30px;border-top:1px solid var(--line);scroll-margin-top:81px}
 .external-sites-head{margin-bottom:18px}
 .external-sites-head h3{margin-bottom:6px;font-size:22px}
 .external-sites-head p{margin:0;color:var(--muted);font-size:16px;line-height:1.75}
