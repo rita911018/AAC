@@ -398,9 +398,15 @@
 }
 
 .lesson-history summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  max-width: 100%;
   color: var(--learning-blue);
   font-size: 17px;
+  line-height: 1.55;
   font-weight: 750;
+  overflow-wrap: anywhere;
   cursor: pointer;
 }
 
@@ -699,8 +705,11 @@
   display: flex;
   align-items: center;
   min-height: 44px;
+  max-width: 100%;
   color: var(--learning-blue);
+  line-height: 1.55;
   font-weight: 750;
+  overflow-wrap: anywhere;
   cursor: pointer;
 }
 

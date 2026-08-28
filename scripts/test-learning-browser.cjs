@@ -112,6 +112,10 @@ function startServer() {
         changed = source + '\n.lesson a,.lesson button,.lesson input,.lesson textarea,.lesson select,.lesson summary,.lesson label{min-height:10px!important;height:10px!important;padding-top:0!important;padding-bottom:0!important}\n';
       } else if (mutation === 'ordinary-button-pressed' && relative.endsWith('.js')) {
         changed = source.replace('    return button;\n  }\n\n  function setChoiceState', "    button.setAttribute('aria-pressed', 'false');\n    return button;\n  }\n\n  function setChoiceState");
+      } else if (mutation === 'history-summary-compressed' && relative.endsWith('.css')) {
+        changed = source + '\n.lesson-history summary{display:block!important;min-height:10px!important;height:10px!important;line-height:10px!important;padding:0!important}\n';
+      } else if (mutation === 'reference-summary-compressed' && relative.endsWith('.css')) {
+        changed = source + '\n.lesson-exercise-reference summary{display:block!important;min-height:10px!important;height:10px!important;line-height:10px!important;padding:0!important}\n';
       }
       if (changed !== source) {
         response.end(changed);
@@ -158,7 +162,7 @@ async function lessonSnapshot(page) {
     const controls = [...document.querySelectorAll('.lesson-exercise button, .lesson-exercise input, .lesson-exercise textarea, .lesson-exercise select')];
     const lessonTargets = [...document.querySelectorAll([
       '.lesson-nav a',
-      '.lesson-check summary',
+      '.lesson summary',
       '.lesson-exercise button',
       '.lesson-exercise input',
       '.lesson-exercise textarea',
