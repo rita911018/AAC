@@ -8,9 +8,24 @@ const portalInstructions = '进入 Portal 后，点击右侧「小A智助」打�
 
 const files = {
   index: readFileSync('site/knowledge-base/index.html', 'utf8'),
+  learn: readFileSync('site/knowledge-base/learn.html', 'utf8'),
+  video: readFileSync('site/knowledge-base/video.html', 'utf8'),
+  resources: readFileSync('site/knowledge-base/resources.html', 'utf8'),
+  progress: readFileSync('site/knowledge-base/progress.html', 'utf8'),
   search: readFileSync('site/knowledge-base/search.js', 'utf8'),
   detail: readFileSync('site/knowledge-base/detail.html', 'utf8'),
 };
+
+const htmlFiles = new Map([
+  ['index.html', files.index],
+  ['learn.html', files.learn],
+  ['video.html', files.video],
+  ['resources.html', files.resources],
+  ['progress.html', files.progress],
+  ['detail.html', files.detail],
+]);
+
+const oldStarPath = 'M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1';
 
 function scanLineCommentBoundary(source, start) {
   let index = start + 2;
@@ -206,6 +221,94 @@ function extractUniqueChildByClass(source, tagName, className, label) {
   assert.equal(elements.length, 1, `${label} must exist exactly once inside the Xiao A copy`);
   return { attributes: parseTagAttributes(elements[0][1]), innerHtml: elements[0][2] };
 }
+
+function stripNonMarkup(source) {
+  return source
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, '');
+}
+
+function findOpeningTags(source) {
+  return [...stripNonMarkup(source).matchAll(/<([a-z][\w:-]*)\b([^>]*)>/gi)]
+    .map((match) => ({ tagName: match[1].toLowerCase(), attributes: parseTagAttributes(match[2]) }));
+}
+
+function extractUniqueElementByTag(source, tagName, label) {
+  const withoutComments = stripNonMarkup(source);
+  const elementPattern = new RegExp(`<${tagName}\\b([^>]*)>([\\s\\S]*?)</${tagName}\\s*>`, 'gi');
+  const elements = [...withoutComments.matchAll(elementPattern)];
+  assert.equal(elements.length, 1, `${label} must be one real, uncommented element`);
+  return { attributes: parseTagAttributes(elements[0][1]), innerHtml: elements[0][2] };
+}
+
+function normalizedText(source) {
+  return source.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+}
+
+for (const [fileName, content] of htmlFiles) {
+  const header = extractUniqueElementByClass(content, 'header', 'topbar', `${fileName} header`);
+  const footer = extractUniqueElementByClass(content, 'footer', 'footer', `${fileName} footer`);
+  const brandRegions = [header.innerHtml, footer.innerHtml];
+  const brandIconCounts = brandRegions.map((region) => findOpeningTags(region).filter(
+    ({ attributes }) => attributes.get('data-brand-icon') === 'knowledge-book',
+  ).length);
+  assert.deepEqual(
+    brandIconCounts,
+    [1, 1],
+    `${fileName} header and footer must each contain one knowledge-book brand icon`,
+  );
+  assert.equal(
+    brandIconCounts.reduce((total, count) => total + count, 0),
+    2,
+    `${fileName} header and footer must contain exactly two knowledge-book brand icons`,
+  );
+
+  const oldStarPaths = brandRegions.flatMap(findOpeningTags).filter(
+    ({ tagName, attributes }) => tagName === 'path' && attributes.get('d') === oldStarPath,
+  );
+  assert.equal(oldStarPaths.length, 0, `${fileName} header and footer must not contain the old star path`);
+}
+
+const homeHero = extractUniqueElementByClass(files.index, 'section', 'home-hero', 'home hero');
+const homeHeroCopy = extractUniqueChildByClass(homeHero.innerHtml, 'div', 'bh-left', 'home hero copy');
+const homeTitle = extractUniqueElementByTag(homeHeroCopy.innerHtml, 'h1', 'home hero title');
+assert.equal(homeTitle.innerHtml.replace(/<[^>]*>/g, ''), '亚玛芬 AI 知识库', 'home h1 must use the exact approved title');
+
+const homeSubtitle = extractUniqueChildByClass(homeHeroCopy.innerHtml, 'p', 'bh-subtitle', 'home hero subtitle');
+assert.equal(
+  homeSubtitle.innerHtml.replace(/<[^>]*>/g, ''),
+  '一站式 AI 学习资源与实践指南',
+  'home subtitle must use the exact approved copy without extra whitespace',
+);
+assert.ok(!normalizedText(homeHero.innerHtml).includes('AMER SPORTS · AI ENABLEMENT'), 'home hero must not contain the old eyebrow');
+assert.ok(!normalizedText(homeHero.innerHtml).includes('XIAO A · ONLINE'), 'home hero must not contain the old Xiao A status');
+
+const homeGatewayElements = findOpeningTags(files.index).filter(
+  ({ attributes }) => attributes.get('id') === 'gateway',
+);
+const resourcesGatewayElements = findOpeningTags(files.resources).filter(
+  ({ attributes }) => attributes.get('id') === 'gateway',
+);
+assert.equal(homeGatewayElements.length, 0, 'home must not contain a gateway section');
+assert.equal(resourcesGatewayElements.length, 1, 'resources must retain exactly one gateway section');
+
+const xiaoASide = extractUniqueElementByClass(files.index, 'div', 'xh-side', 'home Xiao A capabilities');
+const xiaoATitle = extractUniqueElementByTag(xiaoASide.innerHtml, 'h4', 'home Xiao A capabilities title');
+assert.equal(xiaoATitle.innerHtml.replace(/<[^>]*>/g, ''), '小A 2.0 能帮你做什么', 'home Xiao A capabilities must use the exact approved title');
+
+const xiaoAItems = [...stripNonMarkup(xiaoASide.innerHtml).matchAll(/<li\b[^>]*>([\s\S]*?)<\/li\s*>/gi)]
+  .map((match) => normalizedText(match[1]));
+assert.deepEqual(
+  xiaoAItems,
+  [
+    '问流程：办公流程、SAP 流程、供应商创建与变更',
+    '查财务：费用报销、财务项目预算管理',
+    '查系统：Ariba、BIT 与 IT 服务指引',
+    '连续追问：理解上下文、简称和补充信息',
+    '看图表：识别图片与表格，回答更完整',
+  ],
+  'home Xiao A capabilities must contain the five approved normalized items',
+);
 
 for (const [name, content] of Object.entries(files)) {
   assert.ok(!content.includes(oldUatUrl), `${name} must not reference the old Xiao A UAT URL`);
