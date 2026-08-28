@@ -26,6 +26,10 @@ const htmlFiles = new Map([
 ]);
 
 const oldStarPath = 'M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1';
+const approvedBookPaths = [
+  'M4.5 5.5c3.1-.8 5.6-.2 7.5 1.5v12c-1.9-1.7-4.4-2.3-7.5-1.5z',
+  'M19.5 5.5c-3.1-.8-5.6-.2-7.5 1.5v12c1.9-1.7 4.4-2.3 7.5-1.5z',
+];
 
 function scanLineCommentBoundary(source, start) {
   let index = start + 2;
@@ -233,6 +237,12 @@ function findOpeningTags(source) {
     .map((match) => ({ tagName: match[1].toLowerCase(), attributes: parseTagAttributes(match[2]) }));
 }
 
+function extractSvgElements(source) {
+  const withoutComments = stripNonMarkup(source);
+  return [...withoutComments.matchAll(/<svg\b([^>]*)>([\s\S]*?)<\/svg\s*>/gi)]
+    .map((match) => ({ attributes: parseTagAttributes(match[1]), innerHtml: match[2] }));
+}
+
 function openingTagsByClass(source, className) {
   return findOpeningTags(source).filter(({ attributes }) => (
     (attributes.get('class') ?? '').split(/\s+/).includes(className)
@@ -252,7 +262,41 @@ function normalizedText(source) {
 }
 
 function normalizedPathData(source) {
-  return source.replace(/[\s,]+/g, '');
+  const tokenPattern = /[-+]?(?:(?:\d+\.\d*|\.\d+|\d+)(?:[eE][-+]?\d+)?)|[MmZzLlHhVvCcSsQqTtAa]/g;
+  const tokens = [];
+  let cursor = 0;
+
+  for (const match of source.matchAll(tokenPattern)) {
+    if (!/^[\s,]*$/.test(source.slice(cursor, match.index))) return null;
+    const token = match[0];
+    if (/^[A-Za-z]$/.test(token)) {
+      tokens.push(token);
+    } else {
+      const number = Number(token);
+      if (!Number.isFinite(number)) return null;
+      tokens.push(Object.is(number, -0) ? '0' : String(number));
+    }
+    cursor = match.index + token.length;
+  }
+
+  if (tokens.length === 0 || !/^[\s,]*$/.test(source.slice(cursor))) return null;
+  return tokens.join(' ');
+}
+
+function assertApprovedKnowledgeBookSvg(svg, label) {
+  assert.equal(
+    (svg.attributes.get('viewbox') ?? '').trim().replace(/\s+/g, ' '),
+    '0 0 24 24',
+    `${label} must use the approved viewBox`,
+  );
+
+  const children = findOpeningTags(svg.innerHtml);
+  assert.equal(children.length, 2, `${label} must contain exactly two graphic elements`);
+  assert.ok(children.every(({ tagName }) => tagName === 'path'), `${label} must contain only path elements`);
+
+  const actualPaths = children.map(({ attributes }) => normalizedPathData(attributes.get('d') ?? '')).sort();
+  const expectedPaths = approvedBookPaths.map(normalizedPathData).sort();
+  assert.deepEqual(actualPaths, expectedPaths, `${label} must contain exactly the two approved book paths`);
 }
 
 function extractUniqueElementByTagAndId(source, tagName, id, label) {
@@ -269,19 +313,36 @@ for (const [fileName, content] of htmlFiles) {
   const header = extractUniqueElementByClass(content, 'header', 'topbar', `${fileName} header`);
   const footer = extractUniqueElementByClass(content, 'footer', 'footer', `${fileName} footer`);
   const brandRegions = [header.innerHtml, footer.innerHtml];
-  const brandIconCounts = brandRegions.map((region) => findOpeningTags(region).filter(
+  const brandIconCounts = brandRegions.map((region) => extractSvgElements(region).filter(
     ({ attributes }) => attributes.get('data-brand-icon') === 'knowledge-book',
   ).length);
   assert.deepEqual(
     brandIconCounts,
     [1, 1],
-    `${fileName} header and footer must each contain one knowledge-book brand icon`,
+    `${fileName} header and footer must each contain one knowledge-book SVG`,
+  );
+
+  const knowledgeBookMarkers = findOpeningTags(content).filter(
+    ({ attributes }) => attributes.get('data-brand-icon') === 'knowledge-book',
+  );
+  assert.equal(knowledgeBookMarkers.length, 2, `${fileName} must contain exactly two knowledge-book markers`);
+  assert.ok(
+    knowledgeBookMarkers.every(({ tagName }) => tagName === 'svg'),
+    `${fileName} knowledge-book markers must only be attached to SVG elements`,
+  );
+
+  const knowledgeBookSvgs = extractSvgElements(content).filter(
+    ({ attributes }) => attributes.get('data-brand-icon') === 'knowledge-book',
   );
   assert.equal(
-    brandIconCounts.reduce((total, count) => total + count, 0),
+    knowledgeBookSvgs.length,
     2,
-    `${fileName} header and footer must contain exactly two knowledge-book brand icons`,
+    `${fileName} must contain exactly two knowledge-book SVGs across the full page`,
   );
+  knowledgeBookSvgs.forEach((svg, index) => assertApprovedKnowledgeBookSvg(
+    svg,
+    `${fileName} knowledge-book SVG ${index + 1}`,
+  ));
 
   const oldStarPaths = findOpeningTags(content).filter(
     ({ tagName, attributes }) => tagName === 'path'
@@ -434,4 +495,4 @@ assert.deepEqual(
   'detail Xiao A fields must match the approved entry',
 );
 
-console.log('Xiao A Portal entry checks passed.');
+console.log('Brand, homepage, Xiao A, Gateway, and Portal contract checks passed.');
