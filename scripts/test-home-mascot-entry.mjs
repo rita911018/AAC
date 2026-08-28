@@ -195,42 +195,81 @@ function parseTagAttributeEntries(rawAttributes) {
   return entries;
 }
 
-function findUniqueAnchorAttributesByText(source, text) {
-  const anchors = [...source.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)]
-    .filter((match) => match[2].includes(text));
-  assert.equal(anchors.length, 1, `home must contain exactly one anchor with text “${text}”`);
-  return parseTagAttributes(anchors[0][1]);
+const voidHtmlTags = new Set([
+  'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta',
+  'param', 'source', 'track', 'wbr',
+]);
+
+function blankNonMarkup(source) {
+  return source
+    .replace(/<!--[\s\S]*?-->/g, (match) => ' '.repeat(match.length))
+    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, (match) => ' '.repeat(match.length));
+}
+
+function parseHtmlElements(source, label = 'HTML') {
+  const searchable = blankNonMarkup(source);
+  const elements = [];
+  const stack = [];
+  const tagPattern = /<\s*(\/?)\s*([a-z][\w:-]*)\b([^>]*)>/gi;
+
+  for (const match of searchable.matchAll(tagPattern)) {
+    const closing = match[1] === '/';
+    const tagName = match[2].toLowerCase();
+    if (closing) {
+      const element = stack.pop();
+      assert.ok(element, `${label} must not contain an unmatched closing </${tagName}>`);
+      assert.equal(element.tagName, tagName, `${label} must contain properly nested <${element.tagName}> markup`);
+      element.closeStart = match.index;
+      element.closeEnd = match.index + match[0].length;
+      element.innerHtml = source.slice(element.openEnd, element.closeStart);
+      continue;
+    }
+
+    const rawAttributes = match[3];
+    const element = {
+      tagName,
+      attributes: parseTagAttributes(rawAttributes),
+      attributeEntries: parseTagAttributeEntries(rawAttributes),
+      openStart: match.index,
+      openEnd: match.index + match[0].length,
+      closeStart: match.index + match[0].length,
+      closeEnd: match.index + match[0].length,
+      innerHtml: '',
+      parent: stack.at(-1) ?? null,
+    };
+    elements.push(element);
+
+    if (!voidHtmlTags.has(tagName) && !/\/\s*$/.test(rawAttributes)) stack.push(element);
+  }
+
+  assert.equal(stack.length, 0, `${label} must not contain unclosed HTML elements`);
+  return elements;
+}
+
+function hasClass(element, className) {
+  return (element.attributes.get('class') ?? '').split(/\s+/).includes(className);
+}
+
+function findElementsByClass(source, tagName, className, label) {
+  return parseHtmlElements(source, label).filter(
+    (element) => element.tagName === tagName && hasClass(element, className),
+  );
+}
+
+function findElementsByTag(source, tagName, label) {
+  return parseHtmlElements(source, label).filter((element) => element.tagName === tagName);
+}
+
+function findDirectChildrenByTag(source, tagName, label) {
+  return parseHtmlElements(source, label).filter(
+    (element) => element.tagName === tagName && element.parent === null,
+  );
 }
 
 function extractUniqueElementByClass(source, tagName, className, label) {
-  const withoutComments = source.replace(/<!--[\s\S]*?-->/g, '');
-  const openingPattern = new RegExp(`<${tagName}\\b([^>]*)>`, 'gi');
-  const openings = [...withoutComments.matchAll(openingPattern)].filter((match) => {
-    const classes = (parseTagAttributes(match[1]).get('class') ?? '').split(/\s+/);
-    return classes.includes(className);
-  });
-  assert.equal(openings.length, 1, `${label} must be one real, uncommented element`);
-
-  const opening = openings[0];
-  const contentStart = opening.index + opening[0].length;
-  const closingPattern = new RegExp(`</${tagName}\\s*>`, 'gi');
-  closingPattern.lastIndex = contentStart;
-  const closing = closingPattern.exec(withoutComments);
-  assert.ok(closing, `${label} must have a closing tag`);
-  return {
-    attributes: parseTagAttributes(opening[1]),
-    innerHtml: withoutComments.slice(contentStart, closing.index),
-  };
-}
-
-function extractUniqueChildByClass(source, tagName, className, label) {
-  const elementPattern = new RegExp(`<${tagName}\\b([^>]*)>([\\s\\S]*?)</${tagName}\\s*>`, 'gi');
-  const elements = [...source.matchAll(elementPattern)].filter((match) => {
-    const classes = (parseTagAttributes(match[1]).get('class') ?? '').split(/\s+/);
-    return classes.includes(className);
-  });
-  assert.equal(elements.length, 1, `${label} must exist exactly once inside the Xiao A copy`);
-  return { attributes: parseTagAttributes(elements[0][1]), innerHtml: elements[0][2] };
+  const elements = findElementsByClass(source, tagName, className, label);
+  assert.equal(elements.length, 1, `${label} must be one real, uncommented element`);
+  return elements[0];
 }
 
 function stripNonMarkup(source) {
@@ -265,15 +304,13 @@ function openingTagsByClass(source, className) {
 }
 
 function extractUniqueElementByTag(source, tagName, label) {
-  const withoutComments = stripNonMarkup(source);
-  const elementPattern = new RegExp(`<${tagName}\\b([^>]*)>([\\s\\S]*?)</${tagName}\\s*>`, 'gi');
-  const elements = [...withoutComments.matchAll(elementPattern)];
+  const elements = findElementsByTag(source, tagName, label);
   assert.equal(elements.length, 1, `${label} must be one real, uncommented element`);
-  return { attributes: parseTagAttributes(elements[0][1]), innerHtml: elements[0][2] };
+  return elements[0];
 }
 
 function normalizedText(source) {
-  return source.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+  return stripNonMarkup(source).replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
 }
 
 function normalizedPathData(source) {
@@ -338,14 +375,43 @@ function assertApprovedKnowledgeBookSvg(svg, label) {
   assert.deepEqual(actualPaths, expectedPaths, `${label} must contain exactly the two approved book paths`);
 }
 
-function extractUniqueElementByTagAndId(source, tagName, id, label) {
-  const withoutComments = stripNonMarkup(source);
-  const elementPattern = new RegExp(`<${tagName}\\b([^>]*)>([\\s\\S]*?)</${tagName}\\s*>`, 'gi');
-  const elements = [...withoutComments.matchAll(elementPattern)].filter((match) => (
-    parseTagAttributes(match[1]).get('id') === id
-  ));
-  assert.equal(elements.length, 1, `${label} must be one real, uncommented ${tagName}#${id}`);
-  return { attributes: parseTagAttributes(elements[0][1]), innerHtml: elements[0][2] };
+function extractUniqueAnchorByExactText(source, text, label) {
+  const anchors = findElementsByTag(source, 'a', label).filter(
+    (element) => normalizedText(element.innerHtml) === text,
+  );
+  assert.equal(anchors.length, 1, `${label} must contain exactly one anchor with visible text “${text}”`);
+  return anchors[0];
+}
+
+function relTokenSet(element) {
+  return new Set((element.attributes.get('rel') ?? '').split(/\s+/).filter(Boolean));
+}
+
+function isLocallyHidden(element) {
+  const classTokens = new Set((element.attributes.get('class') ?? '').split(/\s+/).filter(Boolean));
+  return element.attributes.has('hidden')
+    || element.attributes.get('aria-hidden') === 'true'
+    || /(?:display\s*:\s*none|visibility\s*:\s*hidden)/i.test(element.attributes.get('style') ?? '')
+    || ['hidden', 'sr-only', 'visually-hidden'].some((className) => classTokens.has(className));
+}
+
+function assertVisiblyRendered(element, label) {
+  let current = element;
+  while (current) {
+    assert.ok(!isLocallyHidden(current), `${label} must be visibly rendered`);
+    current = current.parent;
+  }
+}
+
+function normalizedVisibleText(source, label) {
+  let visibleSource = source;
+  const hiddenElements = parseHtmlElements(source, label)
+    .filter((element) => isLocallyHidden(element))
+    .sort((left, right) => right.openStart - left.openStart);
+  for (const element of hiddenElements) {
+    visibleSource = `${visibleSource.slice(0, element.openStart)}${' '.repeat(element.closeEnd - element.openStart)}${visibleSource.slice(element.closeEnd)}`;
+  }
+  return normalizedText(visibleSource);
 }
 
 for (const [fileName, content] of htmlFiles) {
@@ -388,6 +454,22 @@ for (const [fileName, content] of htmlFiles) {
       && normalizedPathData(attributes.get('d') ?? '') === normalizedPathData(oldStarPath),
   );
   assert.equal(oldStarPaths.length, 0, `${fileName} must not contain the old star path in real HTML markup`);
+
+  const topBrand = extractUniqueElementByClass(header.innerHtml, 'a', 'brand', `${fileName} top brand`);
+  assertVisiblyRendered(topBrand, `${fileName} top brand`);
+  const topBrandLogo = extractUniqueElementByClass(topBrand.innerHtml, 'span', 'logo', `${fileName} top brand logo`);
+  const topBrandBookSvgs = extractSvgElements(topBrandLogo.innerHtml).filter(
+    ({ attributes }) => attributes.get('data-brand-icon') === 'knowledge-book',
+  );
+  assert.equal(topBrandBookSvgs.length, 1, `${fileName} top brand must contain the knowledge-book logo`);
+  const preview = extractUniqueElementByTag(topBrand.innerHtml, 'small', `${fileName} top brand PREVIEW`);
+  assertVisiblyRendered(preview, `${fileName} top brand PREVIEW`);
+  assert.equal(normalizedText(preview.innerHtml), 'PREVIEW', `${fileName} top brand must retain PREVIEW`);
+  assert.equal(
+    normalizedText(topBrand.innerHtml),
+    '亚玛芬 AI 知识库PREVIEW',
+    `${fileName} top brand must retain the approved brand text and PREVIEW`,
+  );
 }
 
 const homeHero = extractUniqueElementByClass(files.index, 'section', 'home-hero', 'home hero');
@@ -395,61 +477,148 @@ const homeHeroCopy = extractUniqueElementByClass(homeHero.innerHtml, 'div', 'bh-
 const homeTitle = extractUniqueElementByTag(homeHeroCopy.innerHtml, 'h1', 'home hero title');
 assert.equal(homeTitle.innerHtml.replace(/<[^>]*>/g, ''), '亚玛芬 AI 知识库', 'home h1 must use the exact approved title');
 
-const homeSubtitle = extractUniqueChildByClass(homeHeroCopy.innerHtml, 'p', 'bh-subtitle', 'home hero subtitle');
+const homeSubtitle = extractUniqueElementByClass(homeHeroCopy.innerHtml, 'p', 'bh-subtitle', 'home hero subtitle');
 assert.equal(
   homeSubtitle.innerHtml.replace(/<[^>]*>/g, ''),
   '一站式 AI 学习资源与实践指南',
   'home subtitle must use the exact approved copy without extra whitespace',
+);
+const homeHeroParagraphs = findDirectChildrenByTag(homeHeroCopy.innerHtml, 'p', 'home hero copy');
+assert.equal(homeHeroParagraphs.length, 2, 'home hero copy must retain exactly its subtitle and description');
+assert.equal(
+  normalizedText(homeHeroParagraphs[1].innerHtml),
+  '从入门、录播到工具实践，在清晰的知识路径里找到所需内容。',
+  'home hero must retain the exact approved description',
 );
 assert.equal(openingTagsByClass(homeHeroCopy.innerHtml, 'bh-tag').length, 0, 'home hero copy must not contain a bh-tag element');
 assert.equal(openingTagsByClass(homeHero.innerHtml, 'mascot-status').length, 0, 'home hero must not contain a mascot-status element');
 assert.ok(!normalizedText(homeHero.innerHtml).includes('AMER SPORTS · AI ENABLEMENT'), 'home hero must not contain the old eyebrow');
 assert.ok(!normalizedText(homeHero.innerHtml).includes('XIAO A · ONLINE'), 'home hero must not contain the old Xiao A status');
 
-const homeGatewayElements = findOpeningTags(files.index).filter(
-  ({ attributes }) => attributes.get('id') === 'gateway',
+const homeXiaoAShortcut = extractUniqueElementByClass(
+  homeHero.innerHtml,
+  'div',
+  'hero-xiaoa-entry',
+  'home Hero shortcut',
 );
-assert.equal(homeGatewayElements.length, 0, 'home must not contain a gateway section');
-
-const resourcesGateway = extractUniqueElementByTagAndId(
-  files.resources,
-  'section',
-  'gateway',
-  'resources gateway',
+assertVisiblyRendered(homeXiaoAShortcut, 'home Hero shortcut');
+assert.equal(
+  findElementsByClass(files.index, 'div', 'hero-xiaoa-entry', 'home').length,
+  1,
+  'home must contain exactly one real div.hero-xiaoa-entry, scoped to the Hero',
 );
-const resourcesGatewayTitle = extractUniqueElementByTag(resourcesGateway.innerHtml, 'h2', 'resources gateway title');
-assert.equal(normalizedText(resourcesGatewayTitle.innerHtml), '外部精选 AI 资源', 'resources gateway must retain its approved title');
+const homeShortcutCta = extractUniqueAnchorByExactText(homeXiaoAShortcut.innerHtml, '打开小A', 'home Hero shortcut');
+assert.equal(findElementsByTag(homeXiaoAShortcut.innerHtml, 'a', 'home Hero shortcut').length, 1, 'home Hero shortcut must contain exactly one anchor');
+assertVisiblyRendered(homeShortcutCta, 'home Hero shortcut CTA');
+assert.ok(
+  homeShortcutCta.attributes.get('href') === portalUrl
+    && homeShortcutCta.attributes.get('target') === '_blank'
+    && relTokenSet(homeShortcutCta).has('noopener'),
+  'home Hero shortcut must open the exact Portal URL in a safe new tab',
+);
+const homeShortcutParagraphs = findElementsByTag(homeXiaoAShortcut.innerHtml, 'p', 'home Hero shortcut');
+assert.equal(homeShortcutParagraphs.length, 1, 'home Hero shortcut must contain exactly one description paragraph');
+assertVisiblyRendered(homeShortcutParagraphs[0], 'home Hero shortcut description');
+assert.equal(
+  normalizedText(homeShortcutParagraphs[0].innerHtml),
+  '查制度、问流程、找内部信息，有问题先问小A。',
+  'home Hero shortcut description must match the approved copy exactly after normalization',
+);
 
-const resourcesGatewayLinks = [...stripNonMarkup(resourcesGateway.innerHtml).matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)]
-  .map((match) => ({
-    attributes: parseTagAttributes(match[1]),
-    text: normalizedText(match[2]),
-  }))
-  .filter(({ attributes }) => (attributes.get('class') ?? '').split(/\s+/).includes('gate-home-card'));
-assert.equal(resourcesGatewayLinks.length, 2, 'resources gateway must retain exactly two external resource cards');
+const homeEntryCards = findElementsByClass(files.index, 'a', 'entry-card', 'home learning path cards');
+assert.equal(homeEntryCards.length, 3, 'home must contain exactly three entry-card anchors');
+assert.deepEqual(
+  homeEntryCards.map(({ attributes }) => attributes.get('href')),
+  ['learn.html', 'video.html', 'resources.html'],
+  'home entry-card hrefs must retain the approved order',
+);
+const learningPathTitles = findElementsByTag(files.index, 'h2', 'home').filter(
+  ({ innerHtml }) => normalizedText(innerHtml) === '选择你的 AI 学习路径',
+);
+assert.equal(learningPathTitles.length, 1, 'home must contain exactly one h2 “选择你的 AI 学习路径”');
 
-for (const [name, href] of [
-  ['AI 日报', 'https://aihot.virxact.com/daily'],
-  ['WaytoAGI', 'https://www.waytoagi.com/zh'],
+const homeElements = parseHtmlElements(files.index, 'home');
+assert.equal(
+  homeElements.filter(({ tagName, attributes }) => tagName === 'section' && attributes.get('id') === 'xiaoa').length,
+  0,
+  'home must not contain section#xiaoa',
+);
+assert.equal(homeElements.filter((element) => hasClass(element, 'xa-hero')).length, 0, 'home must not contain .xa-hero');
+assert.equal(homeElements.filter((element) => hasClass(element, 'xa-vs')).length, 0, 'home must not contain .xa-vs');
+assert.ok(!normalizedText(files.index).includes('小A vs 微软 Copilot'), 'home must not contain the Xiao A vs Microsoft Copilot comparison');
+for (const forbiddenFullXiaoACopy of [
+  '接入了公司制度、流程和内部数据的 AI 助手。',
+  '小A 2.0 能帮你做什么',
+  portalInstructions,
 ]) {
-  const matches = resourcesGatewayLinks.filter(({ text }) => text.includes(name));
-  assert.equal(matches.length, 1, `resources gateway must retain the ${name} card`);
-  const { attributes } = matches[0];
-  const relTokens = new Set((attributes.get('rel') ?? '').split(/\s+/).filter(Boolean));
   assert.ok(
-    attributes.get('href') === href
-      && attributes.get('target') === '_blank'
-      && relTokens.has('noopener'),
-    `resources gateway ${name} card must retain its approved safe external link`,
+    !normalizedText(files.index).includes(forbiddenFullXiaoACopy),
+    `home must not retain full Xiao A section copy: ${forbiddenFullXiaoACopy}`,
   );
 }
 
-const xiaoASide = extractUniqueElementByClass(files.index, 'div', 'xh-side', 'home Xiao A capabilities');
-const xiaoATitle = extractUniqueElementByTag(xiaoASide.innerHtml, 'h4', 'home Xiao A capabilities title');
-assert.equal(xiaoATitle.innerHtml.replace(/<[^>]*>/g, ''), '小A 2.0 能帮你做什么', 'home Xiao A capabilities must use the exact approved title');
+const resourcesHero = extractUniqueElementByClass(files.resources, 'section', 'resources-hero', 'resources hero');
+const resourcesHeroCopy = extractUniqueElementByClass(resourcesHero.innerHtml, 'div', 'bh-left', 'resources hero copy');
+const resourcesHeroDescription = extractUniqueElementByTag(resourcesHeroCopy.innerHtml, 'p', 'resources hero description');
+assert.equal(
+  normalizedText(resourcesHeroDescription.innerHtml),
+  '公司内部小A助手与外部 AI 学习资源统一整理：查流程、找工具、看课程、关注创作者与经典阅读，都从这里开始。',
+  'resources Hero description must use the exact approved copy',
+);
 
-const xiaoAItems = [...stripNonMarkup(xiaoASide.innerHtml).matchAll(/<li\b[^>]*>([\s\S]*?)<\/li\s*>/gi)]
-  .map((match) => normalizedText(match[1]));
+const resourcesXiaoA = extractUniqueElementByClass(files.resources, 'section', 'xiaoa-section', 'resources internal Xiao A section');
+assertVisiblyRendered(resourcesXiaoA, 'resources internal Xiao A section');
+assert.equal(resourcesXiaoA.attributes.get('id'), 'xiaoa', 'resources internal Xiao A section must be section.xiaoa-section#xiaoa');
+const externalResources = extractUniqueElementByClass(files.resources, 'section', 'external-resources', 'resources external resources section');
+assertVisiblyRendered(externalResources, 'resources external resources section');
+assert.ok(
+  resourcesXiaoA.openStart < externalResources.openStart,
+  'resources internal Xiao A section must appear before the external resources section',
+);
+const resourcesPageElements = parseHtmlElements(files.resources, 'resources');
+assert.equal(
+  resourcesPageElements.filter(({ attributes }) => attributes.get('id') === 'xiaoa').length,
+  1,
+  'resources must contain exactly one real #xiaoa element, the internal section',
+);
+assert.equal(
+  resourcesPageElements.filter((element) => element.tagName === 'section' && hasClass(element, 'external-resources')).length,
+  1,
+  'resources must contain exactly one real section.external-resources',
+);
+
+const internalTitle = extractUniqueElementByTag(resourcesXiaoA.innerHtml, 'h2', 'resources internal Xiao A title');
+assert.equal(normalizedText(internalTitle.innerHtml), '公司内部 AI 助手', 'resources internal section must use the approved h2');
+const internalTag = extractUniqueElementByClass(resourcesXiaoA.innerHtml, 'div', 'tag', 'resources Xiao A tag');
+assert.equal(normalizedText(internalTag.innerHtml), 'XIAO A · 小A 智能助手', 'resources must retain the approved Xiao A positioning tag');
+const internalPositioning = extractUniqueElementByClass(resourcesXiaoA.innerHtml, 'p', 'desc', 'resources Xiao A positioning');
+assert.equal(
+  normalizedText(internalPositioning.innerHtml),
+  '接入了公司制度、流程和内部数据的 AI 助手。日常工作遇到「这个怎么操作 / 这个政策怎么说」的问题，先问小A —— 比翻邮件、问同事快得多。',
+  'resources must retain the approved Xiao A positioning copy',
+);
+
+const xiaoANote = extractUniqueElementByClass(resourcesXiaoA.innerHtml, 'p', 'xh-note', 'resources Xiao A Portal note');
+assert.equal(
+  normalizedText(xiaoANote.innerHtml),
+  `${portalInstructions}。`,
+  'resources Xiao A Portal note must show the complete approved instructions',
+);
+assertVisiblyRendered(xiaoANote, 'resources Xiao A Portal note');
+const xiaoACta = extractUniqueAnchorByExactText(resourcesXiaoA.innerHtml, '前往 Portal 打开小A', 'resources Xiao A CTA');
+assertVisiblyRendered(xiaoACta, 'resources Xiao A CTA');
+assert.ok(
+  xiaoACta.attributes.get('href') === portalUrl
+    && xiaoACta.attributes.get('target') === '_blank'
+    && relTokenSet(xiaoACta).has('noopener'),
+  'resources Xiao A CTA must open Portal in a safe new tab with the approved copy',
+);
+
+const xiaoASide = extractUniqueElementByClass(resourcesXiaoA.innerHtml, 'div', 'xh-side', 'resources Xiao A capabilities');
+const xiaoATitle = extractUniqueElementByTag(xiaoASide.innerHtml, 'h4', 'resources Xiao A capabilities title');
+assert.equal(normalizedText(xiaoATitle.innerHtml), '小A 2.0 能帮你做什么', 'resources Xiao A capabilities must retain the approved title');
+const xiaoAItems = findElementsByTag(xiaoASide.innerHtml, 'li', 'resources Xiao A capabilities')
+  .map(({ innerHtml }) => normalizedText(innerHtml));
 assert.deepEqual(
   xiaoAItems,
   [
@@ -459,38 +628,88 @@ assert.deepEqual(
     '连续追问：理解上下文、简称和补充信息',
     '看图表：识别图片与表格，回答更完整',
   ],
-  'home Xiao A capabilities must contain the five approved normalized items',
+  'resources Xiao A capabilities must contain exactly the five approved normalized items',
 );
+
+const xiaoAVs = extractUniqueElementByClass(resourcesXiaoA.innerHtml, 'div', 'xa-vs', 'resources Xiao A comparison');
+const comparisonTitle = extractUniqueElementByTag(xiaoAVs.innerHtml, 'h3', 'resources Xiao A comparison title');
+assert.equal(normalizedText(comparisonTitle.innerHtml), '小A vs 微软 Copilot：什么时候用谁？', 'resources must retain the full comparison title');
+const comparisonTable = extractUniqueElementByTag(xiaoAVs.innerHtml, 'table', 'resources Xiao A comparison table');
+const comparisonRows = findElementsByTag(comparisonTable.innerHtml, 'tr', 'resources Xiao A comparison table').map((row) => (
+  parseHtmlElements(row.innerHtml, 'resources Xiao A comparison row')
+    .filter(({ tagName }) => tagName === 'th' || tagName === 'td')
+    .map(({ innerHtml }) => normalizedText(innerHtml))
+));
+assert.deepEqual(
+  comparisonRows,
+  [
+    ['场景', '推荐工具'],
+    ['查公司制度、报销、班车、采购、招投标', '小A公司内部'],
+    ['安排会议、写会议纪要、管理日程和邮件', 'Teams / Outlook 里的 Copilot微软'],
+    ['写邮件、改文档、做总结（公司外部数据）', '通用 AI（ChatGPT / Claude / 小A 都行）'],
+    ['创作、代码、学习、专业研究', '通用 AI（ChatGPT / Claude / DeepSeek 等）'],
+  ],
+  'resources must retain the complete approved Xiao A vs Microsoft Copilot table',
+);
+
+const externalTitle = extractUniqueElementByTag(externalResources.innerHtml, 'h2', 'resources external title');
+assert.equal(normalizedText(externalTitle.innerHtml), '外部 AI 学习资源', 'resources external section must use the approved h2');
+const resourceEntries = findElementsByClass(externalResources.innerHtml, 'a', 'res-entry', 'resources external entries');
+assert.equal(resourceEntries.length, 4, 'resources external section must contain exactly four res-entry anchors');
+assert.equal(
+  findElementsByClass(files.resources, 'a', 'res-entry', 'resources').length,
+  4,
+  'resources must not contain res-entry anchors outside the external section',
+);
+assert.deepEqual(
+  resourceEntries.map(({ attributes }) => attributes.get('href')),
+  [
+    'detail.html?type=resources&id=tools',
+    'detail.html?type=resources&id=courses',
+    'detail.html?type=resources&id=creators',
+    'detail.html?type=resources&id=reading',
+  ],
+  'resources external entry hrefs must retain the approved order',
+);
+const toolsPreview = extractUniqueElementByClass(resourceEntries[0].innerHtml, 'div', 're-preview', 'AI tools preview');
+const toolsPreviewText = normalizedText(toolsPreview.innerHtml);
+assert.ok(!toolsPreviewText.includes('公司内部'), 'AI tools preview must not describe internal-company tools');
+assert.ok(!toolsPreviewText.includes('小A'), 'AI tools preview must not include Xiao A');
+assert.ok(toolsPreviewText.includes('DeepSeek'), 'AI tools preview must include DeepSeek');
+
+const gatewayElements = resourcesPageElements.filter(({ attributes }) => attributes.get('id') === 'gateway');
+assert.equal(gatewayElements.length, 1, 'resources must contain exactly one real #gateway element');
+assert.equal(gatewayElements[0].tagName, 'div', 'resources #gateway must be a div, never a standalone section');
+assert.ok(hasClass(gatewayElements[0], 'external-sites'), 'resources #gateway must be div.external-sites');
+const resourcesGateway = extractUniqueElementByClass(externalResources.innerHtml, 'div', 'external-sites', 'resources external sites');
+assertVisiblyRendered(resourcesGateway, 'resources external sites');
+assert.equal(resourcesGateway.attributes.get('id'), 'gateway', 'resources external-sites must carry id="gateway"');
+const resourcesGatewayTitle = extractUniqueElementByTag(resourcesGateway.innerHtml, 'h3', 'resources external sites title');
+assert.equal(normalizedText(resourcesGatewayTitle.innerHtml), '精选站点', 'resources external-sites must use the approved h3');
+const visibleExternalText = normalizedVisibleText(externalResources.innerHtml, 'resources external section');
+assert.ok(!visibleExternalText.includes('GATEWAY · AI 网闸'), 'resources must not visibly render the old Gateway eyebrow');
+assert.ok(!visibleExternalText.includes('外部精选 AI 资源'), 'resources must not visibly render the old Gateway title');
+
+const resourcesGatewayLinks = findElementsByClass(resourcesGateway.innerHtml, 'a', 'gate-home-card', 'resources external sites links');
+assert.equal(resourcesGatewayLinks.length, 2, 'resources external-sites must retain exactly two cards');
+for (const [name, href] of [
+  ['AI 日报', 'https://aihot.virxact.com/daily'],
+  ['WaytoAGI', 'https://www.waytoagi.com/zh'],
+]) {
+  const matches = resourcesGatewayLinks.filter(({ innerHtml }) => normalizedText(innerHtml).includes(name));
+  assert.equal(matches.length, 1, `resources external-sites must retain the ${name} card`);
+  const link = matches[0];
+  assert.ok(
+    link.attributes.get('href') === href
+      && link.attributes.get('target') === '_blank'
+      && relTokenSet(link).has('noopener'),
+    `resources external-sites ${name} card must retain its approved safe external link`,
+  );
+}
 
 for (const [name, content] of Object.entries(files)) {
   assert.ok(!content.includes(oldUatUrl), `${name} must not reference the old Xiao A UAT URL`);
 }
-
-const xiaoACopy = extractUniqueElementByClass(files.index, 'div', 'xh-text', 'home Xiao A copy');
-const xiaoANote = extractUniqueChildByClass(xiaoACopy.innerHtml, 'p', 'xh-note', 'home Xiao A Portal note');
-const xiaoANoteText = xiaoANote.innerHtml.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
-const xiaoANoteClasses = new Set((xiaoANote.attributes.get('class') ?? '').split(/\s+/).filter(Boolean));
-assert.equal(
-  xiaoANoteText,
-  `${portalInstructions}。`,
-  'home Xiao A Portal note must show the complete approved instructions',
-);
-assert.ok(
-  !xiaoANote.attributes.has('hidden')
-    && xiaoANote.attributes.get('aria-hidden') !== 'true'
-    && !/(?:display\s*:\s*none|visibility\s*:\s*hidden)/i.test(xiaoANote.attributes.get('style') ?? '')
-    && !['hidden', 'sr-only', 'visually-hidden'].some((className) => xiaoANoteClasses.has(className)),
-  'home Xiao A Portal note must be visibly rendered',
-);
-
-const ctaAttributes = findUniqueAnchorAttributesByText(files.index, '前往 Portal 打开小A');
-const ctaRelTokens = new Set((ctaAttributes.get('rel') ?? '').split(/\s+/).filter(Boolean));
-assert.ok(
-  ctaAttributes.get('href') === portalUrl
-    && ctaAttributes.get('target') === '_blank'
-    && ctaRelTokens.has('noopener'),
-  'home CTA must open Portal in a safe new tab with the approved copy',
-);
 
 const searchMarker = '小A · 公司内部 AI 助手';
 const searchData = sliceUniqueRegion(files.search, 'var SEARCH_INDEX = [', '\n  ];', 'search data');
@@ -534,4 +753,4 @@ assert.deepEqual(
   'detail Xiao A fields must match the approved entry',
 );
 
-console.log('Brand, homepage, Xiao A, Gateway, and Portal contract checks passed.');
+console.log('Brand, homepage, resources placement, Xiao A, Gateway, and Portal contract checks passed.');
