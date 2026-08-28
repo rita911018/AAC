@@ -233,6 +233,12 @@ function findOpeningTags(source) {
     .map((match) => ({ tagName: match[1].toLowerCase(), attributes: parseTagAttributes(match[2]) }));
 }
 
+function openingTagsByClass(source, className) {
+  return findOpeningTags(source).filter(({ attributes }) => (
+    (attributes.get('class') ?? '').split(/\s+/).includes(className)
+  ));
+}
+
 function extractUniqueElementByTag(source, tagName, label) {
   const withoutComments = stripNonMarkup(source);
   const elementPattern = new RegExp(`<${tagName}\\b([^>]*)>([\\s\\S]*?)</${tagName}\\s*>`, 'gi');
@@ -243,6 +249,20 @@ function extractUniqueElementByTag(source, tagName, label) {
 
 function normalizedText(source) {
   return source.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+}
+
+function normalizedPathData(source) {
+  return source.replace(/[\s,]+/g, '');
+}
+
+function extractUniqueElementByTagAndId(source, tagName, id, label) {
+  const withoutComments = stripNonMarkup(source);
+  const elementPattern = new RegExp(`<${tagName}\\b([^>]*)>([\\s\\S]*?)</${tagName}\\s*>`, 'gi');
+  const elements = [...withoutComments.matchAll(elementPattern)].filter((match) => (
+    parseTagAttributes(match[1]).get('id') === id
+  ));
+  assert.equal(elements.length, 1, `${label} must be one real, uncommented ${tagName}#${id}`);
+  return { attributes: parseTagAttributes(elements[0][1]), innerHtml: elements[0][2] };
 }
 
 for (const [fileName, content] of htmlFiles) {
@@ -263,14 +283,21 @@ for (const [fileName, content] of htmlFiles) {
     `${fileName} header and footer must contain exactly two knowledge-book brand icons`,
   );
 
-  const oldStarPaths = brandRegions.flatMap(findOpeningTags).filter(
-    ({ tagName, attributes }) => tagName === 'path' && attributes.get('d') === oldStarPath,
+  const logoRegions = brandRegions.map((region, index) => extractUniqueElementByClass(
+    region,
+    'span',
+    'logo',
+    `${fileName} ${index === 0 ? 'header' : 'footer'} logo`,
+  ).innerHtml);
+  const oldStarPaths = logoRegions.flatMap(findOpeningTags).filter(
+    ({ tagName, attributes }) => tagName === 'path'
+      && normalizedPathData(attributes.get('d') ?? '') === normalizedPathData(oldStarPath),
   );
   assert.equal(oldStarPaths.length, 0, `${fileName} header and footer must not contain the old star path`);
 }
 
 const homeHero = extractUniqueElementByClass(files.index, 'section', 'home-hero', 'home hero');
-const homeHeroCopy = extractUniqueChildByClass(homeHero.innerHtml, 'div', 'bh-left', 'home hero copy');
+const homeHeroCopy = extractUniqueElementByClass(homeHero.innerHtml, 'div', 'bh-left', 'home hero copy');
 const homeTitle = extractUniqueElementByTag(homeHeroCopy.innerHtml, 'h1', 'home hero title');
 assert.equal(homeTitle.innerHtml.replace(/<[^>]*>/g, ''), '亚玛芬 AI 知识库', 'home h1 must use the exact approved title');
 
@@ -280,17 +307,48 @@ assert.equal(
   '一站式 AI 学习资源与实践指南',
   'home subtitle must use the exact approved copy without extra whitespace',
 );
+assert.equal(openingTagsByClass(homeHeroCopy.innerHtml, 'bh-tag').length, 0, 'home hero copy must not contain a bh-tag element');
+assert.equal(openingTagsByClass(homeHero.innerHtml, 'mascot-status').length, 0, 'home hero must not contain a mascot-status element');
 assert.ok(!normalizedText(homeHero.innerHtml).includes('AMER SPORTS · AI ENABLEMENT'), 'home hero must not contain the old eyebrow');
 assert.ok(!normalizedText(homeHero.innerHtml).includes('XIAO A · ONLINE'), 'home hero must not contain the old Xiao A status');
 
 const homeGatewayElements = findOpeningTags(files.index).filter(
   ({ attributes }) => attributes.get('id') === 'gateway',
 );
-const resourcesGatewayElements = findOpeningTags(files.resources).filter(
-  ({ attributes }) => attributes.get('id') === 'gateway',
-);
 assert.equal(homeGatewayElements.length, 0, 'home must not contain a gateway section');
-assert.equal(resourcesGatewayElements.length, 1, 'resources must retain exactly one gateway section');
+
+const resourcesGateway = extractUniqueElementByTagAndId(
+  files.resources,
+  'section',
+  'gateway',
+  'resources gateway',
+);
+const resourcesGatewayTitle = extractUniqueElementByTag(resourcesGateway.innerHtml, 'h2', 'resources gateway title');
+assert.equal(normalizedText(resourcesGatewayTitle.innerHtml), '外部精选 AI 资源', 'resources gateway must retain its approved title');
+
+const resourcesGatewayLinks = [...stripNonMarkup(resourcesGateway.innerHtml).matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)]
+  .map((match) => ({
+    attributes: parseTagAttributes(match[1]),
+    text: normalizedText(match[2]),
+  }))
+  .filter(({ attributes }) => (attributes.get('class') ?? '').split(/\s+/).includes('gate-home-card'));
+assert.equal(resourcesGatewayLinks.length, 2, 'resources gateway must retain exactly two external resource cards');
+
+for (const [name, href] of [
+  ['AI 日报', 'https://aihot.virxact.com/daily'],
+  ['WaytoAGI', 'https://www.waytoagi.com/zh'],
+]) {
+  const matches = resourcesGatewayLinks.filter(({ text }) => text.includes(name));
+  assert.equal(matches.length, 1, `resources gateway must retain the ${name} card`);
+  const { attributes } = matches[0];
+  const relTokens = new Set((attributes.get('rel') ?? '').split(/\s+/).filter(Boolean));
+  assert.ok(
+    attributes.get('href') === href
+      && attributes.get('target') === '_blank'
+      && relTokens.has('noopener'),
+    `resources gateway ${name} card must retain its approved safe external link`,
+  );
+}
 
 const xiaoASide = extractUniqueElementByClass(files.index, 'div', 'xh-side', 'home Xiao A capabilities');
 const xiaoATitle = extractUniqueElementByTag(xiaoASide.innerHtml, 'h4', 'home Xiao A capabilities title');
