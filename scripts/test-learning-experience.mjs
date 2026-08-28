@@ -616,12 +616,46 @@ function collectInnerHtmlWrites(root) {
   return writes;
 }
 
-function assertNoDynamicInnerHtmlWrites(root, forbiddenValues, message) {
+function assertNoSentinelInnerHtmlWrites(root, sentinels, message) {
   const writes = collectInnerHtmlWrites(root);
-  for (const value of forbiddenValues) {
-    assert.ok(!writes.some((write) => write.includes(value)), `${message}: ${value}`);
+  for (const sentinel of sentinels) {
+    assert.ok(!writes.some((write) => write.includes(sentinel)), `${message}: ${sentinel}`);
   }
   return writes;
+}
+
+function instrumentChapterDisplayText(chapter) {
+  let sequence = 0;
+  const sentinelByPath = new Map();
+  const structuralStringPaths = new Set(['id', 'number', 'image.webp', 'image.fallback', 'history.image.webp', 'history.image.fallback', 'exercise.type']);
+  function visit(value, pathParts) {
+    const pathName = pathParts.join('.');
+    if (typeof value === 'string') {
+      if (structuralStringPaths.has(pathName)) return value;
+      sequence += 1;
+      const sentinel = `[[AI_BEGINNER_DISPLAY_${String(sequence).padStart(3, '0')}_${pathName.replace(/[^a-zA-Z0-9]+/g, '_')}]]`;
+      sentinelByPath.set(pathName, sentinel);
+      return `${sentinel} ${value}`;
+    }
+    if (Array.isArray(value)) return value.map((item, index) => visit(item, [...pathParts, String(index)]));
+    if (value && typeof value === 'object') {
+      return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, visit(item, [...pathParts, key])]));
+    }
+    return value;
+  }
+  return {
+    chapter: visit(plainClone(chapter), []),
+    sentinelByPath,
+    sentinels: [...sentinelByPath.values()],
+  };
+}
+
+function installInstrumentedChapter(runtime, id = 'ai-basics') {
+  const liveChapter = runtime.chapters.find((chapter) => chapter.id === id);
+  assert.ok(liveChapter, `instrumented runtime must expose ${id}`);
+  const instrumented = instrumentChapterDisplayText(liveChapter);
+  Object.assign(liveChapter, instrumented.chapter);
+  return instrumented;
 }
 
 function createCopyHarness(templateText, options = {}) {
@@ -1545,14 +1579,39 @@ function runRuntimeUnitTest() {
   const caseSection = firstTarget.querySelector('.lesson-case');
   assert.ok(caseSection && caseSection.textContent.includes('把关键背景放进当前任务'),
     'case-study lesson must be visible as text in the rendered DOM');
-  assertNoDynamicInnerHtmlWrites(firstTarget, ['把关键背景放进当前任务'],
-    'case-study metadata must never be written through innerHTML');
   const renderedExercise = firstTarget.querySelector('.lesson-exercise');
   assert.ok(renderedExercise, 'chapter must render its quick exercise region');
   const exerciseFieldsets = renderedExercise.querySelectorAll('fieldset');
   assert.equal(exerciseFieldsets.length, 1, 'chapter exercise must render one semantic fieldset');
   assert.equal(exerciseFieldsets[0].querySelectorAll('legend').length, 1, 'chapter exercise fieldset must have one legend');
   assert.ok(exerciseFieldsets[0].querySelector('legend').textContent.trim(), 'chapter exercise legend must have an accessible label');
+
+  const instrumentedDom = createMiniDom();
+  const instrumentedRuntime = evaluateLearningRuntime(source, createStorage(), { document: instrumentedDom.document });
+  const instrumented = installInstrumentedChapter(instrumentedRuntime);
+  assert.equal(new Set(instrumented.sentinels).size, instrumented.sentinels.length,
+    'every recursively instrumented display string must receive a unique sentinel');
+  for (const pathName of ['title', 'description', 'image.alt', 'sections.0.title', 'sections.0.paragraphs.0', 'sections.0.bullets.0',
+    'caseStudy.title', 'caseStudy.situation', 'caseStudy.lesson', 'exercise.title', 'exercise.instruction', 'exercise.candidates.0.label',
+    'quickCheck.0.question', 'quickCheck.0.answer', 'quickCheck.0.explanation', 'takeaway.title', 'takeaway.items.0', 'takeaway.template']) {
+    assert.ok(instrumented.sentinelByPath.has(pathName), `recursive display instrumentation must cover ${pathName}`);
+  }
+  assert.equal(instrumented.chapter.id, 'ai-basics', 'display instrumentation must preserve the structural chapter id');
+  assert.equal(instrumented.chapter.exercise.type, 'token-and-concepts', 'display instrumentation must preserve the structural exercise type');
+  assert.equal(instrumented.chapter.image.webp, 'images/ai-concept.webp', 'display instrumentation must preserve local image URLs');
+  const instrumentedTarget = instrumentedDom.createTarget();
+  assert.equal(instrumentedRuntime.renderChapter('ai-basics', instrumentedTarget), true,
+    'instrumented chapter clone must render through the production renderer');
+  assertNoSentinelInnerHtmlWrites(instrumentedTarget, instrumented.sentinels,
+    'no recursively instrumented chapter display value may reach innerHTML');
+  for (const pathName of ['title', 'description', 'sections.0.title', 'caseStudy.lesson', 'exercise.title', 'quickCheck.0.question', 'takeaway.template']) {
+    const sentinel = instrumented.sentinelByPath.get(pathName);
+    assert.ok(sentinel && instrumentedTarget.textContent.includes(sentinel),
+      `production rendering must visibly exercise the sentinel for ${pathName}`);
+  }
+  const altSentinel = instrumented.sentinelByPath.get('image.alt');
+  assert.ok(altSentinel && instrumentedTarget.querySelectorAll('img').some((node) => node.getAttribute('alt')?.includes(altSentinel)),
+    'production rendering must exercise the instrumented image.alt value');
 
   const finalDom = createMiniDom();
   const finalRuntime = evaluateLearningRuntime(source, createStorage(), { document: finalDom.document });
@@ -1573,7 +1632,7 @@ function runRuntimeUnitTest() {
   assert.equal(maliciousTarget.querySelectorAll('script').length, 0, 'malicious-looking metadata must not create script elements');
   assert.equal(maliciousTarget.querySelectorAll('*').filter((node) => node.getAttribute('onerror') !== null).length, 0,
     'malicious-looking metadata must not create event-handler attributes');
-  assertNoDynamicInnerHtmlWrites(maliciousTarget, [maliciousPayload],
+  assert.ok(!collectInnerHtmlWrites(maliciousTarget).some((write) => write.includes(maliciousPayload)),
     'malicious-looking metadata must never reach any innerHTML write in the rendered tree');
 
   const constantDom = createMiniDom();
@@ -1581,7 +1640,7 @@ function runRuntimeUnitTest() {
   constantNode.innerHTML = '<strong>固定的安全标题</strong>';
   assert.deepEqual(collectInnerHtmlWrites(constantNode), ['<strong>固定的安全标题</strong>'],
     'MiniDom must record safe constant innerHTML writes without treating them as dynamic metadata');
-  assert.doesNotThrow(() => assertNoDynamicInnerHtmlWrites(constantNode, [maliciousPayload, '把关键背景放进当前任务'],
+  assert.doesNotThrow(() => assertNoSentinelInnerHtmlWrites(constantNode, instrumented.sentinels,
     'safe constant innerHTML must remain allowed'));
   assert.doesNotThrow(() => fresh.initHub(), 'initHub must remain safe without a matching DOM hub');
 
@@ -1710,28 +1769,48 @@ function runRuntimeMutationTest() {
     'runtime unit assertion must catch a removed pending-click guard',
   );
 
-  const safeLessonRenderNeedle = "    lesson.appendChild(element(ownerDocument, 'strong', '', '关键启发：'));\n" +
-    '    lesson.appendChild(ownerDocument.createTextNode(chapter.caseStudy.lesson));';
-  assert.ok(source.includes(safeLessonRenderNeedle), 'dynamic-innerHTML mutation must find the safe case-study renderer');
-  function assertDynamicInnerHtmlMutationCaught(name, unsafeStatement) {
-    const unsafeSource = source.replace(safeLessonRenderNeedle, unsafeStatement);
+  function mutateProduction(name, needle, replacement) {
+    assert.ok(source.includes(needle), `${name} mutation must find the production renderer`);
+    return source.replace(needle, replacement);
+  }
+  function assertDynamicInnerHtmlMutationCaught(name, unsafeSource) {
     const unsafeDom = createMiniDom();
     const unsafeRuntime = evaluateLearningRuntime(unsafeSource, createStorage(), { document: unsafeDom.document });
+    const unsafeInstrumented = installInstrumentedChapter(unsafeRuntime);
     const unsafeTarget = unsafeDom.createTarget();
     assert.equal(unsafeRuntime.renderChapter('ai-basics', unsafeTarget), true, `${name} fixture must still render`);
     assert.throws(
-      () => assertNoDynamicInnerHtmlWrites(unsafeTarget, ['把关键背景放进当前任务'],
-        'case-study metadata must never be written through innerHTML'),
+      () => assertNoSentinelInnerHtmlWrites(unsafeTarget, unsafeInstrumented.sentinels,
+        'instrumented chapter display metadata must never be written through innerHTML'),
       assert.AssertionError,
       `${name} must be caught by recorded runtime innerHTML writes`,
     );
   }
-  assertDynamicInnerHtmlMutationCaught('concatenated dynamic innerHTML',
-    "    lesson.innerHTML = '<strong>关键启发：</strong>' + chapter.caseStudy.lesson;");
-  assertDynamicInnerHtmlMutationCaught('template-literal dynamic innerHTML',
-    '    lesson.innerHTML = `<strong>关键启发：</strong>${chapter.caseStudy.lesson}`;');
+  const safeLessonRenderNeedle = "    lesson.appendChild(element(ownerDocument, 'strong', '', '关键启发：'));\n" +
+    '    lesson.appendChild(ownerDocument.createTextNode(chapter.caseStudy.lesson));';
+  assertDynamicInnerHtmlMutationCaught('case concatenated dynamic innerHTML', mutateProduction('case concatenation', safeLessonRenderNeedle,
+    "    lesson.innerHTML = '<strong>关键启发：</strong>' + chapter.caseStudy.lesson;"));
+  assertDynamicInnerHtmlMutationCaught('case template-literal dynamic innerHTML', mutateProduction('case template literal', safeLessonRenderNeedle,
+    '    lesson.innerHTML = `<strong>关键启发：</strong>${chapter.caseStudy.lesson}`;'));
 
-  console.log('PASS beginner learning runtime mutations (state + reduced motion + copy + concatenated/template dynamic innerHTML)');
+  const headerTitleNeedle = "    header.appendChild(element(ownerDocument, 'h1', '', chapter.title));";
+  assertDynamicInnerHtmlMutationCaught('header title concatenation', mutateProduction('header title', headerTitleNeedle,
+    "    var unsafeHeaderTitle = element(ownerDocument, 'h1', '');\n" +
+    "    unsafeHeaderTitle.innerHTML = '<span>' + chapter.title + '</span>';\n" +
+    '    header.appendChild(unsafeHeaderTitle);'));
+
+  const quickCheckNeedle = "      details.appendChild(element(ownerDocument, 'summary', '', check.question));";
+  assertDynamicInnerHtmlMutationCaught('quick-check question template literal', mutateProduction('quick-check question', quickCheckNeedle,
+    "      var unsafeSummary = element(ownerDocument, 'summary', '');\n" +
+    '      unsafeSummary.innerHTML = `<span>${check.question}</span>`;\n' +
+    '      details.appendChild(unsafeSummary);'));
+
+  const takeawayTemplateNeedle = "    var template = element(ownerDocument, 'pre', 'lesson-template', chapter.takeaway.template);";
+  assertDynamicInnerHtmlMutationCaught('takeaway template concatenation', mutateProduction('takeaway template', takeawayTemplateNeedle,
+    "    var template = element(ownerDocument, 'pre', 'lesson-template');\n" +
+    "    template.innerHTML = '<code>' + chapter.takeaway.template + '</code>';"));
+
+  console.log('PASS beginner learning runtime mutations (state + copy + generalized dynamic innerHTML across header/case/check/takeaway)');
 }
 
 function runSelfTest() {
