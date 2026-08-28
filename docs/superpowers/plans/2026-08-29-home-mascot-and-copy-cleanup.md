@@ -21,6 +21,7 @@
 - [ ] Assert the three entry cards preserve their approved href/title/description/order, and each contains exactly one distinct inline SVG icon with `aria-hidden="true"`.
 - [ ] Add `1236px` and `1024px` homepage geometry cases in addition to existing viewports.
 - [ ] At widths above `820px`, use a conservative expanded face-safe boundary; at `820px` and below, use a wider boundary matching the visible head in the supplied screenshot. Require a visible gap, no title overlap, no horizontal overflow and a `44px` CTA.
+- [ ] Add learn-only geometry checks: the full Hero description is one line at `1440/1236`, and the reading mascot is at least `300px` tall there, at least `250px` at `1024/820`, and at least `190px` at `560/390`, without copy overlap or overflow.
 - [ ] Run the focused tests and confirm RED on the current production files.
 - [ ] Commit the test contract.
 
@@ -40,6 +41,7 @@
 - [ ] Restyle cards with a `72px` solid-blue icon tile, `28px` desktop titles, quieter `17px` descriptions, generous spacing, equal card heights and a bottom-aligned action; use no gradients.
 - [ ] Replace every footer description with `由 Amersports AI Community 维护的内部学习平台，帮助每一位员工从 AI 新手成长为高效使用者。`
 - [ ] Move the mascot left while keeping the entry fixed: begin with `right:80px` on desktop, `right:76px` at `max-width:820px`, and `right:64px` at `max-width:560px`; retain the value only if all geometry acceptance checks pass.
+- [ ] Enlarge the learn Hero mascot to a main-visual scale while preserving the existing WebP/PNG/alt, and keep the complete learn Hero description on one line at `1236px` and above only.
 - [ ] Run focused static and browser tests at `1440 / 1236 / 1024 / 820 / 560 / 390px`; adjust only the mascot offsets if needed to maintain the required gap and title safety.
 - [ ] Run all learning, homepage, Task 7, Task 8, verifier and browser regression suites.
 - [ ] Commit the production change.
