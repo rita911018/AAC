@@ -508,7 +508,7 @@ function assertApprovedKnowledgeBookSvg(svg, label) {
 
 function extractUniqueAnchorByExactText(source, text, label) {
   const anchors = findElementsByTag(source, 'a', label).filter(
-    (element) => normalizedText(element.innerHtml) === text,
+    (element) => normalizedVisibleText(element.innerHtml, `${label} anchor text`) === text,
   );
   assert.equal(anchors.length, 1, `${label} must contain exactly one anchor with visible text “${text}”`);
   return anchors[0];
@@ -542,7 +542,7 @@ function assertVisiblyRendered(element, label) {
   }
 }
 
-function normalizedVisibleText(source, label) {
+function visibleTextContent(source, label) {
   let visibleSource = source;
   const hiddenElements = parseHtmlElements(source, label)
     .filter((element) => isLocallyHidden(element))
@@ -550,7 +550,11 @@ function normalizedVisibleText(source, label) {
   for (const element of hiddenElements) {
     visibleSource = `${visibleSource.slice(0, element.openStart)}${' '.repeat(element.closeEnd - element.openStart)}${visibleSource.slice(element.closeEnd)}`;
   }
-  return normalizedText(visibleSource);
+  return textContent(visibleSource);
+}
+
+function normalizedVisibleText(source, label) {
+  return visibleTextContent(source, label).replace(/\s+/g, ' ').trim();
 }
 
 function assertNoInternalMascotAttributes(element, label) {
@@ -621,32 +625,36 @@ for (const [fileName, content] of htmlFiles) {
   assert.equal(topBrandBookSvgs.length, 1, `${fileName} top brand must contain the knowledge-book logo`);
   const preview = extractUniqueElementByTag(topBrand.innerHtml, 'small', `${fileName} top brand PREVIEW`);
   assertVisiblyRendered(preview, `${fileName} top brand PREVIEW`);
-  assert.equal(normalizedText(preview.innerHtml), 'PREVIEW', `${fileName} top brand must retain PREVIEW`);
+  assert.equal(normalizedVisibleText(preview.innerHtml, `${fileName} top brand PREVIEW`), 'PREVIEW', `${fileName} top brand must retain visible PREVIEW`);
   assert.equal(
-    normalizedText(topBrand.innerHtml),
+    normalizedVisibleText(topBrand.innerHtml, `${fileName} top brand`),
     '亚玛芬 AI 知识库PREVIEW',
-    `${fileName} top brand must retain the approved brand text and PREVIEW`,
+    `${fileName} top brand must retain the approved visible brand text and PREVIEW`,
   );
 }
 
 const homeHero = extractUniqueElementByClass(files.index, 'section', 'home-hero', 'home hero');
 assertVisiblyRendered(homeHero, 'home hero');
 const homeHeroCopy = extractUniqueElementByClass(homeHero.innerHtml, 'div', 'bh-left', 'home hero copy');
+assertVisiblyRendered(homeHeroCopy, 'home hero copy');
 const homeTitle = extractUniqueElementByTag(homeHeroCopy.innerHtml, 'h1', 'home hero title');
-assert.equal(textContent(homeTitle.innerHtml), '亚玛芬 AI 知识库', 'home h1 must use the exact approved title');
+assertVisiblyRendered(homeTitle, 'home hero title');
+assert.equal(visibleTextContent(homeTitle.innerHtml, 'home hero title'), '亚玛芬 AI 知识库', 'home h1 must use the exact approved visible title');
 
 const homeSubtitle = extractUniqueElementByClass(homeHeroCopy.innerHtml, 'p', 'bh-subtitle', 'home hero subtitle');
+assertVisiblyRendered(homeSubtitle, 'home hero subtitle');
 assert.equal(
-  textContent(homeSubtitle.innerHtml),
+  visibleTextContent(homeSubtitle.innerHtml, 'home hero subtitle'),
   '一站式 AI 学习资源与实践指南',
-  'home subtitle must use the exact approved copy without extra whitespace',
+  'home subtitle must use the exact approved visible copy without extra whitespace',
 );
 const homeHeroParagraphs = findDirectChildrenByTag(homeHeroCopy.innerHtml, 'p', 'home hero copy');
 assert.equal(homeHeroParagraphs.length, 2, 'home hero copy must retain exactly its subtitle and description');
+assertVisiblyRendered(homeHeroParagraphs[1], 'home hero description');
 assert.equal(
-  normalizedText(homeHeroParagraphs[1].innerHtml),
+  normalizedVisibleText(homeHeroParagraphs[1].innerHtml, 'home hero description'),
   '从入门、录播到工具实践，在清晰的知识路径里找到所需内容。',
-  'home hero must retain the exact approved description',
+  'home hero must retain the exact approved visible description',
 );
 assert.equal(openingTagsByClass(homeHeroCopy.innerHtml, 'bh-tag').length, 0, 'home hero copy must not contain a bh-tag element');
 assert.equal(openingTagsByClass(homeHero.innerHtml, 'mascot-status').length, 0, 'home hero must not contain a mascot-status element');
@@ -682,9 +690,9 @@ const homeShortcutParagraphs = findElementsByTag(homeXiaoAShortcut.innerHtml, 'p
 assert.equal(homeShortcutParagraphs.length, 1, 'home Hero shortcut must contain exactly one description paragraph');
 assertVisiblyRendered(homeShortcutParagraphs[0], 'home Hero shortcut description');
 assert.equal(
-  normalizedText(homeShortcutParagraphs[0].innerHtml),
+  normalizedVisibleText(homeShortcutParagraphs[0].innerHtml, 'home Hero shortcut description'),
   '查制度、问流程、找内部信息，有问题先问小A。',
-  'home Hero shortcut description must match the approved copy exactly after normalization',
+  'home Hero shortcut description must match the approved visible copy exactly after normalization',
 );
 
 const homeElements = parseHtmlElements(files.index, 'home');
@@ -704,6 +712,7 @@ assert.ok(
   hasClass(homeMainSections[1], 'section') && !hasClass(homeMainSections[1], 'home-hero'),
   'home main second section must be the learning-path entry region',
 );
+assertVisiblyRendered(homeMainSections[1], 'home learning-path section');
 assert.equal(
   homeElements.filter(({ attributes }) => attributes.get('id') === 'gateway').length,
   0,
@@ -720,31 +729,36 @@ assert.deepEqual(
 homeEntryCards.forEach((entry, index) => {
   const entryTitle = extractUniqueElementByTag(entry.innerHtml, 'h3', `home entry-card ${index + 1} title`);
   const entryDescription = extractUniqueElementByTag(entry.innerHtml, 'p', `home entry-card ${index + 1} description`);
+  assertVisiblyRendered(entry, `home entry-card ${index + 1}`);
+  assertVisiblyRendered(entryTitle, `home entry-card ${index + 1} title`);
+  assertVisiblyRendered(entryDescription, `home entry-card ${index + 1} description`);
   assert.equal(
-    normalizedText(entryTitle.innerHtml),
+    normalizedVisibleText(entryTitle.innerHtml, `home entry-card ${index + 1} title`),
     approvedHomeEntries[index].title,
-    `home entry-card ${index + 1} must retain its exact h3`,
+    `home entry-card ${index + 1} must retain its exact visible h3`,
   );
   assert.equal(
-    normalizedText(entryDescription.innerHtml),
+    normalizedVisibleText(entryDescription.innerHtml, `home entry-card ${index + 1} description`),
     approvedHomeEntries[index].description,
-    `home entry-card ${index + 1} must retain its exact description`,
+    `home entry-card ${index + 1} must retain its exact visible description`,
   );
 });
 const learningPathTitles = findElementsByTag(homeMainSections[1].innerHtml, 'h2', 'home learning-path region').filter(
-  ({ innerHtml }) => normalizedText(innerHtml) === '选择你的 AI 学习路径',
+  ({ innerHtml }) => normalizedVisibleText(innerHtml, 'home learning-path title') === '选择你的 AI 学习路径',
 );
-assert.equal(learningPathTitles.length, 1, 'home must contain exactly one h2 “选择你的 AI 学习路径”');
+assert.equal(learningPathTitles.length, 1, 'home must contain exactly one visible h2 “选择你的 AI 学习路径”');
+assertVisiblyRendered(learningPathTitles[0], 'home learning-path title');
 const learningPathDescription = extractUniqueElementByClass(
   homeMainSections[1].innerHtml,
   'p',
   'desc',
   'home learning-path region description',
 );
+assertVisiblyRendered(learningPathDescription, 'home learning-path region description');
 assert.equal(
-  normalizedText(learningPathDescription.innerHtml),
+  normalizedVisibleText(learningPathDescription.innerHtml, 'home learning-path region description'),
   '每个板块都是独立的完整页面，点击进入后内部还有细分目录。',
-  'home learning-path region must retain its exact description',
+  'home learning-path region must retain its exact visible description',
 );
 
 assert.equal(
@@ -803,11 +817,20 @@ for (const [fileName, content] of nonResourcesPages) {
 const resourcesHero = extractUniqueElementByClass(files.resources, 'section', 'resources-hero', 'resources hero');
 assertVisiblyRendered(resourcesHero, 'resources hero');
 const resourcesHeroCopy = extractUniqueElementByClass(resourcesHero.innerHtml, 'div', 'bh-left', 'resources hero copy');
-const resourcesHeroDescription = extractUniqueElementByTag(resourcesHeroCopy.innerHtml, 'p', 'resources hero description');
+assertVisiblyRendered(resourcesHeroCopy, 'resources hero copy');
+const resourcesHeroTitle = extractUniqueElementByTag(resourcesHeroCopy.innerHtml, 'h1', 'resources hero title');
+assertVisiblyRendered(resourcesHeroTitle, 'resources hero title');
 assert.equal(
-  normalizedText(resourcesHeroDescription.innerHtml),
+  normalizedVisibleText(resourcesHeroTitle.innerHtml, 'resources hero title'),
+  'AI 工具与资源',
+  'resources hero must retain its exact visible h1',
+);
+const resourcesHeroDescription = extractUniqueElementByTag(resourcesHeroCopy.innerHtml, 'p', 'resources hero description');
+assertVisiblyRendered(resourcesHeroDescription, 'resources hero description');
+assert.equal(
+  normalizedVisibleText(resourcesHeroDescription.innerHtml, 'resources hero description'),
   '公司内部小A助手与外部 AI 学习资源统一整理：查流程、找工具、看课程、关注创作者与经典阅读，都从这里开始。',
-  'resources Hero description must use the exact approved copy',
+  'resources Hero description must use the exact approved visible copy',
 );
 
 const resourcesXiaoA = extractUniqueElementByClass(files.resources, 'section', 'xiaoa-section', 'resources internal Xiao A section');
@@ -868,21 +891,24 @@ assert.equal(
 );
 
 const internalTitle = extractUniqueElementByTag(resourcesXiaoA.innerHtml, 'h2', 'resources internal Xiao A title');
-assert.equal(normalizedText(internalTitle.innerHtml), '公司内部 AI 助手', 'resources internal section must use the approved h2');
+assertVisiblyRendered(internalTitle, 'resources internal Xiao A title');
+assert.equal(normalizedVisibleText(internalTitle.innerHtml, 'resources internal Xiao A title'), '公司内部 AI 助手', 'resources internal section must use the approved visible h2');
 const internalTag = extractUniqueElementByClass(resourcesXiaoA.innerHtml, 'div', 'tag', 'resources Xiao A tag');
-assert.equal(normalizedText(internalTag.innerHtml), 'XIAO A · 小A 智能助手', 'resources must retain the approved Xiao A positioning tag');
+assertVisiblyRendered(internalTag, 'resources Xiao A tag');
+assert.equal(normalizedVisibleText(internalTag.innerHtml, 'resources Xiao A tag'), 'XIAO A · 小A 智能助手', 'resources must retain the approved visible Xiao A positioning tag');
 const internalPositioning = extractUniqueElementByClass(resourcesXiaoA.innerHtml, 'p', 'desc', 'resources Xiao A positioning');
+assertVisiblyRendered(internalPositioning, 'resources Xiao A positioning');
 assert.equal(
-  normalizedText(internalPositioning.innerHtml),
+  normalizedVisibleText(internalPositioning.innerHtml, 'resources Xiao A positioning'),
   '接入了公司制度、流程和内部数据的 AI 助手。日常工作遇到「这个怎么操作 / 这个政策怎么说」的问题，先问小A —— 比翻邮件、问同事快得多。',
-  'resources must retain the approved Xiao A positioning copy',
+  'resources must retain the approved visible Xiao A positioning copy',
 );
 
 const xiaoANote = extractUniqueElementByClass(resourcesXiaoA.innerHtml, 'p', 'xh-note', 'resources Xiao A Portal note');
 assert.equal(
-  normalizedText(xiaoANote.innerHtml),
+  normalizedVisibleText(xiaoANote.innerHtml, 'resources Xiao A Portal note'),
   `${portalInstructions}。`,
-  'resources Xiao A Portal note must show the complete approved instructions',
+  'resources Xiao A Portal note must show the complete approved visible instructions',
 );
 assertVisiblyRendered(xiaoANote, 'resources Xiao A Portal note');
 const xiaoACta = extractUniqueAnchorByExactText(resourcesXiaoA.innerHtml, '前往 Portal 打开小A', 'resources Xiao A CTA');
@@ -890,10 +916,14 @@ assertVisiblyRendered(xiaoACta, 'resources Xiao A CTA');
 assertSafeExternalLink(xiaoACta, portalUrl, 'resources Xiao A CTA');
 
 const xiaoASide = extractUniqueElementByClass(resourcesXiaoA.innerHtml, 'div', 'xh-side', 'resources Xiao A capabilities');
+assertVisiblyRendered(xiaoASide, 'resources Xiao A capabilities');
 const xiaoATitle = extractUniqueElementByTag(xiaoASide.innerHtml, 'h4', 'resources Xiao A capabilities title');
-assert.equal(normalizedText(xiaoATitle.innerHtml), '小A 2.0 能帮你做什么', 'resources Xiao A capabilities must retain the approved title');
-const xiaoAItems = findElementsByTag(xiaoASide.innerHtml, 'li', 'resources Xiao A capabilities')
-  .map(({ innerHtml }) => normalizedText(innerHtml));
+assertVisiblyRendered(xiaoATitle, 'resources Xiao A capabilities title');
+assert.equal(normalizedVisibleText(xiaoATitle.innerHtml, 'resources Xiao A capabilities title'), '小A 2.0 能帮你做什么', 'resources Xiao A capabilities must retain the approved visible title');
+const xiaoAItemElements = findElementsByTag(xiaoASide.innerHtml, 'li', 'resources Xiao A capabilities');
+xiaoAItemElements.forEach((item, index) => assertVisiblyRendered(item, `resources Xiao A capability ${index + 1}`));
+const xiaoAItems = xiaoAItemElements
+  .map(({ innerHtml }, index) => normalizedVisibleText(innerHtml, `resources Xiao A capability ${index + 1}`));
 assert.deepEqual(
   xiaoAItems,
   approvedXiaoACapabilities,
@@ -901,8 +931,10 @@ assert.deepEqual(
 );
 
 const xiaoAVs = extractUniqueElementByClass(resourcesXiaoA.innerHtml, 'div', 'xa-vs', 'resources Xiao A comparison');
+assertVisiblyRendered(xiaoAVs, 'resources Xiao A comparison');
 const comparisonTitle = extractUniqueElementByTag(xiaoAVs.innerHtml, 'h3', 'resources Xiao A comparison title');
-assert.equal(normalizedText(comparisonTitle.innerHtml), '小A vs 微软 Copilot：什么时候用谁？', 'resources must retain the full comparison title');
+assertVisiblyRendered(comparisonTitle, 'resources Xiao A comparison title');
+assert.equal(normalizedVisibleText(comparisonTitle.innerHtml, 'resources Xiao A comparison title'), '小A vs 微软 Copilot：什么时候用谁？', 'resources must retain the full visible comparison title');
 const comparisonScrollRegion = extractUniqueElementByClass(xiaoAVs.innerHtml, 'div', 'rt-table', 'resources comparison scroll region');
 assertVisiblyRendered(comparisonScrollRegion, 'resources comparison scroll region');
 assert.equal(comparisonScrollRegion.attributes.get('role'), 'region', 'resources comparison scroll region must retain role=region');
@@ -913,16 +945,25 @@ assert.equal(
   'resources comparison scroll region must retain its approved aria-label',
 );
 const comparisonTable = extractUniqueElementByTag(comparisonScrollRegion.innerHtml, 'table', 'resources Xiao A comparison table');
+assertVisiblyRendered(comparisonTable, 'resources Xiao A comparison table');
 assert.equal(
   comparisonTable.attributes.get('aria-label'),
   '小A 与微软 Copilot 使用场景对比',
   'resources comparison table must retain its approved aria-label',
 );
-const comparisonRows = findElementsByTag(comparisonTable.innerHtml, 'tr', 'resources Xiao A comparison table').map((row) => (
-  parseHtmlElements(row.innerHtml, 'resources Xiao A comparison row')
-    .filter(({ tagName }) => tagName === 'th' || tagName === 'td')
-    .map(({ innerHtml }) => normalizedText(innerHtml))
-));
+const comparisonRows = findElementsByTag(comparisonTable.innerHtml, 'tr', 'resources Xiao A comparison table').map((row, rowIndex) => {
+  assertVisiblyRendered(row, `resources Xiao A comparison row ${rowIndex + 1}`);
+  const cells = parseHtmlElements(row.innerHtml, 'resources Xiao A comparison row')
+    .filter(({ tagName }) => tagName === 'th' || tagName === 'td');
+  cells.forEach((cell, cellIndex) => assertVisiblyRendered(
+    cell,
+    `resources Xiao A comparison row ${rowIndex + 1} cell ${cellIndex + 1}`,
+  ));
+  return cells.map(({ innerHtml }, cellIndex) => normalizedVisibleText(
+    innerHtml,
+    `resources Xiao A comparison row ${rowIndex + 1} cell ${cellIndex + 1}`,
+  ));
+});
 assert.deepEqual(
   comparisonRows,
   [
@@ -936,7 +977,8 @@ assert.deepEqual(
 );
 
 const externalTitle = extractUniqueElementByTag(externalResources.innerHtml, 'h2', 'resources external title');
-assert.equal(normalizedText(externalTitle.innerHtml), '外部 AI 学习资源', 'resources external section must use the approved h2');
+assertVisiblyRendered(externalTitle, 'resources external title');
+assert.equal(normalizedVisibleText(externalTitle.innerHtml, 'resources external title'), '外部 AI 学习资源', 'resources external section must use the approved visible h2');
 const visibleExternalText = normalizedVisibleText(externalResources.innerHtml, 'resources external section');
 assert.ok(
   !visibleExternalText.includes('公司内部') && !visibleExternalText.includes('小A'),
@@ -963,10 +1005,10 @@ assert.deepEqual(
 const toolsSubtitle = extractUniqueElementByClass(resourceEntries[0].innerHtml, 'div', 're-sub', 'AI tools subtitle');
 assertVisiblyRendered(resourceEntries[0], 'AI tools entry');
 assertVisiblyRendered(toolsSubtitle, 'AI tools subtitle');
-assert.equal(normalizedText(toolsSubtitle.innerHtml), '海外 · 国内', 'AI tools subtitle must be exactly “海外 · 国内”');
+assert.equal(normalizedVisibleText(toolsSubtitle.innerHtml, 'AI tools subtitle'), '海外 · 国内', 'AI tools visible subtitle must be exactly “海外 · 国内”');
 const toolsPreview = extractUniqueElementByClass(resourceEntries[0].innerHtml, 'div', 're-preview', 'AI tools preview');
 assertVisiblyRendered(toolsPreview, 'AI tools preview');
-const toolsPreviewText = normalizedText(toolsPreview.innerHtml);
+const toolsPreviewText = normalizedVisibleText(toolsPreview.innerHtml, 'AI tools preview');
 assert.ok(!toolsPreviewText.includes('公司内部'), 'AI tools preview must not describe internal-company tools');
 assert.ok(!toolsPreviewText.includes('小A'), 'AI tools preview must not include Xiao A');
 assert.equal(toolsPreviewText.match(/DeepSeek/g)?.length, 1, 'AI tools preview must contain DeepSeek exactly once');
@@ -999,7 +1041,7 @@ assert.ok(
 );
 assertVisiblyRendered(deepSeekLogo, 'AI tools DeepSeek replacement row logo');
 assertVisiblyRendered(deepSeekInfo, 'AI tools DeepSeek replacement row info');
-assert.equal(normalizedText(deepSeekLogo.innerHtml), 'DS', 'AI tools DeepSeek replacement row logo must be DS');
+assert.equal(normalizedVisibleText(deepSeekLogo.innerHtml, 'AI tools DeepSeek replacement row logo'), 'DS', 'AI tools DeepSeek replacement row visible logo must be DS');
 const deepSeekName = extractUniqueElementByTag(deepSeekInfo.innerHtml, 'b', 'AI tools DeepSeek replacement row name');
 const deepSeekBadge = extractUniqueElementByClass(
   deepSeekName.innerHtml,
@@ -1012,9 +1054,12 @@ const deepSeekDescription = extractUniqueElementByTag(
   'small',
   'AI tools DeepSeek replacement row description',
 );
-assert.equal(normalizedText(deepSeekName.innerHtml), 'DeepSeek 国内', 'AI tools DeepSeek replacement row must retain its exact name and badge');
-assert.equal(normalizedText(deepSeekBadge.innerHtml), '国内', 'AI tools DeepSeek replacement row badge must be 国内');
-assert.equal(normalizedText(deepSeekDescription.innerHtml), '通用推理与编程助手', 'AI tools DeepSeek replacement row must retain its exact description');
+assertVisiblyRendered(deepSeekName, 'AI tools DeepSeek replacement row name');
+assertVisiblyRendered(deepSeekBadge, 'AI tools DeepSeek replacement row badge');
+assertVisiblyRendered(deepSeekDescription, 'AI tools DeepSeek replacement row description');
+assert.equal(normalizedVisibleText(deepSeekName.innerHtml, 'AI tools DeepSeek replacement row name'), 'DeepSeek 国内', 'AI tools DeepSeek replacement row must retain its exact visible name and badge');
+assert.equal(normalizedVisibleText(deepSeekBadge.innerHtml, 'AI tools DeepSeek replacement row badge'), '国内', 'AI tools DeepSeek replacement row visible badge must be 国内');
+assert.equal(normalizedVisibleText(deepSeekDescription.innerHtml, 'AI tools DeepSeek replacement row description'), '通用推理与编程助手', 'AI tools DeepSeek replacement row must retain its exact visible description');
 assert.equal(
   normalizedVisibleText(deepSeekRows[0].innerHtml, 'AI tools DeepSeek replacement row').match(/DeepSeek/g)?.length,
   1,
@@ -1029,8 +1074,8 @@ const resourcesGateway = extractUniqueElementByClass(externalResources.innerHtml
 assertVisiblyRendered(resourcesGateway, 'resources external sites');
 assert.equal(resourcesGateway.attributes.get('id'), 'gateway', 'resources external-sites must carry id="gateway"');
 const resourcesGatewayTitle = extractUniqueElementByTag(resourcesGateway.innerHtml, 'h3', 'resources external sites title');
-assert.equal(normalizedText(resourcesGatewayTitle.innerHtml), '精选站点', 'resources external-sites must use the approved h3');
 assertVisiblyRendered(resourcesGatewayTitle, 'resources external sites title');
+assert.equal(normalizedVisibleText(resourcesGatewayTitle.innerHtml, 'resources external sites title'), '精选站点', 'resources external-sites must use the approved visible h3');
 assert.ok(!visibleExternalText.includes('GATEWAY · AI 网闸'), 'resources must not visibly render the old Gateway eyebrow');
 assert.ok(!visibleExternalText.includes('外部精选 AI 资源'), 'resources must not visibly render the old Gateway title');
 
@@ -1040,7 +1085,7 @@ for (const [name, href] of [
   ['AI 日报', 'https://aihot.virxact.com/daily'],
   ['WaytoAGI', 'https://www.waytoagi.com/zh'],
 ]) {
-  const matches = resourcesGatewayLinks.filter(({ innerHtml }) => normalizedText(innerHtml).includes(name));
+  const matches = resourcesGatewayLinks.filter(({ innerHtml }) => normalizedVisibleText(innerHtml, `resources external-sites ${name} link`).includes(name));
   assert.equal(matches.length, 1, `resources external-sites must retain the ${name} card`);
   const link = matches[0];
   assertVisiblyRendered(link, `resources external-sites ${name} link`);
