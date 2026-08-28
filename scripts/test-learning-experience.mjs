@@ -547,6 +547,7 @@ function createMiniDom() {
       this.children = [];
     }
     get innerHTML() { return this._innerHtmlWrites.at(-1) ?? ''; }
+    get innerHtmlWrites() { return [...this._innerHtmlWrites]; }
     set innerHTML(value) {
       this._innerHtmlWrites.push(String(value));
       this._text = String(value);
@@ -592,6 +593,10 @@ function createMiniDom() {
       return matches;
     }
     querySelector(selector) { return this.querySelectorAll(selector)[0] ?? null; }
+    walk(visitor) {
+      visitor(this);
+      for (const child of this.children) child.walk(visitor);
+    }
   }
   const document = {
     readyState: 'complete',
@@ -603,6 +608,20 @@ function createMiniDom() {
     getElementById() { return null; },
   };
   return { document, createTarget() { return document.createElement('div'); } };
+}
+
+function collectInnerHtmlWrites(root) {
+  const writes = [];
+  root.walk((node) => writes.push(...node.innerHtmlWrites));
+  return writes;
+}
+
+function assertNoDynamicInnerHtmlWrites(root, forbiddenValues, message) {
+  const writes = collectInnerHtmlWrites(root);
+  for (const value of forbiddenValues) {
+    assert.ok(!writes.some((write) => write.includes(value)), `${message}: ${value}`);
+  }
+  return writes;
 }
 
 function createCopyHarness(templateText, options = {}) {
@@ -1526,6 +1545,8 @@ function runRuntimeUnitTest() {
   const caseSection = firstTarget.querySelector('.lesson-case');
   assert.ok(caseSection && caseSection.textContent.includes('把关键背景放进当前任务'),
     'case-study lesson must be visible as text in the rendered DOM');
+  assertNoDynamicInnerHtmlWrites(firstTarget, ['把关键背景放进当前任务'],
+    'case-study metadata must never be written through innerHTML');
   const renderedExercise = firstTarget.querySelector('.lesson-exercise');
   assert.ok(renderedExercise, 'chapter must render its quick exercise region');
   const exerciseFieldsets = renderedExercise.querySelectorAll('fieldset');
@@ -1552,6 +1573,16 @@ function runRuntimeUnitTest() {
   assert.equal(maliciousTarget.querySelectorAll('script').length, 0, 'malicious-looking metadata must not create script elements');
   assert.equal(maliciousTarget.querySelectorAll('*').filter((node) => node.getAttribute('onerror') !== null).length, 0,
     'malicious-looking metadata must not create event-handler attributes');
+  assertNoDynamicInnerHtmlWrites(maliciousTarget, [maliciousPayload],
+    'malicious-looking metadata must never reach any innerHTML write in the rendered tree');
+
+  const constantDom = createMiniDom();
+  const constantNode = constantDom.createTarget();
+  constantNode.innerHTML = '<strong>固定的安全标题</strong>';
+  assert.deepEqual(collectInnerHtmlWrites(constantNode), ['<strong>固定的安全标题</strong>'],
+    'MiniDom must record safe constant innerHTML writes without treating them as dynamic metadata');
+  assert.doesNotThrow(() => assertNoDynamicInnerHtmlWrites(constantNode, [maliciousPayload, '把关键背景放进当前任务'],
+    'safe constant innerHTML must remain allowed'));
   assert.doesNotThrow(() => fresh.initHub(), 'initHub must remain safe without a matching DOM hub');
 
   function assertReturnScroll(name, expectedBehavior, matchMedia) {
@@ -1679,7 +1710,28 @@ function runRuntimeMutationTest() {
     'runtime unit assertion must catch a removed pending-click guard',
   );
 
-  console.log('PASS beginner learning runtime mutations (seen guard + storage key + reduced motion + summary + copy fallback + pending guard)');
+  const safeLessonRenderNeedle = "    lesson.appendChild(element(ownerDocument, 'strong', '', '关键启发：'));\n" +
+    '    lesson.appendChild(ownerDocument.createTextNode(chapter.caseStudy.lesson));';
+  assert.ok(source.includes(safeLessonRenderNeedle), 'dynamic-innerHTML mutation must find the safe case-study renderer');
+  function assertDynamicInnerHtmlMutationCaught(name, unsafeStatement) {
+    const unsafeSource = source.replace(safeLessonRenderNeedle, unsafeStatement);
+    const unsafeDom = createMiniDom();
+    const unsafeRuntime = evaluateLearningRuntime(unsafeSource, createStorage(), { document: unsafeDom.document });
+    const unsafeTarget = unsafeDom.createTarget();
+    assert.equal(unsafeRuntime.renderChapter('ai-basics', unsafeTarget), true, `${name} fixture must still render`);
+    assert.throws(
+      () => assertNoDynamicInnerHtmlWrites(unsafeTarget, ['把关键背景放进当前任务'],
+        'case-study metadata must never be written through innerHTML'),
+      assert.AssertionError,
+      `${name} must be caught by recorded runtime innerHTML writes`,
+    );
+  }
+  assertDynamicInnerHtmlMutationCaught('concatenated dynamic innerHTML',
+    "    lesson.innerHTML = '<strong>关键启发：</strong>' + chapter.caseStudy.lesson;");
+  assertDynamicInnerHtmlMutationCaught('template-literal dynamic innerHTML',
+    '    lesson.innerHTML = `<strong>关键启发：</strong>${chapter.caseStudy.lesson}`;');
+
+  console.log('PASS beginner learning runtime mutations (state + reduced motion + copy + concatenated/template dynamic innerHTML)');
 }
 
 function runSelfTest() {
