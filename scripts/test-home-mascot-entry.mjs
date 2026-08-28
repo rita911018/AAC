@@ -179,13 +179,20 @@ function sliceUniqueRegion(source, startMarker, endMarker, label) {
 }
 
 function parseTagAttributes(rawAttributes) {
-  const attributes = new Map();
+  return new Map(parseTagAttributeEntries(rawAttributes).map(({ name, value }) => [name, value]));
+}
+
+function parseTagAttributeEntries(rawAttributes) {
+  const entries = [];
   const attributePattern = /([^\s"'<>\/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
 
   for (const match of rawAttributes.matchAll(attributePattern)) {
-    attributes.set(match[1].toLowerCase(), match[2] ?? match[3] ?? match[4] ?? '');
+    entries.push({
+      name: match[1].toLowerCase(),
+      value: match[2] ?? match[3] ?? match[4] ?? '',
+    });
   }
-  return attributes;
+  return entries;
 }
 
 function findUniqueAnchorAttributesByText(source, text) {
@@ -234,13 +241,21 @@ function stripNonMarkup(source) {
 
 function findOpeningTags(source) {
   return [...stripNonMarkup(source).matchAll(/<([a-z][\w:-]*)\b([^>]*)>/gi)]
-    .map((match) => ({ tagName: match[1].toLowerCase(), attributes: parseTagAttributes(match[2]) }));
+    .map((match) => ({
+      tagName: match[1].toLowerCase(),
+      attributes: parseTagAttributes(match[2]),
+      attributeEntries: parseTagAttributeEntries(match[2]),
+    }));
 }
 
 function extractSvgElements(source) {
   const withoutComments = stripNonMarkup(source);
   return [...withoutComments.matchAll(/<svg\b([^>]*)>([\s\S]*?)<\/svg\s*>/gi)]
-    .map((match) => ({ attributes: parseTagAttributes(match[1]), innerHtml: match[2] }));
+    .map((match) => ({
+      attributes: parseTagAttributes(match[1]),
+      attributeEntries: parseTagAttributeEntries(match[1]),
+      innerHtml: match[2],
+    }));
 }
 
 function openingTagsByClass(source, className) {
@@ -284,15 +299,39 @@ function normalizedPathData(source) {
 }
 
 function assertApprovedKnowledgeBookSvg(svg, label) {
+  const approvedAttributeNames = [
+    'aria-hidden',
+    'data-brand-icon',
+    'fill',
+    'stroke-linecap',
+    'stroke-linejoin',
+    'stroke-width',
+    'viewbox',
+  ];
+  assert.deepEqual(
+    svg.attributeEntries.map(({ name }) => name).sort(),
+    approvedAttributeNames,
+    `${label} must contain exactly the approved SVG attributes`,
+  );
+  assert.equal(svg.attributes.get('data-brand-icon'), 'knowledge-book', `${label} must use the approved brand marker`);
+  assert.equal(svg.attributes.get('aria-hidden'), 'true', `${label} must be hidden from assistive technology`);
   assert.equal(
     (svg.attributes.get('viewbox') ?? '').trim().replace(/\s+/g, ' '),
     '0 0 24 24',
     `${label} must use the approved viewBox`,
   );
+  assert.equal(svg.attributes.get('fill'), 'none', `${label} must use the approved fill`);
+  assert.equal(svg.attributes.get('stroke-width'), '1.8', `${label} must use the approved stroke width`);
+  assert.equal(svg.attributes.get('stroke-linecap'), 'round', `${label} must use the approved line cap`);
+  assert.equal(svg.attributes.get('stroke-linejoin'), 'round', `${label} must use the approved line join`);
 
   const children = findOpeningTags(svg.innerHtml);
   assert.equal(children.length, 2, `${label} must contain exactly two graphic elements`);
   assert.ok(children.every(({ tagName }) => tagName === 'path'), `${label} must contain only path elements`);
+  assert.ok(
+    children.every(({ attributeEntries }) => attributeEntries.length === 1 && attributeEntries[0].name === 'd'),
+    `${label} paths must each contain exactly one d attribute`,
+  );
 
   const actualPaths = children.map(({ attributes }) => normalizedPathData(attributes.get('d') ?? '')).sort();
   const expectedPaths = approvedBookPaths.map(normalizedPathData).sort();
