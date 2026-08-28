@@ -362,7 +362,10 @@
   }
 
   function copyToolTemplate(button) {
-    var card = button && typeof button.closest === 'function' ? button.closest('.learning-tool-card') : null;
+    var card = null;
+    if (button && typeof button.closest === 'function') {
+      card = button.closest('.learning-tool-card') || button.closest('.lesson-takeaway');
+    }
     if (!card || typeof card.querySelector !== 'function') return;
     var source = card.querySelector('[data-template-content]');
     var feedback = card.querySelector('[data-copy-feedback]');
@@ -554,6 +557,298 @@
     return node;
   }
 
+  function interactionFieldset(ownerDocument, legendText, className) {
+    var fieldset = element(ownerDocument, 'fieldset', 'lesson-interaction' + (className ? ' ' + className : ''));
+    fieldset.appendChild(element(ownerDocument, 'legend', '', legendText));
+    return fieldset;
+  }
+
+  function interactionButton(ownerDocument, text, hook, value) {
+    var button = element(ownerDocument, 'button', 'lesson-choice', text);
+    button.setAttribute('type', 'button');
+    button.setAttribute(hook, '');
+    if (value !== undefined) button.setAttribute('data-choice-value', String(value));
+    button.setAttribute('aria-pressed', 'false');
+    return button;
+  }
+
+  function setChoiceState(group, activeButton) {
+    for (var index = 0; index < group.length; index += 1) {
+      var selected = group[index] === activeButton;
+      group[index].setAttribute('aria-pressed', selected ? 'true' : 'false');
+      if (group[index].classList) group[index].classList.toggle('is-selected', selected);
+    }
+  }
+
+  function dispatchExerciseAttempt(root, message) {
+    if (!root) return;
+    root.setAttribute('data-exercise-attempted', 'true');
+    var feedback = typeof root.querySelector === 'function' ? root.querySelector('.lesson-feedback') : null;
+    if (feedback) feedback.textContent = message;
+    var ownerDocument = root.ownerDocument || (typeof document !== 'undefined' ? document : null);
+    try {
+      var view = ownerDocument && ownerDocument.defaultView;
+      var event = view && typeof view.CustomEvent === 'function'
+        ? new view.CustomEvent('learning-exercise-attempt', { bubbles: true, detail: { message: message } })
+        : { type: 'learning-exercise-attempt', detail: { message: message } };
+      if (event && typeof root.dispatchEvent === 'function') root.dispatchEvent(event);
+    } catch (error) {}
+  }
+
+  function appendFlowSteps(ownerDocument, root, steps) {
+    var flow = element(ownerDocument, 'ol', 'lesson-model-flow');
+    flow.setAttribute('aria-label', '大模型生成内容的五个步骤');
+    for (var index = 0; index < steps.length; index += 1) {
+      var item = element(ownerDocument, 'li', '');
+      item.appendChild(element(ownerDocument, 'span', 'lesson-flow-number', String(index + 1)));
+      item.appendChild(element(ownerDocument, 'span', '', steps[index]));
+      flow.appendChild(item);
+    }
+    root.appendChild(flow);
+  }
+
+  function renderTokenPrediction(exercise, root) {
+    var ownerDocument = root.ownerDocument;
+    var fieldset = interactionFieldset(ownerDocument, '“请把月度数据整理成一份……”下一个 Token 可能是什么？');
+    fieldset.appendChild(element(ownerDocument, 'p', 'lesson-interaction-note', '模型会给多个候选分配概率，再继续生成；这里没有考试式的唯一操作。'));
+    var options = element(ownerDocument, 'div', 'lesson-choice-row');
+    for (var index = 0; index < exercise.candidates.length; index += 1) {
+      (function (candidate) {
+        var button = interactionButton(ownerDocument, candidate.label + ' · ' + candidate.probability + '%', 'data-token-option', candidate.label);
+        button.addEventListener('click', function () {
+          setChoiceState(options.querySelectorAll('[data-token-option]'), button);
+          dispatchExerciseAttempt(root, candidate.label + ' 是一个候选。概率表示模型此刻的预测倾向，不代表事实已经核验。');
+        });
+        options.appendChild(button);
+      }(exercise.candidates[index]));
+    }
+    fieldset.appendChild(options);
+    root.appendChild(fieldset);
+
+    var concepts = element(ownerDocument, 'div', 'lesson-concept-map');
+    concepts.appendChild(element(ownerDocument, 'h3', '', '概念关系'));
+    concepts.appendChild(element(ownerDocument, 'p', '', 'AI → 生成式 AI → 大模型；Agent = 大模型 + 目标拆解 + 工具 + 执行循环。'));
+    root.appendChild(concepts);
+    appendFlowSteps(ownerDocument, root, exercise.steps);
+  }
+
+  function renderEvidenceSpotter(exercise, root) {
+    var ownerDocument = root.ownerDocument;
+    var categories = ['可以保留', '需要核验', '需要修改'];
+    for (var index = 0; index < exercise.claims.length; index += 1) {
+      (function (claim, claimIndex) {
+        var fieldset = interactionFieldset(ownerDocument, '判断 ' + (claimIndex + 1) + '：' + claim.text);
+        var options = element(ownerDocument, 'div', 'lesson-choice-row');
+        for (var categoryIndex = 0; categoryIndex < categories.length; categoryIndex += 1) {
+          (function (category) {
+            var button = interactionButton(ownerDocument, category, 'data-claim-choice', category);
+            button.setAttribute('data-claim-index', String(claimIndex));
+            button.addEventListener('click', function () {
+              setChoiceState(options.querySelectorAll('[data-claim-choice]'), button);
+              var explanation = claim.category === '可以保留'
+                ? '原始材料直接支持这句话，可以保留并带上来源。'
+                : claim.category === '需要核验'
+                  ? '精确数字或时效信息要回到原始来源核验。'
+                  : '材料不足以支持这个强因果结论，需要改成谨慎表达。';
+              dispatchExerciseAttempt(root, (category === claim.category ? '思路一致。' : '可以换个角度再看。') + explanation);
+            });
+            options.appendChild(button);
+          }(categories[categoryIndex]));
+        }
+        fieldset.appendChild(options);
+        root.appendChild(fieldset);
+      }(exercise.claims[index], index));
+    }
+  }
+
+  function renderDelegationSorter(exercise, root) {
+    var ownerDocument = root.ownerDocument;
+    var lanes = ['AI', '人机协作', '人负责'];
+    for (var index = 0; index < exercise.tasks.length; index += 1) {
+      (function (task, taskIndex) {
+        var fieldset = interactionFieldset(ownerDocument, '任务 ' + (taskIndex + 1) + '：' + task.text);
+        var options = element(ownerDocument, 'div', 'lesson-choice-row lesson-lane-row');
+        for (var laneIndex = 0; laneIndex < lanes.length; laneIndex += 1) {
+          (function (lane) {
+            var button = interactionButton(ownerDocument, lane, 'data-sort-choice', lane);
+            button.setAttribute('data-task-index', String(taskIndex));
+            button.addEventListener('click', function () {
+              setChoiceState(options.querySelectorAll('[data-sort-choice]'), button);
+              var explanation = task.lane === 'AI'
+                ? '这项工作目标明确、结果容易检查，适合先让 AI 加速。'
+                : task.lane === '人机协作'
+                  ? 'AI 可以提供分析线索，人要结合业务语境判断。'
+                  : '这项工作涉及优先级与责任，需要由人主导。';
+              dispatchExerciseAttempt(root, (lane === task.lane ? '这个分工很合适。' : '还可以重新分工。') + explanation);
+            });
+            options.appendChild(button);
+          }(lanes[laneIndex]));
+        }
+        fieldset.appendChild(options);
+        root.appendChild(fieldset);
+      }(exercise.tasks[index], index));
+    }
+  }
+
+  function renderPromptBuilder(exercise, root) {
+    var ownerDocument = root.ownerDocument;
+    var fieldset = interactionFieldset(ownerDocument, '填写四要素，拼出你的工作 brief', 'lesson-prompt-builder');
+    var formGrid = element(ownerDocument, 'div', 'lesson-prompt-fields');
+    var preview = element(ownerDocument, 'pre', 'lesson-prompt-preview');
+    preview.setAttribute('data-prompt-preview', '');
+    preview.setAttribute('aria-live', 'polite');
+
+    function updatePreview() {
+      var lines = [];
+      var fields = formGrid.querySelectorAll('[data-prompt-field]');
+      for (var fieldIndex = 0; fieldIndex < fields.length; fieldIndex += 1) {
+        lines.push(fields[fieldIndex].getAttribute('data-prompt-field') + '：' + fields[fieldIndex].value);
+      }
+      preview.textContent = lines.join('\n');
+      dispatchExerciseAttempt(root, '任务说明已更新。看一看四个字段是否足够具体，还可以继续修改。');
+    }
+
+    for (var index = 0; index < exercise.fields.length; index += 1) {
+      var label = element(ownerDocument, 'label', 'lesson-prompt-field');
+      label.appendChild(element(ownerDocument, 'span', '', exercise.fields[index]));
+      var input = index === 1 || index === 2 ? element(ownerDocument, 'textarea', '') : element(ownerDocument, 'input', '');
+      if (input.tagName === 'INPUT') input.setAttribute('type', 'text');
+      input.setAttribute('data-prompt-field', exercise.fields[index]);
+      input.setAttribute('placeholder', '写下' + exercise.fields[index]);
+      input.addEventListener('input', updatePreview);
+      label.appendChild(input);
+      formGrid.appendChild(label);
+    }
+    fieldset.appendChild(formGrid);
+    fieldset.appendChild(element(ownerDocument, 'p', 'lesson-interaction-note', '实时拼装结果（你的输入只会作为文字显示）'));
+    fieldset.appendChild(preview);
+    var reference = element(ownerDocument, 'details', 'lesson-exercise-reference');
+    reference.appendChild(element(ownerDocument, 'summary', '', '看看一个完整示例'));
+    reference.appendChild(element(ownerDocument, 'p', '', exercise.reference));
+    fieldset.appendChild(reference);
+    root.appendChild(fieldset);
+  }
+
+  function renderClaimClassifier(exercise, root) {
+    var ownerDocument = root.ownerDocument;
+    var kinds = ['事实', '推论', '观点'];
+    for (var index = 0; index < exercise.claims.length; index += 1) {
+      (function (claim, claimIndex) {
+        var fieldset = interactionFieldset(ownerDocument, '句子 ' + (claimIndex + 1) + '：' + claim.text);
+        var options = element(ownerDocument, 'div', 'lesson-choice-row');
+        for (var kindIndex = 0; kindIndex < kinds.length; kindIndex += 1) {
+          (function (kind) {
+            var button = interactionButton(ownerDocument, kind, 'data-claim-kind', kind);
+            button.setAttribute('data-claim-index', String(claimIndex));
+            button.addEventListener('click', function () {
+              setChoiceState(options.querySelectorAll('[data-claim-kind]'), button);
+              dispatchExerciseAttempt(root, (kind === claim.kind ? '分类合理。' : '可以再对照定义。') + '证据连接：' + claim.evidence + '。');
+            });
+            options.appendChild(button);
+          }(kinds[kindIndex]));
+        }
+        fieldset.appendChild(options);
+        root.appendChild(fieldset);
+      }(exercise.claims[index], index));
+    }
+  }
+
+  function renderWorkflowSorter(exercise, root) {
+    var ownerDocument = root.ownerDocument;
+    var steps = [];
+    for (var index = 0; index < exercise.steps.length; index += 1) {
+      steps.push({ key: String(index), text: exercise.steps[index].text, owner: exercise.steps[index].owner, checkpoint: Boolean(exercise.steps[index].checkpoint) });
+    }
+    var fieldset = interactionFieldset(ownerDocument, '排列月度汇报步骤，并检查分工与人工检查点', 'lesson-workflow-builder');
+    var list = element(ownerDocument, 'ol', 'lesson-workflow-list');
+    var recommendedOrder = exercise.steps.map(function (step) { return step.text; });
+    fieldset.appendChild(list);
+    root.appendChild(fieldset);
+
+    function renderList(focusKey, focusAction) {
+      clearNode(list);
+      for (var stepIndex = 0; stepIndex < steps.length; stepIndex += 1) {
+        (function (step, currentIndex) {
+          var item = element(ownerDocument, 'li', 'lesson-workflow-step');
+          item.setAttribute('data-step-key', step.key);
+          var copy = element(ownerDocument, 'div', 'lesson-workflow-copy');
+          copy.appendChild(element(ownerDocument, 'b', '', String(currentIndex + 1) + '. ' + step.text));
+          copy.appendChild(element(ownerDocument, 'span', '', '建议分工：' + step.owner + (step.checkpoint ? ' · 人工检查点' : '')));
+          item.appendChild(copy);
+          var actions = element(ownerDocument, 'div', 'lesson-workflow-actions');
+          var up = interactionButton(ownerDocument, '上移', 'data-workflow-move', 'up');
+          var down = interactionButton(ownerDocument, '下移', 'data-workflow-move', 'down');
+          up.setAttribute('data-step-key', step.key);
+          down.setAttribute('data-step-key', step.key);
+          up.setAttribute('data-focus-action', 'up');
+          down.setAttribute('data-focus-action', 'down');
+          up.disabled = currentIndex === 0;
+          down.disabled = currentIndex === steps.length - 1;
+          function move(direction, button) {
+            var targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+            if (targetIndex < 0 || targetIndex >= steps.length) return;
+            var swap = steps[targetIndex];
+            steps[targetIndex] = steps[currentIndex];
+            steps[currentIndex] = swap;
+            renderList(step.key, button.getAttribute('data-focus-action'));
+            var currentOrder = steps.map(function (orderedStep) { return orderedStep.text; });
+            var orderMatches = currentOrder.join('\n') === recommendedOrder.join('\n');
+            dispatchExerciseAttempt(root, (orderMatches ? '顺序合理。' : '当前顺序还可以再调整。') + '稳定工作流要让输入、分析、核验和交付依次衔接。');
+          }
+          up.addEventListener('click', function () { move('up', up); });
+          down.addEventListener('click', function () { move('down', down); });
+          actions.appendChild(up);
+          actions.appendChild(down);
+
+          var owners = ['AI', '人机协作', '人负责'];
+          var ownerGroup = element(ownerDocument, 'div', 'lesson-workflow-owner');
+          ownerGroup.setAttribute('aria-label', step.text + '的分工');
+          for (var ownerIndex = 0; ownerIndex < owners.length; ownerIndex += 1) {
+            (function (owner) {
+              var ownerButton = interactionButton(ownerDocument, owner, 'data-workflow-owner', owner);
+              ownerButton.setAttribute('data-step-key', step.key);
+              ownerButton.addEventListener('click', function () {
+                setChoiceState(ownerGroup.querySelectorAll('[data-workflow-owner]'), ownerButton);
+                dispatchExerciseAttempt(root, (owner === step.owner ? '分工合理。' : '还可以再看错误代价与业务语境。') + '这一环节建议由“' + step.owner + '”承担。');
+              });
+              ownerGroup.appendChild(ownerButton);
+            }(owners[ownerIndex]));
+          }
+          actions.appendChild(ownerGroup);
+          var checkpoint = interactionButton(ownerDocument, step.checkpoint ? '已设人工检查点' : '设为人工检查点', 'data-workflow-checkpoint', step.checkpoint ? 'true' : 'false');
+          checkpoint.setAttribute('data-step-key', step.key);
+          checkpoint.setAttribute('aria-pressed', step.checkpoint ? 'true' : 'false');
+          checkpoint.addEventListener('click', function () {
+            step.checkpoint = !step.checkpoint;
+            checkpoint.textContent = step.checkpoint ? '已设人工检查点' : '设为人工检查点';
+            checkpoint.setAttribute('aria-pressed', step.checkpoint ? 'true' : 'false');
+            var checkpointMatches = step.checkpoint === Boolean(exercise.steps[Number(step.key)].checkpoint);
+            dispatchExerciseAttempt(root, (checkpointMatches ? '检查点设置合理。' : '可以再看这一环节的错误代价。') + '高代价结论建议保留人工复核。');
+          });
+          actions.appendChild(checkpoint);
+          item.appendChild(actions);
+          list.appendChild(item);
+        }(steps[stepIndex], stepIndex));
+      }
+      if (focusKey !== undefined && focusAction) {
+        var focusTarget = list.querySelector('[data-step-key="' + focusKey + '"][data-focus-action="' + focusAction + '"]');
+        try {
+          if (focusTarget && typeof focusTarget.focus === 'function') focusTarget.focus({ preventScroll: true });
+        } catch (error) {}
+      }
+    }
+    renderList();
+  }
+
+  var exerciseRenderers = {
+    'token-and-concepts': renderTokenPrediction,
+    'hallucination-spotter': renderEvidenceSpotter,
+    'delegation-sort': renderDelegationSorter,
+    'prompt-builder': renderPromptBuilder,
+    'evidence-check': renderClaimClassifier,
+    'workflow-builder': renderWorkflowSorter,
+  };
+
   function appendParagraphs(ownerDocument, target, paragraphs) {
     for (var index = 0; index < paragraphs.length; index += 1) {
       target.appendChild(element(ownerDocument, 'p', '', paragraphs[index]));
@@ -692,17 +987,21 @@
     exerciseSection.appendChild(element(ownerDocument, 'p', 'lesson-section-label', '2–5 分钟小练习'));
     exerciseSection.appendChild(element(ownerDocument, 'h2', '', chapter.exercise.title));
     exerciseSection.appendChild(element(ownerDocument, 'p', '', chapter.exercise.instruction));
-    var exercisePlaceholder = element(ownerDocument, 'fieldset', 'lesson-exercise-placeholder');
-    exercisePlaceholder.appendChild(element(ownerDocument, 'legend', '', '练习准备'));
-    exercisePlaceholder.appendChild(element(ownerDocument, 'p', '', '先试着自己做一次。这不是考试，可以随时查看说明。'));
-    var revealExercise = element(ownerDocument, 'button', 'lesson-secondary-action', '查看练习说明');
-    revealExercise.setAttribute('type', 'button');
-    revealExercise.setAttribute('data-exercise-reveal', '');
-    exercisePlaceholder.appendChild(revealExercise);
-    exerciseSection.appendChild(exercisePlaceholder);
     var feedback = element(ownerDocument, 'div', 'lesson-feedback');
     feedback.setAttribute('aria-live', 'polite');
     exerciseSection.appendChild(feedback);
+    var renderer = safeOwnGet(exerciseRenderers, chapter.exercise.type);
+    if (typeof renderer === 'function') renderer(chapter.exercise, exerciseSection);
+    var exerciseHelp = interactionFieldset(ownerDocument, '需要一点提示吗？', 'lesson-exercise-help');
+    var exerciseReference = element(ownerDocument, 'p', 'lesson-exercise-reference', '先看任务目标，再对照材料、责任边界与证据。可以反复尝试，不必追求一次答对。');
+    exerciseReference.setAttribute('data-exercise-reference', '');
+    exerciseReference.hidden = true;
+    exerciseHelp.appendChild(exerciseReference);
+    var revealExercise = element(ownerDocument, 'button', 'lesson-secondary-action', '查看参考思路');
+    revealExercise.setAttribute('type', 'button');
+    revealExercise.setAttribute('data-exercise-reveal', '');
+    exerciseHelp.appendChild(revealExercise);
+    exerciseSection.appendChild(exerciseHelp);
     article.appendChild(exerciseSection);
 
     var checkSection = element(ownerDocument, 'section', 'lesson-check');
@@ -726,7 +1025,21 @@
     appendBulletList(ownerDocument, takeaway, chapter.takeaway.items);
     var template = element(ownerDocument, 'pre', 'lesson-template', chapter.takeaway.template);
     template.setAttribute('tabindex', '0');
+    template.setAttribute('data-template-content', '');
     takeaway.appendChild(template);
+    if (resolvedId === 'ai-delegation' || resolvedId === 'ai-prompting' || resolvedId === 'ai-verification' || resolvedId === 'ai-workflow') {
+      var takeawayActions = element(ownerDocument, 'div', 'lesson-takeaway-actions');
+      var copyButton = element(ownerDocument, 'button', 'lesson-secondary-action', '复制模板');
+      copyButton.setAttribute('type', 'button');
+      copyButton.setAttribute('data-copy-template', '');
+      copyButton.setAttribute('data-lesson-copy', '');
+      var copyFeedback = element(ownerDocument, 'span', 'tool-copy-feedback');
+      copyFeedback.setAttribute('data-copy-feedback', '');
+      copyFeedback.setAttribute('aria-live', 'polite');
+      takeawayActions.appendChild(copyButton);
+      takeawayActions.appendChild(copyFeedback);
+      takeaway.appendChild(takeawayActions);
+    }
     article.appendChild(takeaway);
 
     var liveStatus = element(ownerDocument, 'p', 'lesson-status-live');
@@ -751,13 +1064,15 @@
     article.appendChild(actions);
     article.appendChild(createLessonNav(ownerDocument, chapter, resolvedId, true));
     container.appendChild(article);
+    bindCopyTools(article);
 
     function enableCompletion(message) {
       seenButton.disabled = false;
       feedback.textContent = message;
     }
     revealExercise.addEventListener('click', function () {
-      enableCompletion('已查看练习说明。完成一次尝试后，就可以记为看过。');
+      exerciseReference.hidden = false;
+      enableCompletion('已查看参考思路。你可以继续尝试，也可以把本章记为看过。');
       revealExercise.disabled = true;
       var moveFocusToCompletion = function () {
         try {
@@ -773,6 +1088,12 @@
       } catch (error) {
         moveFocusToCompletion();
       }
+    });
+    exerciseSection.addEventListener('learning-exercise-attempt', function (event) {
+      var message = event && event.detail && event.detail.message
+        ? event.detail.message
+        : '已完成一次练习尝试。你可以继续调整，也可以把本章记为看过。';
+      enableCompletion(message);
     });
     var checkItems = checkSection.querySelectorAll('details');
     for (var itemIndex = 0; itemIndex < checkItems.length; itemIndex += 1) {
@@ -798,5 +1119,11 @@
     nextIncomplete: nextIncomplete,
     initHub: initHub,
     renderChapter: renderChapter,
+    renderTokenPrediction: renderTokenPrediction,
+    renderEvidenceSpotter: renderEvidenceSpotter,
+    renderDelegationSorter: renderDelegationSorter,
+    renderPromptBuilder: renderPromptBuilder,
+    renderClaimClassifier: renderClaimClassifier,
+    renderWorkflowSorter: renderWorkflowSorter,
   };
 }());

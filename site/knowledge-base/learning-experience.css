@@ -465,7 +465,239 @@
   transition: opacity 160ms ease, transform 160ms ease;
 }
 
-.lesson-exercise-placeholder {
+.lesson-interaction {
+  min-width: 0;
+  margin: 18px 0 0;
+  padding: 18px;
+  background: #ffffff;
+  border: 1px solid #c3d4ef;
+  border-radius: 14px;
+}
+
+.lesson-interaction legend {
+  max-width: 100%;
+  padding: 0 8px;
+  color: var(--learning-navy);
+  font-size: 16px;
+  line-height: 1.55;
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+
+.lesson-interaction-note {
+  margin: 4px 0 14px;
+  font-size: 15px !important;
+}
+
+.lesson-choice-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.lesson-choice,
+.lesson-workflow-actions button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 9px 14px;
+  color: var(--learning-navy);
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.45;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  background: #ffffff;
+  border: 1px solid #9fb8de;
+  border-radius: 11px;
+  cursor: pointer;
+}
+
+.lesson-choice:hover,
+.lesson-choice.is-selected,
+.lesson-choice[aria-pressed="true"] {
+  color: #ffffff;
+  background: var(--learning-blue);
+  border-color: var(--learning-blue);
+}
+
+.lesson-choice:focus-visible,
+.lesson-workflow-actions button:focus-visible,
+.lesson-prompt-field input:focus-visible,
+.lesson-prompt-field textarea:focus-visible,
+.lesson-exercise-reference summary:focus-visible,
+.lesson-takeaway-actions button:focus-visible,
+.tool-copy-fallback:focus-visible {
+  outline: 3px solid #0e2144;
+  outline-offset: 3px;
+}
+
+.lesson-choice:disabled,
+.lesson-workflow-actions button:disabled {
+  color: #71819a;
+  cursor: default;
+  background: #edf2f8;
+  border-color: #cbd7e7;
+}
+
+.lesson-concept-map {
+  margin-top: 18px;
+  padding: 18px;
+  background: #ffffff;
+  border-left: 4px solid var(--learning-blue);
+  border-radius: 12px;
+}
+
+.lesson-concept-map h3 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.lesson-concept-map p {
+  margin: 0;
+}
+
+.lesson-model-flow {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lesson-model-flow li {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  padding: 14px;
+  color: var(--learning-navy);
+  font-size: 14px;
+  line-height: 1.55;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  background: #ffffff;
+  border: 1px solid var(--learning-line);
+  border-radius: 12px;
+}
+
+.lesson-flow-number {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  color: #ffffff;
+  font-size: 13px;
+  background: var(--learning-blue);
+  border-radius: 50%;
+}
+
+.lesson-prompt-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.lesson-prompt-field {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  color: var(--learning-navy);
+  font-size: 15px;
+  font-weight: 750;
+}
+
+.lesson-prompt-field input,
+.lesson-prompt-field textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 46px;
+  padding: 11px 12px;
+  color: var(--learning-navy);
+  font: inherit;
+  line-height: 1.55;
+  background: #ffffff;
+  border: 1px solid #9fb8de;
+  border-radius: 10px;
+  resize: vertical;
+}
+
+.lesson-prompt-field textarea {
+  min-height: 100px;
+}
+
+.lesson-prompt-preview {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-height: 150px;
+  margin: 10px 0 0;
+  padding: 16px;
+  color: #dbe8fb;
+  font: 600 14px/1.75 var(--font-mono, monospace);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--learning-navy);
+  border-radius: 12px;
+}
+
+.lesson-exercise-reference {
+  margin-top: 14px;
+}
+
+.lesson-exercise-reference summary {
+  min-height: 44px;
+  color: var(--learning-blue);
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.lesson-workflow-list {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding-left: 24px;
+}
+
+.lesson-workflow-step {
+  min-width: 0;
+  padding: 14px;
+  background: var(--learning-page);
+  border: 1px solid var(--learning-line);
+  border-radius: 12px;
+}
+
+.lesson-workflow-copy {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  margin-bottom: 12px;
+  overflow-wrap: anywhere;
+}
+
+.lesson-workflow-copy span {
+  color: var(--learning-muted);
+  font-size: 14px;
+}
+
+.lesson-workflow-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.lesson-workflow-owner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.lesson-workflow-actions button {
+  font-size: 13px;
+}
+
+.lesson-exercise-help {
   min-width: 0;
   margin-top: 18px;
   padding: 18px;
@@ -474,11 +706,42 @@
   border-radius: 14px;
 }
 
-.lesson-exercise-placeholder legend {
+.lesson-exercise-help legend {
   padding: 0 8px;
   color: var(--learning-blue);
   font-size: 15px;
   font-weight: 750;
+}
+
+.lesson-exercise-help [hidden] {
+  display: none;
+}
+
+.lesson-takeaway-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.lesson-takeaway-actions .tool-copy-feedback {
+  min-height: 24px;
+  color: var(--learning-blue);
+  font-weight: 700;
+}
+
+.lesson-takeaway .tool-copy-fallback {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 160px;
+  margin-top: 14px;
+  padding: 14px;
+  color: var(--learning-navy);
+  font: 600 14px/1.7 var(--font-mono, monospace);
+  background: #ffffff;
+  border: 1px solid var(--learning-blue);
+  border-radius: 12px;
 }
 
 .lesson-secondary-action {
@@ -623,6 +886,23 @@
     align-items: stretch;
     flex-direction: column;
   }
+
+  .lesson-model-flow,
+  .lesson-prompt-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .lesson-choice-row,
+  .lesson-workflow-actions,
+  .lesson-workflow-owner {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .lesson-choice,
+  .lesson-workflow-actions button {
+    width: 100%;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -633,6 +913,15 @@
   .learning-tool-card,
   .tool-copy-feedback,
   .tool-copy-fallback {
+    scroll-behavior: auto;
+    transition: none;
+    animation: none;
+  }
+
+  .lesson-choice,
+  .lesson-workflow-step,
+  .lesson-exercise-reference,
+  .lesson-prompt-preview {
     scroll-behavior: auto;
     transition: none;
     animation: none;

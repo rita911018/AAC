@@ -36,7 +36,11 @@ const aliases = {
   'ai-other': 'ai-basics',
 };
 const newImageNames = ['ai-boundaries', 'ai-delegation', 'ai-verification', 'ai-workflow'];
-const requiredApiMethods = ['getStatus', 'markStarted', 'markSeen', 'nextIncomplete', 'initHub', 'renderChapter'];
+const requiredApiMethods = [
+  'getStatus', 'markStarted', 'markSeen', 'nextIncomplete', 'initHub', 'renderChapter',
+  'renderTokenPrediction', 'renderEvidenceSpotter', 'renderDelegationSorter', 'renderPromptBuilder',
+  'renderClaimClassifier', 'renderWorkflowSorter',
+];
 const storageKey = 'amersports-ai-beginner-session-v1';
 const chapterMinutes = ['约 8 分钟', '约 7 分钟', '约 8 分钟', '约 10 分钟', '约 9 分钟', '约 8 分钟'];
 const chapterImages = [
@@ -1426,8 +1430,14 @@ function fixtureFiles(order = chapterIds) {
       function initHub(){ return true; }
       function renderMovedNotice(){ return '已移至 AI 工具与资源'; }
       function canonicalizeLearningUrl(){ return true; }
+      function renderTokenPrediction(){ return true; }
+      function renderEvidenceSpotter(){ return true; }
+      function renderDelegationSorter(){ return true; }
+      function renderPromptBuilder(){ return true; }
+      function renderClaimClassifier(){ return true; }
+      function renderWorkflowSorter(){ return true; }
       function renderChapter(){ var nextId=''; var chapter={caseStudy:{lesson:''}}; var ownerDocument={createTextNode:function(){}}; function element(){} element(ownerDocument,'fieldset'); element(ownerDocument,'legend'); ownerDocument.createTextNode(chapter.caseStudy.lesson); if(nextId){ return 'detail.html?type=learn&id='; } return true; }
-      window.AIBeginner={chapters:chapters,aliases:aliases,getStatus:getStatus,markStarted:markStarted,markSeen:markSeen,nextIncomplete:nextIncomplete,initHub:initHub,renderChapter:renderChapter,read:read};
+      window.AIBeginner={chapters:chapters,aliases:aliases,getStatus:getStatus,markStarted:markStarted,markSeen:markSeen,nextIncomplete:nextIncomplete,initHub:initHub,renderChapter:renderChapter,renderTokenPrediction:renderTokenPrediction,renderEvidenceSpotter:renderEvidenceSpotter,renderDelegationSorter:renderDelegationSorter,renderPromptBuilder:renderPromptBuilder,renderClaimClassifier:renderClaimClassifier,renderWorkflowSorter:renderWorkflowSorter,read:read};
     }());`,
     'learning-experience.css': `.learning-hub,.learning-card,.learning-status,.lesson-nav,.lesson-figure,.lesson-case,.lesson-exercise,.lesson-check,.lesson-takeaway,.lesson-actions,.learning-session-summary,.learning-toolkit,.learning-tool-card,.learning-tool-copy,.tool-copy-fallback,.progress-compat-cta { color: #0e2144; }
       .learning-card:focus-visible,.lesson-actions a:focus-visible,.lesson-actions button:focus-visible,.lesson-nav a:focus-visible,.learning-tool-copy:focus-visible,.progress-compat-cta:focus-visible,.tool-copy-fallback:focus-visible,.lesson-secondary-action:focus-visible,.lesson-check summary:focus-visible,.lesson-history summary:focus-visible,.lesson-template:focus-visible { outline:3px solid #0e2144;outline-offset:4px; }
@@ -1723,20 +1733,29 @@ function runRuntimeUnitTest() {
   const renderedExercise = firstTarget.querySelector('.lesson-exercise');
   assert.ok(renderedExercise, 'chapter must render its quick exercise region');
   const exerciseFieldsets = renderedExercise.querySelectorAll('fieldset');
-  assert.equal(exerciseFieldsets.length, 1, 'chapter exercise must render one semantic fieldset');
-  assert.equal(exerciseFieldsets[0].querySelectorAll('legend').length, 1, 'chapter exercise fieldset must have one legend');
-  assert.ok(exerciseFieldsets[0].querySelector('legend').textContent.trim(), 'chapter exercise legend must have an accessible label');
+  assert.ok(exerciseFieldsets.length >= 2, 'chapter exercise must render a real interaction fieldset plus accessible help');
+  for (const fieldset of exerciseFieldsets) {
+    assert.equal(fieldset.querySelectorAll('legend').length, 1, 'every chapter exercise fieldset must have one legend');
+    assert.ok(fieldset.querySelector('legend').textContent.trim(), 'every chapter exercise legend must have an accessible label');
+  }
   const revealExercise = firstTarget.querySelector('[data-exercise-reveal]');
+  const tokenOption = firstTarget.querySelector('[data-token-option]');
   const seenButton = firstTarget.querySelector('[data-mark-seen]');
   const exerciseFeedback = firstTarget.querySelector('.lesson-feedback');
-  assert.ok(revealExercise && seenButton && exerciseFeedback, 'chapter must expose exercise, completion, and live-feedback controls');
+  assert.ok(revealExercise && tokenOption && seenButton && exerciseFeedback, 'chapter must expose real exercise, guidance, completion, and live-feedback controls');
   assert.equal(seenButton.disabled, true, 'completion button must start disabled');
+  tokenOption.focus();
+  tokenOption.dispatchEvent({ type: 'click' });
+  assert.equal(seenButton.disabled, false, 'a meaningful exercise attempt must enable completion without a score gate');
+  assert.equal(firstDom.document.activeElement, tokenOption, 'an in-place interaction update must preserve keyboard focus');
+  assert.ok(exerciseFeedback.textContent.includes('候选'), 'an exercise attempt must provide a short explanation');
+  seenButton.disabled = true;
   revealExercise.dispatchEvent({ type: 'click' });
   assert.equal(revealExercise.disabled, true, 'activating exercise guidance must keep the explanation visible and prevent duplicate activation');
   assert.equal(seenButton.disabled, false, 'activating exercise guidance must enable completion');
   assert.equal(firstDom.document.activeElement, seenButton,
     'activating exercise guidance must move focus to the newly enabled completion button');
-  assert.ok(exerciseFeedback.textContent.includes('已查看练习说明'),
+  assert.ok(exerciseFeedback.textContent.includes('已查看参考思路'),
     'moving focus after exercise guidance must preserve polite live feedback');
 
   const throwingFocusDom = createMiniDom();
@@ -1748,7 +1767,7 @@ function runRuntimeUnitTest() {
   assert.doesNotThrow(() => throwingFocusTarget.querySelector('[data-exercise-reveal]').dispatchEvent({ type: 'click' }),
     'focus failures must not interrupt exercise completion enablement');
   assert.equal(throwingSeenButton.disabled, false, 'focus failures must still leave completion enabled');
-  assert.ok(throwingFocusTarget.querySelector('.lesson-feedback').textContent.includes('已查看练习说明'),
+  assert.ok(throwingFocusTarget.querySelector('.lesson-feedback').textContent.includes('已查看参考思路'),
     'focus failures must not suppress live exercise feedback');
 
   const instrumentedDom = createMiniDom();
@@ -2071,7 +2090,7 @@ function runSelfTest() {
     replaceIn(root, 'learning-experience.js', 'window.AIBeginner=', 'localStorage.getItem("bad"); window.AIBeginner=');
   }, 'learning-experience.js must not use localStorage');
   expectMutation('missing runtime API', (root) => {
-    replaceIn(root, 'learning-experience.js', 'renderChapter:renderChapter,read:read', 'read:read');
+    replaceIn(root, 'learning-experience.js', 'renderChapter:renderChapter,renderTokenPrediction', 'renderTokenPrediction');
   }, 'window.AIBeginner.renderChapter must be a function');
   expectMutation('prototype-backed learning alias map', (root) => {
     replaceIn(root, 'learning-experience.js', 'Object.assign(Object.create(null),', 'Object.assign({},');
