@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>我的学习进度 · 亚玛芬 AI 知识库</title>
+<title>本次学习进度 · 亚玛芬 AI 知识库</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
@@ -13,189 +13,44 @@
 
 <header class="topbar" id="topbar">
   <div class="topbar-inner">
-    <a class="brand" href="index.html">
-      <span class="logo"><svg data-brand-icon="knowledge-book" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 5.5c3.1-.8 5.6-.2 7.5 1.5v12c-1.9-1.7-4.4-2.3-7.5-1.5z"/><path d="M19.5 5.5c-3.1-.8-5.6-.2-7.5 1.5v12c1.9-1.7 4.4-2.3 7.5-1.5z"/></svg></span>
-      亚玛芬 AI 知识库<small>PREVIEW</small>
-    </a>
-    <button class="nav-toggle" type="button" aria-label="打开主导航" aria-expanded="false" aria-controls="primaryNav">
-      <span></span><span></span><span></span><span class="sr-only">打开导航</span>
-    </button>
-    <nav class="nav-links" id="primaryNav">
-      <a href="index.html">首页</a>
-      <a href="learn.html">AI 新手入门</a>
-      <a href="video.html">录播回放</a>
-      <a href="resources.html">AI 工具与资源</a>
-    </nav>
-    <div class="nav-right">
-      <div class="search-wrap" id="searchWrap">
-        <div class="search-box" id="searchBox">
-          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-          <input id="searchInput" type="text" aria-label="搜索课程、工具和文章" placeholder="搜索课程、工具、文章…" autocomplete="off">
-          <span class="kbd">⌘K</span>
-        </div>
-        <div class="search-drop" id="searchDrop"></div>
-      </div>
-    </div>
+    <a class="brand" href="index.html"><span class="logo"><svg data-brand-icon="knowledge-book" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 5.5c3.1-.8 5.6-.2 7.5 1.5v12c-1.9-1.7-4.4-2.3-7.5-1.5z"/><path d="M19.5 5.5c-3.1-.8-5.6-.2-7.5 1.5v12c1.9-1.7 4.4-2.3 7.5-1.5z"/></svg></span>亚玛芬 AI 知识库<small>PREVIEW</small></a>
+    <button class="nav-toggle" type="button" aria-label="打开主导航" aria-expanded="false" aria-controls="primaryNav"><span></span><span></span><span></span><span class="sr-only">打开导航</span></button>
+    <nav class="nav-links" id="primaryNav"><a href="index.html">首页</a><a href="learn.html">AI 新手入门</a><a href="video.html">录播回放</a><a href="resources.html">AI 工具与资源</a></nav>
+    <div class="nav-right"><div class="search-wrap" id="searchWrap"><div class="search-box" id="searchBox"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input id="searchInput" type="text" aria-label="搜索课程、工具和文章" placeholder="搜索课程、工具、文章…" autocomplete="off"><span class="kbd">⌘K</span></div><div class="search-drop" id="searchDrop"></div></div></div>
   </div>
 </header>
 
-<section class="board-hero">
-  <div class="container">
-    <div class="bh-left">
-      <div class="bh-tag">MY PROGRESS · 我的学习进度</div>
-      <h1>你的 AI 学习<em class="grad">进度</em></h1>
-      <p>勾选已完成的学习模块，进度会自动保存在这台设备的浏览器里，换设备不会同步。</p>
+<main>
+  <section class="board-hero">
+    <div class="hero-grid" aria-hidden="true"></div>
+    <div class="container">
+      <div class="bh-left">
+        <div class="bh-tag">SESSION PROGRESS · 本次学习进度</div>
+        <h1>回到你的 AI 学习路径</h1>
+        <p>进度只在本次标签会话有效。刷新或在当前标签页往返时可以继续；关闭标签页后，下次进入会从新的学习状态开始。</p>
+      </div>
     </div>
-    <div class="bh-meta">
-      <div class="bm"><b id="pctNum">0%</b><span>完成度</span></div>
-      <div class="bm"><b id="doneNum">0</b><span>已完成</span></div>
-    </div>
-  </div>
-</section>
+  </section>
 
-<section class="section progress-section">
-  <div class="container progress-shell">
-    <div class="prog-bar"><div class="prog-fill" id="progFill"></div></div>
-    <div class="mod-list" id="modList"></div>
-    <div class="pg-hint">
-      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
-      <p><b>说明：</b>学习进度使用浏览器本地存储（localStorage），只在当前设备上有效，换电脑、换浏览器或清除浏览器数据后进度会重置。若需跨设备同步，需接入公司账号体系（后续可选）。</p>
+  <section class="section">
+    <div class="container">
+      <div class="section-head"><div><div class="tag">LIGHTWEIGHT · 轻量记录</div><h2>不设门槛，随时回来</h2><p class="desc">章节只有“未看、正在看、看过”三种轻量状态，不计分，也不要求按顺序完成。</p></div></div>
+      <a class="entry-card" href="learn.html"><span class="ec-num">LEARN / 6 CHAPTERS</span><h3>进入 AI 新手入门</h3><p>选择一个当下有用的章节，继续阅读案例和小练习。</p><span class="ec-link">进入学习路径<svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span></a>
     </div>
-  </div>
-</section>
+  </section>
+</main>
 
 <footer class="footer">
   <div class="container">
     <div class="footer-grid">
-      <div>
-        <div class="f-brand">
-          <span class="logo"><svg data-brand-icon="knowledge-book" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 5.5c3.1-.8 5.6-.2 7.5 1.5v12c-1.9-1.7-4.4-2.3-7.5-1.5z"/><path d="M19.5 5.5c-3.1-.8-5.6-.2-7.5 1.5v12c1.9-1.7 4.4-2.3 7.5-1.5z"/></svg></span>
-          亚玛芬 AI 知识库
-        </div>
-        <p class="f-desc">由亚玛芬体育 AI 赋能计划维护的内部学习平台，帮助每一位员工从 AI 新手成长为高效使用者。</p>
-      </div>
-      <div>
-        <h2 class="footer-heading">内容板块</h2>
-        <ul>
-          <li><a href="learn.html">AI 新手入门</a></li>
-          <li><a href="video.html">录播回放</a></li>
-          <li><a href="resources.html">AI 工具与资源</a></li>
-        </ul>
-      </div>
-      <div>
-        <h2 class="footer-heading">快速入口</h2>
-        <ul>
-          <li><a href="progress.html">我的学习进度</a></li>
-          <li><a href="video.html">课程回放</a></li>
-          <li><a href="resources.html">资源推荐清单</a></li>
-        </ul>
-      </div>
+      <div><div class="f-brand"><span class="logo"><svg data-brand-icon="knowledge-book" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 5.5c3.1-.8 5.6-.2 7.5 1.5v12c-1.9-1.7-4.4-2.3-7.5-1.5z"/><path d="M19.5 5.5c-3.1-.8-5.6-.2-7.5 1.5v12c1.9-1.7 4.4-2.3 7.5-1.5z"/></svg></span>亚玛芬 AI 知识库</div><p class="f-desc">由亚玛芬体育 AI 赋能计划维护的内部学习平台，帮助每一位员工从 AI 新手成长为高效使用者。</p></div>
+      <div><h2 class="footer-heading">内容板块</h2><ul><li><a href="learn.html">AI 新手入门</a></li><li><a href="video.html">录播回放</a></li><li><a href="resources.html">AI 工具与资源</a></li></ul></div>
+      <div><h2 class="footer-heading">快速入口</h2><ul><li><a href="learn.html">继续学习</a></li><li><a href="video.html">课程回放</a></li><li><a href="resources.html">资源推荐清单</a></li></ul></div>
     </div>
-    <div class="footer-bottom">
-      <span>© 2026 Amer Sports · AI 赋能计划</span>
-      <span>v0.4 · Editorial AI</span>
-    </div>
+    <div class="footer-bottom"><span>© 2026 Amer Sports · AI 赋能计划</span><span>v0.4 Preview · 编辑式科技版</span></div>
   </div>
 </footer>
 
-<script>
-var KEY = 'amer_ai_progress_v1';
-var MODULES = [
-  { id:'ai-what',        name:'AI 是什么',        desc:'定义、概念嵌套、大模型五步原理', href:'detail.html?type=learn&id=ai-what' },
-  { id:'ai-history',     name:'AI 发展史',        desc:'76 年三起两落、八个时代、完整时间线', href:'detail.html?type=learn&id=ai-history' },
-  { id:'prompt-basics',  name:'Prompt / 提示词基础', desc:'四要素、可抄模板、常见误区', href:'learn.html#sec-prompt' },
-  { id:'ai-companies',   name:'AI 公司介绍',      desc:'海外与国内主要厂商一览', href:'detail.html?type=learn&id=ai-companies' },
-  { id:'ai-models',      name:'主流 AI 模型介绍',  desc:'各家模型擅长领域与选型建议', href:'detail.html?type=learn&id=ai-models' },
-  { id:'ai-other',       name:'AI 高频术语速查',  desc:'12 个术语完整解释', href:'detail.html?type=learn&id=ai-other' }
-];
-
-function normalizeState(value){ return value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {}; }
-var memoryState = {}, storageEnabled = true;
-function load(){
-  if(!storageEnabled) return memoryState;
-  var raw;
-  try{ raw = localStorage.getItem(KEY); }catch(e){ storageEnabled = false; return memoryState; }
-  if(!raw){ memoryState = {}; return memoryState; }
-  try{ memoryState = normalizeState(JSON.parse(raw)); }catch(e){ memoryState = {}; }
-  return memoryState;
-}
-function save(d){
-  memoryState = normalizeState(d);
-  if(!storageEnabled) return;
-  try{ localStorage.setItem(KEY, JSON.stringify(memoryState)); }catch(e){ storageEnabled = false; }
-}
-function safeLocalHref(value){
-  var href = String(value || '');
-  if(!href) return '#';
-  try{
-    var url = new URL(href, document.baseURI);
-    if((url.protocol === 'http:' || url.protocol === 'https:' || url.protocol === 'file:') && url.origin === location.origin) return href;
-  }catch(e){}
-  return '#';
-}
-
-function render(focusId){
-  var data = load();
-  var list = document.getElementById('modList');
-  var done = 0;
-  list.textContent = '';
-  for(var i=0;i<MODULES.length;i++){
-    var m = MODULES[i];
-    var isDone = !!data[m.id];
-    if(isDone) done++;
-    var label = isDone ? '取消「' + m.name + '」完成状态' : '标记「' + m.name + '」为已完成';
-    var item = document.createElement('div');
-    item.className = 'mod-item' + (isDone ? ' done' : '');
-    item.setAttribute('data-id', m.id);
-    var check = document.createElement('button');
-    check.type = 'button';
-    check.className = 'mod-check';
-    check.setAttribute('data-check', m.id);
-    check.setAttribute('aria-pressed', isDone ? 'true' : 'false');
-    check.setAttribute('aria-label', label);
-    check.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12l5 5L20 6"/></svg>';
-    var info = document.createElement('div');
-    info.className = 'mod-info';
-    var title = document.createElement('b');
-    title.textContent = m.name;
-    var desc = document.createElement('small');
-    desc.textContent = m.desc;
-    info.appendChild(title);
-    info.appendChild(desc);
-    var go = document.createElement('a');
-    go.className = 'mod-go';
-    go.setAttribute('href', safeLocalHref(m.href));
-    go.innerHTML = '查看<svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>';
-    item.appendChild(check);
-    item.appendChild(info);
-    item.appendChild(go);
-    list.appendChild(item);
-  }
-
-  var pct = MODULES.length ? Math.round(done / MODULES.length * 100) : 0;
-  document.getElementById('pctNum').textContent = pct + '%';
-  document.getElementById('doneNum').textContent = done;
-  document.getElementById('progFill').style.width = pct + '%';
-
-  var checks = list.querySelectorAll('.mod-check');
-  for(var j=0;j<checks.length;j++){
-    checks[j].addEventListener('click', function(){
-      var id = this.getAttribute('data-check');
-      var d = load();
-      if(d[id]) delete d[id]; else d[id] = true;
-      save(d);
-      render(id);
-    });
-  }
-  if(focusId){
-    for(var k=0;k<checks.length;k++){
-      if(checks[k].getAttribute('data-check') === String(focusId)){ checks[k].focus(); break; }
-    }
-  }
-}
-
-render();
-</script>
 <script src="search.js"></script>
 <script src="site.js"></script>
 </body>

@@ -3,17 +3,17 @@
 (function(){
   var SEARCH_INDEX = [
     /* 页面 */
-    { t:'AI 新手入门', d:'六大学习模块：AI 是什么 / 发展史 / Prompt / 公司 / 模型 / 术语', tag:'板块', href:'learn.html' },
+    { t:'AI 新手入门', d:'六个轻量章节：认识、边界、分工、表达、验证与工作流', tag:'板块', href:'learn.html' },
     { t:'录播回放', d:'公司内部 AI 培训回放：Copilot 高阶培训 / 财务专场 / 线上精选', tag:'板块', href:'video.html' },
     { t:'AI 工具与资源', d:'工具 / 课程 / 博主 / 论文 四类资源导航', tag:'板块', href:'resources.html' },
-    { t:'我的学习进度', d:'查看并标记你的学习完成情况（保存在本机浏览器）', tag:'功能', href:'progress.html' },
+    { t:'本次学习进度', d:'返回六章学习路径，继续本次标签会话中的学习', tag:'功能', href:'learn.html' },
     /* 学习模块 */
-    { t:'AI 是什么', d:'定义、弱/强/超级 AI、概念嵌套、大模型五步原理', tag:'入门', href:'detail.html?type=learn&id=ai-what' },
-    { t:'AI 发展史', d:'76 年三起两落、八个时代、完整时间线', tag:'入门', href:'detail.html?type=learn&id=ai-history' },
-    { t:'Prompt / 提示词基础', d:'好提示词四要素、可抄模板、常见误区', tag:'入门', href:'learn.html#sec-prompt' },
-    { t:'AI 公司介绍', d:'OpenAI、Google、Anthropic、Meta 与国内主要厂商', tag:'入门', href:'detail.html?type=learn&id=ai-companies' },
-    { t:'主流 AI 模型介绍', d:'GPT、Claude、Gemini、DeepSeek、Qwen 等选型建议', tag:'入门', href:'detail.html?type=learn&id=ai-models' },
-    { t:'AI 高频术语速查', d:'12 个术语：Token、Transformer、Agent 等完整解释', tag:'入门', href:'detail.html?type=learn&id=ai-other' },
+    { t:'认识 AI', d:'理解 AI、生成式 AI、大模型与 Agent 的关系', tag:'入门', href:'detail.html?type=learn&id=ai-basics' },
+    { t:'看清边界', d:'理解 AI 的能力边界与幻觉，学会识别需要核验的内容', tag:'入门', href:'detail.html?type=learn&id=ai-boundaries' },
+    { t:'学会分工', d:'区分 AI 执行、人机协作与必须由人负责的任务', tag:'入门', href:'detail.html?type=learn&id=ai-delegation' },
+    { t:'把需求说清楚', d:'用目标、背景、任务、输出要求四要素表达需求', tag:'入门', href:'detail.html?type=learn&id=ai-prompting' },
+    { t:'验证结果', d:'区分事实、推论与观点，把结论连回原文证据', tag:'入门', href:'detail.html?type=learn&id=ai-verification' },
+    { t:'从对话走向工作流', d:'拆任务、设检查点，把一次对话沉淀为可复用流程', tag:'入门', href:'detail.html?type=learn&id=ai-workflow' },
     /* 录播 */
     { t:'Copilot 高阶培训录播', d:'公司内部 Copilot 进阶培训回放', tag:'回放', href:'https://amersportsonline.sharepoint.com/sites/amersportsaicommunity/SitePages/Copilot%E9%AB%98%E9%98%B6%E5%9F%B9%E8%AE%85%E5%BD%95%E6%92%AD.aspx', ext:1 },
     { t:'Copilot 财务专场培训', d:'面向财务场景的 Copilot 专场培训回放', tag:'回放', href:'https://amersportsonline.sharepoint.com/sites/amersportsaicommunity/SitePages/Copilot%E8%B4%A2%E5%8A%A1%E4%B8%93%E5%9C%BA%E5%9F%B9%E8%AE%AD.aspx', ext:1 },
@@ -50,9 +50,9 @@
     { t:'AI 日报', d:'AI 行业每日精选动态（外部站点 · 嵌入式浏览）', tag:'AI 网闸', href:'https://aihot.virxact.com/daily', ext:1 },
     { t:'WaytoAGI · AI 知识库', d:'高质量 AI 知识库与导航（外部站点 · 嵌入式浏览）', tag:'AI 网闸', href:'https://www.waytoagi.com/zh', ext:1 },
     /* 新概念 / 行业动态 */
-    { t:'AI Agent · Harness 框架', d:'Agent 自主规划+执行任务；Harness 是治理 Agent 行为的工程框架', tag:'新概念', href:'detail.html?type=learn&id=ai-other' },
+    { t:'AI Agent · Harness 框架', d:'Agent 自主规划+执行任务；Harness 是治理 Agent 行为的工程框架', tag:'新概念', href:'detail.html?type=learn&id=ai-workflow' },
     { t:'具身智能（Embodied AI）', d:'人形机器人 + VLA 模型，让 AI 操控物理世界', tag:'行业动态', href:'detail.html?type=resources&id=reading' },
-    { t:'推理模型（Reasoning Model）', d:'OpenAI o 系列 / DeepSeek-R1 · 慢思考范式', tag:'新概念', href:'detail.html?type=learn&id=ai-other' },
+    { t:'推理模型（Reasoning Model）', d:'OpenAI o 系列 / DeepSeek-R1 · 慢思考范式', tag:'新概念', href:'detail.html?type=learn&id=ai-basics' },
     { t:'OnePod · 技术播客', d:'AI 与技术主题的播客节目，持续更新', tag:'播客', href:'https://onepod.site/', ext:1 }
   ];
 

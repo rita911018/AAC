@@ -39,6 +39,8 @@ const newImageNames = ['ai-boundaries', 'ai-delegation', 'ai-verification', 'ai-
 const requiredApiMethods = ['getStatus', 'markStarted', 'markSeen', 'nextIncomplete', 'initHub', 'renderChapter'];
 const storageKey = 'amersports-ai-beginner-session-v1';
 const allowedRuntimeStatuses = new Set(['unseen', 'in-progress', 'seen']);
+const learnHeroDescription = '从看懂 AI 到会协作，用六个轻量章节掌握分工、表达与判断。每章都有案例和小练习，无需技术背景。';
+const learnHubHeading = '选择一个章节，轻松开始';
 
 function readRequired(relativePath) {
   try {
@@ -615,6 +617,8 @@ function runContract() {
 
   const actualTitles = [];
   for (const [index, card] of cards.entries()) {
+    assert.equal(card.attributes.get('id'), `chapter-${chapterIds[index]}`, `learning card ${index + 1} must expose its return anchor`);
+    assert.equal(card.attributes.get('data-chapter-id'), chapterIds[index], `learning card ${index + 1} must expose its chapter ID`);
     const descendants = parseElements(card.innerHtml, `learning card ${index + 1}`);
     const headings = descendants.filter((element) => ['h2', 'h3'].includes(element.tagName) && isVisible(element));
     assert.equal(headings.length, 1, `learning card ${index + 1} must contain exactly one visible h2 or h3`);
@@ -622,7 +626,14 @@ function runContract() {
     const statuses = descendants.filter((element) => hasClass(element, 'learning-status') && isVisible(element));
     assert.equal(statuses.length, 1, `learning card ${index + 1} must contain exactly one visible status`);
     const status = visibleText(statuses[0].innerHtml, `learning card ${index + 1} status`);
-    assert.ok(allowedStatusCopy.has(status), `learning card ${index + 1} status must be 未看, 正在看, or 看过`);
+    assert.equal(status, '未看', `learning card ${index + 1} must remain statically usable with the initial 未看 state`);
+    const descriptions = descendants.filter((element) => element.tagName === 'p' && isVisible(element));
+    assert.ok(descriptions.some((element) => visibleText(element.innerHtml, `learning card ${index + 1} description`).length > 0),
+      `learning card ${index + 1} must contain a visible description`);
+    const actions = descendants.filter((element) => hasClass(element, 'learning-card-action') && isVisible(element));
+    assert.equal(actions.length, 1, `learning card ${index + 1} must contain one visible action`);
+    assert.ok(visibleText(actions[0].innerHtml, `learning card ${index + 1} action`).length > 0,
+      `learning card ${index + 1} action must contain copy`);
   }
   assert.deepEqual(actualTitles, titles, 'chapter card titles must match the approved order');
 
@@ -637,6 +648,37 @@ function runContract() {
   }
   const main = uniqueElement(learnElements, (element) => element.tagName === 'main', 'learn.html must contain exactly one main');
   const visibleMainCopy = visibleText(main.innerHtml, 'learn main');
+  const learnHeadings = learnElements.filter((element) => /^h[1-6]$/.test(element.tagName) && isVisible(element));
+  const h1s = learnHeadings.filter((element) => element.tagName === 'h1');
+  assert.equal(h1s.length, 1, 'learn.html must contain exactly one visible h1');
+  assert.equal(visibleText(h1s[0].innerHtml, 'learn h1'), 'AI 新手入门', 'learn hero heading must match the approved copy');
+  assert.ok(visibleMainCopy.includes(learnHeroDescription), 'learn hero description must match the approved copy');
+  assert.equal(learnHeadings.filter((element) => visibleText(element.innerHtml, 'learn heading') === learnHubHeading).length, 1,
+    'learn hub heading must match the approved copy');
+
+  const learningStyles = learnElements.filter((element) => element.tagName === 'link' && element.attributes.get('rel') === 'stylesheet' &&
+    element.attributes.get('href') === 'learning-experience.css');
+  assert.equal(learningStyles.length, 1, 'learn.html must load learning-experience.css exactly once');
+  const learningScripts = learnElements.filter((element) => element.tagName === 'script' && element.attributes.get('src') === 'learning-experience.js');
+  assert.equal(learningScripts.length, 1, 'learn.html must load learning-experience.js exactly once');
+  assert.match(learn, /AIBeginner\.initHub\s*\(/, 'learn.html must initialize the learning hub runtime');
+
+  const heroPictures = learnElements.filter((element) => element.tagName === 'picture' && isVisible(element));
+  assert.equal(heroPictures.length, 1, 'learn hero must retain exactly one visible Xiao A picture');
+  const heroMedia = parseElements(heroPictures[0].innerHtml, 'learn hero picture');
+  const heroSources = heroMedia.filter((element) => element.tagName === 'source');
+  const heroImages = heroMedia.filter((element) => element.tagName === 'img');
+  assert.equal(heroSources.length, 1, 'learn hero picture must contain one WebP source');
+  assert.equal(heroSources[0].attributes.get('type'), 'image/webp', 'learn hero must prefer WebP');
+  assert.match(heroSources[0].attributes.get('srcset') ?? '', /\.webp(?:\s|$)/, 'learn hero source must reference WebP');
+  assert.equal(heroImages.length, 1, 'learn hero picture must contain one PNG fallback');
+  assert.match(heroImages[0].attributes.get('src') ?? '', /\.png$/, 'learn hero image must provide a PNG fallback');
+  assert.ok(Number(heroImages[0].attributes.get('width')) > 0 && Number(heroImages[0].attributes.get('height')) > 0,
+    'learn hero image must declare positive dimensions');
+  assert.ok((heroImages[0].attributes.get('alt') ?? '').trim().length > 0, 'learn hero image must provide alt text');
+
+  const continueLinks = learnElements.filter((element) => element.tagName === 'a' && element.attributes.has('data-learning-continue') && isVisible(element));
+  assert.equal(continueLinks.length, 1, 'learn hub must contain one session-aware continue link');
   for (const forbidden of ['课程目录', '视频目录', '博主目录']) {
     assert.ok(!visibleMainCopy.includes(forbidden), `learn hub must not contain the external-resource directory copy: ${forbidden}`);
   }
@@ -758,18 +800,38 @@ function runContract() {
   assert.deepEqual(beginnerEntries.map(({ t }) => t), titles, 'search index must expose only the six approved beginner chapters');
   assert.deepEqual(beginnerEntries.map(({ href }) => href), chapterHrefs, 'search beginner links must match the six approved chapter URLs');
   assert.ok(!beginnerEntries.some(({ href }) => /(?:ai-companies|ai-models)/.test(href ?? '')), 'old company and model entries must not remain tagged 入门');
+  const progressEntries = plainClone(searchIndex).filter(({ t }) => t === '本次学习进度');
+  assert.equal(progressEntries.length, 1, 'search index must expose one 本次学习进度 entry');
+  assert.equal(progressEntries[0].href, 'learn.html', 'search progress entry must point to learn.html');
 
   const progress = readRequired('progress.html');
   const progressCopy = textContent(progress).replace(/\s+/g, ' ');
   for (const forbidden of ['localStorage', '长期保存', '永久保存', '自动保存在这台设备', '保存在本机浏览器', '换设备不会同步']) {
     assert.ok(!progressCopy.includes(forbidden), `progress.html must not promise long-term local storage: ${forbidden}`);
   }
+  assert.ok(progressCopy.includes('进度只在本次标签会话有效'), 'progress.html must explain the session-only progress scope');
+  const progressElements = parseElements(progress, 'progress.html');
+  const progressCtas = progressElements.filter((element) => element.tagName === 'a' && element.attributes.get('href') === 'learn.html' &&
+    isVisible(element) && visibleText(element.innerHtml, 'progress CTA') === '进入 AI 新手入门');
+  assert.equal(progressCtas.length, 1, 'progress.html must provide one compatibility CTA to AI 新手入门');
+
+  for (const pageName of ['index.html', 'video.html', 'resources.html', 'learn.html', 'progress.html']) {
+    const page = readRequired(pageName);
+    const pageElements = parseElements(page, pageName);
+    const footer = uniqueElement(pageElements, (element) => element.tagName === 'footer' && isVisible(element), `${pageName} must contain exactly one footer`);
+    const footerLinks = parseElements(footer.innerHtml, `${pageName} footer`)
+      .filter((element) => element.tagName === 'a' && isVisible(element));
+    assert.equal(footerLinks.filter((element) => visibleText(element.innerHtml, `${pageName} footer link`) === '继续学习' &&
+      element.attributes.get('href') === 'learn.html').length, 1, `${pageName} footer must contain one 继续学习 link to learn.html`);
+    assert.equal(footerLinks.filter((element) => element.attributes.get('href') === 'progress.html').length, 0,
+      `${pageName} footer must not link to the legacy progress route`);
+  }
 }
 
 function fixtureFiles(order = chapterIds) {
   const cards = order.map((id) => {
     const index = chapterIds.indexOf(id);
-    return `<a class="learning-card" href="${chapterHrefs[index]}"><h2>${titles[index]}</h2><p>章节说明</p><span class="learning-status">未看</span></a>`;
+    return `<a class="learning-card" id="chapter-${id}" data-chapter-id="${id}" href="${chapterHrefs[index]}"><h2>${titles[index]}</h2><p>章节说明</p><span class="learning-status">未看</span><span class="learning-card-action">开始学习</span></a>`;
   }).join('\n');
   const chapters = chapterIds.map((id, index) => `{
     id:${JSON.stringify(id)}, title:${JSON.stringify(titles[index])},
@@ -780,11 +842,13 @@ function fixtureFiles(order = chapterIds) {
     'learn.html': `<!doctype html><html><head><link rel="stylesheet" href="learning-experience.css"></head><body>
       <!-- <a class="learning-card"><h2>decoy 未通过</h2></a> -->
       <script>var decoy='<a class="learning-card">decoy 未通过</a>';</script>
-      <script src="learning-experience.js"><a class="learning-card" href="detail.html?type=learn&id=script-decoy"><h2>外链脚本 raw-text decoy</h2></a></script>
-      <main><p>章节案例可以自然提到 AI 公司、主流 AI 模型、推荐课程、精选视频或值得关注的博主，不代表这里承载资源目录。必要时可引用<a href="https://www.anthropic.com/research">单一权威来源</a>。</p><section class="learning-hub"><a class="learning-card" hidden href="detail.html?type=learn&id=hidden"><h2>隐藏占位</h2><span class="learning-status">未看</span></a>${cards}</section></main></body></html>`,
+      <main><h1>AI 新手入门</h1><p>${learnHeroDescription}</p><picture><source srcset="img/xiaoa-learn.webp" type="image/webp"><img src="img/xiaoa-learn.png" width="432" height="480" alt="小A学习插画"></picture><h2>${learnHubHeading}</h2><a href="${chapterHrefs[0]}" data-learning-continue>继续学习</a><p>章节案例可以自然提到 AI 公司、主流 AI 模型、推荐课程、精选视频或值得关注的博主，不代表这里承载资源目录。必要时可引用<a href="https://www.anthropic.com/research">单一权威来源</a>。</p><section class="learning-hub"><a class="learning-card" hidden href="detail.html?type=learn&id=hidden"><h2>隐藏占位</h2><span class="learning-status">未看</span></a>${cards}</section></main><footer><a href="learn.html">继续学习</a></footer><script src="learning-experience.js"></script><script>window.AIBeginner.initHub();</script></body></html>`,
     'detail.html': '<!doctype html><html><head><link rel="stylesheet" href="learning-experience.css"></head><body><main id="learningExperience"></main><script src="learning-experience.js"></script></body></html>',
-    'progress.html': '<!doctype html><html><body><main><p>进度只在本次标签会话有效。</p><a href="learn.html">进入 AI 新手入门</a></main></body></html>',
-    'search.js': `(function(){ var SEARCH_INDEX=[${searchEntries},{t:'AI 公司介绍',tag:'资源',href:'resources.html'}]; var decoy='SEARCH_INDEX.push({tag:"入门"})'; /* SEARCH_INDEX = []; */ window.search=SEARCH_INDEX; }());`,
+    'progress.html': '<!doctype html><html><body><main><p>进度只在本次标签会话有效。</p><a href="learn.html">进入 AI 新手入门</a></main><footer><a href="learn.html">继续学习</a></footer></body></html>',
+    'search.js': `(function(){ var SEARCH_INDEX=[${searchEntries},{t:'本次学习进度',tag:'功能',href:'learn.html'},{t:'AI 公司介绍',tag:'资源',href:'resources.html'}]; var decoy='SEARCH_INDEX.push({tag:"入门"})'; /* SEARCH_INDEX = []; */ window.search=SEARCH_INDEX; }());`,
+    'index.html': '<!doctype html><html><body><main></main><footer><a href="learn.html">继续学习</a></footer></body></html>',
+    'video.html': '<!doctype html><html><body><main></main><footer><a href="learn.html">继续学习</a></footer></body></html>',
+    'resources.html': '<!doctype html><html><body><main></main><footer><a href="learn.html">继续学习</a></footer></body></html>',
     'learning-experience.js': `(function(){
       // localStorage in documentation must not count as executable usage.
       var harmlessStorageWord='localStorage';
@@ -1030,6 +1094,18 @@ function runSelfTest() {
     const files = fixtureFiles([chapterIds[1], chapterIds[0], ...chapterIds.slice(2)]);
     writeFileSync(path.join(root, 'learn.html'), files['learn.html']);
   }, 'chapter card URLs must match the approved order');
+  expectMutation('missing card action', (root) => {
+    replaceIn(root, 'learn.html', '<span class="learning-card-action">开始学习</span>', '');
+  }, 'learning card 1 must contain one visible action');
+  expectMutation('changed hero description', (root) => {
+    replaceIn(root, 'learn.html', learnHeroDescription, '旧的学习页介绍');
+  }, 'learn hero description must match the approved copy');
+  expectMutation('legacy footer progress route', (root) => {
+    replaceIn(root, 'index.html', '<a href="learn.html">继续学习</a>', '<a href="progress.html">我的学习进度</a>');
+  }, 'index.html footer must contain one 继续学习 link to learn.html');
+  expectMutation('missing session-only progress scope', (root) => {
+    replaceIn(root, 'progress.html', '进度只在本次标签会话有效。', '查看学习状态。');
+  }, 'progress.html must explain the session-only progress scope');
   expectMutation('localStorage', (root) => {
     replaceIn(root, 'learning-experience.js', 'window.AIBeginner=', 'localStorage.getItem("bad"); window.AIBeginner=');
   }, 'learning-experience.js must not use localStorage');
@@ -1109,7 +1185,7 @@ function runSelfTest() {
     },
   ]);
 
-  console.log('PASS learning experience contract self-test (valid fixture + 23 mutations)');
+  console.log('PASS learning experience contract self-test (valid fixture + 27 mutations)');
 }
 
 if (process.argv.includes('--runtime-test')) runRuntimeUnitTest();
