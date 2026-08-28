@@ -746,17 +746,22 @@
     var fieldset = interactionFieldset(ownerDocument, '填写四要素，拼出你的工作 brief', 'lesson-prompt-builder');
     var formGrid = element(ownerDocument, 'div', 'lesson-prompt-fields');
     var preview = element(ownerDocument, 'pre', 'lesson-prompt-preview');
+    var hasAnnouncedInput = false;
     preview.setAttribute('data-prompt-preview', '');
-    preview.setAttribute('aria-live', 'polite');
 
     function updatePreview() {
       var lines = [];
       var fields = formGrid.querySelectorAll('[data-prompt-field]');
+      var hasMeaningfulInput = false;
       for (var fieldIndex = 0; fieldIndex < fields.length; fieldIndex += 1) {
         lines.push(fields[fieldIndex].getAttribute('data-prompt-field') + '：' + fields[fieldIndex].value);
+        if (fields[fieldIndex].value.trim()) hasMeaningfulInput = true;
       }
       preview.textContent = lines.join('\n');
-      dispatchExerciseAttempt(root, '任务说明已更新。看一看四个字段是否足够具体，还可以继续修改。');
+      if (!hasAnnouncedInput && hasMeaningfulInput) {
+        hasAnnouncedInput = true;
+        dispatchExerciseAttempt(root, '任务说明已开始拼装，你可以继续补充和调整。');
+      }
     }
 
     for (var index = 0; index < exercise.fields.length; index += 1) {
@@ -873,7 +878,7 @@
           var item = element(ownerDocument, 'li', 'lesson-workflow-step');
           item.setAttribute('data-step-key', step.key);
           var copy = element(ownerDocument, 'div', 'lesson-workflow-copy');
-          copy.appendChild(element(ownerDocument, 'b', '', String(currentIndex + 1) + '. ' + step.text));
+          copy.appendChild(element(ownerDocument, 'b', '', step.text));
           item.appendChild(copy);
           var actions = element(ownerDocument, 'div', 'lesson-workflow-actions');
           var up = interactionButton(ownerDocument, '上移', 'data-workflow-move', 'up');
@@ -902,12 +907,14 @@
 
           var owners = ['AI', '人机协作', '人负责'];
           var ownerGroup = element(ownerDocument, 'div', 'lesson-workflow-owner');
-          ownerGroup.setAttribute('aria-label', step.text + '的分工');
+          ownerGroup.setAttribute('role', 'group');
+          ownerGroup.setAttribute('aria-label', step.text + ' · 分工');
           ownerGroup.appendChild(element(ownerDocument, 'span', 'lesson-workflow-question', '这一步谁负责？'));
           for (var ownerIndex = 0; ownerIndex < owners.length; ownerIndex += 1) {
             (function (owner) {
               var ownerButton = interactionButton(ownerDocument, owner, 'data-workflow-owner', owner);
               ownerButton.setAttribute('data-step-key', step.key);
+              ownerButton.setAttribute('aria-label', step.text + ' · 分工：' + owner);
               ownerButton.setAttribute('aria-pressed', step.userOwner === owner ? 'true' : 'false');
               if (step.userOwner === owner && ownerButton.classList) ownerButton.classList.add('is-selected');
               ownerButton.addEventListener('click', function () {
@@ -921,13 +928,15 @@
           actions.appendChild(ownerGroup);
 
           var checkpointGroup = element(ownerDocument, 'div', 'lesson-workflow-checkpoints');
-          checkpointGroup.setAttribute('aria-label', step.text + '是否需要人工检查点');
+          checkpointGroup.setAttribute('role', 'group');
+          checkpointGroup.setAttribute('aria-label', step.text + ' · 人工检查点');
           checkpointGroup.appendChild(element(ownerDocument, 'span', 'lesson-workflow-question', '需要人工检查吗？'));
           var checkpointChoices = [{ label: '需要', value: true }, { label: '不需要', value: false }];
           for (var checkpointIndex = 0; checkpointIndex < checkpointChoices.length; checkpointIndex += 1) {
             (function (choice) {
               var checkpointButton = interactionButton(ownerDocument, choice.label, 'data-workflow-checkpoint', choice.value ? 'true' : 'false');
               checkpointButton.setAttribute('data-step-key', step.key);
+              checkpointButton.setAttribute('aria-label', step.text + ' · 人工检查点：' + choice.label);
               checkpointButton.setAttribute('aria-pressed', step.userCheckpoint === choice.value ? 'true' : 'false');
               if (step.userCheckpoint === choice.value && checkpointButton.classList) checkpointButton.classList.add('is-selected');
               checkpointButton.addEventListener('click', function () {
@@ -1208,7 +1217,7 @@
 
     function enableCompletion(message) {
       seenButton.disabled = false;
-      feedback.textContent = message;
+      if (feedback.textContent !== message) feedback.textContent = message;
     }
     revealExercise.addEventListener('click', function () {
       exerciseReference.hidden = false;

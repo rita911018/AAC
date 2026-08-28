@@ -116,6 +116,20 @@ function startServer() {
         changed = source + '\n.lesson-history summary{display:block!important;min-height:10px!important;height:10px!important;line-height:10px!important;padding:0!important}\n';
       } else if (mutation === 'reference-summary-compressed' && relative.endsWith('.css')) {
         changed = source + '\n.lesson-exercise-reference summary{display:block!important;min-height:10px!important;height:10px!important;line-height:10px!important;padding:0!important}\n';
+      } else if (mutation === 'prompt-preview-live' && relative.endsWith('.js')) {
+        changed = source.replace("    preview.setAttribute('data-prompt-preview', '');", "    preview.setAttribute('data-prompt-preview', '');\n    preview.setAttribute('aria-live', 'polite');");
+      } else if (mutation === 'prompt-per-key-announce' && relative.endsWith('.js')) {
+        changed = source.replace('      if (!hasAnnouncedInput && hasMeaningfulInput) {', '      if (hasMeaningfulInput) {');
+      } else if (mutation === 'workflow-group-role-removed' && relative.endsWith('.js')) {
+        changed = source
+          .replace("          ownerGroup.setAttribute('role', 'group');\n", '')
+          .replace("          checkpointGroup.setAttribute('role', 'group');\n", '');
+      } else if (mutation === 'workflow-group-name-removed' && relative.endsWith('.js')) {
+        changed = source
+          .replace("          ownerGroup.setAttribute('aria-label', step.text + ' · 分工');\n", '')
+          .replace("          checkpointGroup.setAttribute('aria-label', step.text + ' · 人工检查点');\n", '');
+      } else if (mutation === 'workflow-double-number' && relative.endsWith('.js')) {
+        changed = source.replace("copy.appendChild(element(ownerDocument, 'b', '', step.text));", "copy.appendChild(element(ownerDocument, 'b', '', String(currentIndex + 1) + '. ' + step.text));");
       }
       if (changed !== source) {
         response.end(changed);
@@ -187,7 +201,7 @@ async function lessonSnapshot(page) {
       rendererTypes: names.map((name) => typeof window.AIBeginner?.[name]),
       fieldsetCount: document.querySelectorAll('.lesson-exercise fieldset').length,
       legendCount: document.querySelectorAll('.lesson-exercise legend').length,
-      livePolite: [...document.querySelectorAll('.lesson-exercise [aria-live]')].some((node) => node.getAttribute('aria-live') === 'polite'),
+      livePoliteCount: document.querySelectorAll('.lesson-exercise [aria-live="polite"]').length,
       controls: controls.map((node) => ({
         height: node.getBoundingClientRect().height,
         visible: visible(node),
@@ -247,7 +261,7 @@ async function runPrimaryContract(browser, base) {
       expect(snapshot.status && JSON.parse(snapshot.status)[chapter.id] === 'in-progress', `${chapter.id} ${width}px: entering chapter must mark it 正在看`);
       expect(snapshot.rendererTypes.every((type) => type === 'function'), `${chapter.id} ${width}px: all six renderer functions must be exported`);
       expect(snapshot.fieldsetCount >= 1 && snapshot.legendCount >= 1, `${chapter.id} ${width}px: interaction needs semantic fieldset/legend`);
-      expect(snapshot.livePolite, `${chapter.id} ${width}px: interaction needs aria-live=polite feedback`);
+      expect(snapshot.livePoliteCount === 1, `${chapter.id} ${width}px: exercise must expose exactly one polite live region (${snapshot.livePoliteCount})`);
       expect(snapshot.controls.filter((control) => control.visible && !control.disabled).every((control) => control.height >= 44), `${chapter.id} ${width}px: visible enabled controls must be at least 44px tall`);
       expect(snapshot.lessonTargets.length > 0 && snapshot.lessonTargets.every((target) => target.height >= 44),
         `${chapter.id} ${width}px: every visible lesson target must be at least 44px tall (${snapshot.lessonTargets.filter((target) => target.height < 44).map((target) => `${target.tag}:${target.text}:${target.height}`).join(' | ')})`);
@@ -330,6 +344,39 @@ async function runDeepInteractionContract(browser, base) {
   expect(await page.locator('[data-flow-explanation]:visible').count() >= 1, 'basics: a flow step must reveal a short explanation');
   expect(await page.evaluate(() => document.activeElement?.hasAttribute('data-flow-step')), 'basics: flow interaction must retain focus');
 
+  await page.goto(`${base}/detail.html?type=learn&id=ai-prompting`, { waitUntil: 'domcontentloaded' });
+  const promptSemantics = await page.evaluate(() => ({
+    liveCount: document.querySelectorAll('.lesson-exercise [aria-live="polite"]').length,
+    previewLive: document.querySelector('[data-prompt-preview]')?.hasAttribute('aria-live'),
+  }));
+  expect(promptSemantics.liveCount === 1, `prompting: exercise must have one live region (${promptSemantics.liveCount})`);
+  expect(promptSemantics.previewLive === false, 'prompting: the continuously changing preview must not be a live region');
+  await page.evaluate(() => {
+    window.__promptFeedbackMutations = 0;
+    const feedback = document.querySelector('.lesson-feedback');
+    window.__promptFeedbackObserver = new MutationObserver((records) => {
+      window.__promptFeedbackMutations += records.length;
+    });
+    window.__promptFeedbackObserver.observe(feedback, { childList: true, characterData: true, subtree: true });
+  });
+  const promptInput = page.locator('[data-prompt-field="目标"]');
+  await promptInput.focus();
+  await page.keyboard.type('ABC');
+  await page.waitForTimeout(40);
+  const promptInputResult = await page.evaluate(() => ({
+    feedbackMutations: window.__promptFeedbackMutations,
+    preview: document.querySelector('[data-prompt-preview]')?.textContent || '',
+    doneDisabled: document.querySelector('[data-mark-seen]')?.disabled,
+    inputFocused: document.activeElement?.getAttribute('data-prompt-field') === '目标',
+  }));
+  expect(promptInputResult.feedbackMutations === 1, `prompting: first meaningful input must announce once, not on every keystroke (${promptInputResult.feedbackMutations})`);
+  expect(promptInputResult.preview.includes('ABC'), 'prompting: preview must still update on every input');
+  expect(promptInputResult.doneDisabled === false, 'prompting: first meaningful input must enable completion');
+  expect(promptInputResult.inputFocused, 'prompting: live preview updates must retain keyboard focus');
+  await promptInput.fill('');
+  await page.keyboard.type('D');
+  expect(await page.locator('[data-mark-seen]').isEnabled(), 'prompting: clearing and retyping must not revoke completion');
+
   await page.goto(`${base}/detail.html?type=learn&id=ai-verification`, { waitUntil: 'domcontentloaded' });
   const evidenceChoices = page.locator('[data-evidence-choice]');
   expect(await evidenceChoices.count() === 5, 'verification: the key attribution claim must expose a focused five-source evidence connection');
@@ -358,18 +405,41 @@ async function runDeepInteractionContract(browser, base) {
 
   await page.goto(`${base}/detail.html?type=learn&id=ai-workflow`, { waitUntil: 'domcontentloaded' });
   const workflowInitial = await page.evaluate(() => ({
-    steps: [...document.querySelectorAll('.lesson-workflow-step .lesson-workflow-copy b')].map((node) => node.textContent.replace(/^\d+\.\s*/, '')),
+    steps: [...document.querySelectorAll('.lesson-workflow-step .lesson-workflow-copy b')].map((node) => node.textContent),
+    hasManualPrefix: [...document.querySelectorAll('.lesson-workflow-step .lesson-workflow-copy b')].some((node) => /^\d+\.\s*/.test(node.textContent)),
+    listStyleType: getComputedStyle(document.querySelector('.lesson-workflow-list')).listStyleType,
     text: document.querySelector('.lesson-workflow-list')?.innerText || '',
     movePressed: [...document.querySelectorAll('[data-workflow-move]')].some((node) => node.hasAttribute('aria-pressed')),
     ownerStates: [...document.querySelectorAll('[data-workflow-owner]')].map((node) => node.getAttribute('aria-pressed')),
     checkpointStates: [...document.querySelectorAll('[data-workflow-checkpoint]')].map((node) => node.getAttribute('aria-pressed')),
+    ownerGroups: [...document.querySelectorAll('.lesson-workflow-owner')].map((group) => ({
+      role: group.getAttribute('role'),
+      name: group.getAttribute('aria-label') || '',
+      buttons: [...group.querySelectorAll('[data-workflow-owner]')].map((button) => button.getAttribute('aria-label') || ''),
+    })),
+    checkpointGroups: [...document.querySelectorAll('.lesson-workflow-checkpoints')].map((group) => ({
+      role: group.getAttribute('role'),
+      name: group.getAttribute('aria-label') || '',
+      buttons: [...group.querySelectorAll('[data-workflow-checkpoint]')].map((button) => button.getAttribute('aria-label') || ''),
+    })),
   }));
   const recommended = ['收集当月数据', '提取变化与异常', '核对来源和口径', '生成汇报初稿', '确定优先级并交付'];
   expect(workflowInitial.steps.join('|') !== recommended.join('|'), 'workflow: initial steps must be deterministically shuffled');
   expect(!/(建议分工|建议.*检查点|已设人工检查点)/.test(workflowInitial.text), 'workflow: initial DOM must not reveal recommended ownership or checkpoints');
   expect(!workflowInitial.movePressed, 'workflow: ordinary up/down buttons must not expose aria-pressed');
-  expect(workflowInitial.ownerStates.length >= 15 && workflowInitial.ownerStates.every((value) => value === 'false'), 'workflow: responsibility choices must start unselected');
-  expect(workflowInitial.checkpointStates.length >= 10 && workflowInitial.checkpointStates.every((value) => value === 'false'), 'workflow: checkpoint choices must start unselected');
+  expect(workflowInitial.ownerStates.length === 15 && workflowInitial.ownerStates.every((value) => value === 'false'), 'workflow: responsibility choices must start with exactly 15 unselected buttons');
+  expect(workflowInitial.checkpointStates.length === 10 && workflowInitial.checkpointStates.every((value) => value === 'false'), 'workflow: checkpoint choices must start with exactly 10 unselected buttons');
+  expect(workflowInitial.listStyleType !== 'none', 'workflow: ordered list must retain its native marker');
+  expect(!workflowInitial.hasManualPrefix, 'workflow: step copy must not duplicate the native ordered-list number');
+  expect(workflowInitial.ownerGroups.length === 5 && workflowInitial.ownerGroups.every((group) => group.role === 'group' && group.name.includes('分工') && group.buttons.length === 3),
+    'workflow: each step needs a named responsibility group containing three buttons');
+  expect(workflowInitial.checkpointGroups.length === 5 && workflowInitial.checkpointGroups.every((group) => group.role === 'group' && group.name.includes('人工检查点') && group.buttons.length === 2),
+    'workflow: each step needs a named checkpoint group containing two buttons');
+  expect(new Set(workflowInitial.ownerGroups.map((group) => group.name)).size === 5 && new Set(workflowInitial.checkpointGroups.map((group) => group.name)).size === 5,
+    'workflow: all responsibility and checkpoint group names must be unique by step');
+  expect(workflowInitial.ownerGroups.every((group) => group.buttons.every((name) => name.includes(group.name.split('分工')[0]))) &&
+    workflowInitial.checkpointGroups.every((group) => group.buttons.every((name) => name.includes(group.name.split('人工检查点')[0]))),
+  'workflow: every choice button accessible name must include its step context');
   const firstOwner = page.locator('[data-workflow-owner]').first();
   const firstCheckpoint = page.locator('[data-workflow-checkpoint]').first();
   await firstOwner.focus({ timeout: 3000 });

@@ -748,6 +748,7 @@
   gap: 12px;
   margin: 0;
   padding-left: 24px;
+  list-style: decimal;
 }
 
 .lesson-workflow-step {
