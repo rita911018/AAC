@@ -40,7 +40,13 @@
         title: '看看下一个 Token 可能是什么',
         instruction: '观察候选内容的概率，再把 AI、大模型与 Agent 放到正确关系中。',
         candidates: [{ label: '初稿', probability: 52 }, { label: '摘要', probability: 31 }, { label: '图表', probability: 17 }],
+        relations: [
+          { prompt: '生成式 AI 与 AI 的关系', answer: '生成式 AI 是 AI 的一部分', options: ['生成式 AI 是 AI 的一部分', 'AI 只包含生成式 AI', '两者没有关系'], explanation: 'AI 是更大的能力范围，生成式 AI 专注于创造新内容。' },
+          { prompt: '大模型与生成式 AI 的关系', answer: '大模型可提供核心能力', options: ['大模型可提供核心能力', '大模型就是所有 AI', '生成式 AI 不需要模型'], explanation: '大模型是生成式 AI 的重要能力基础之一，但两者不是完全同义。' },
+          { prompt: 'Agent 在大模型之外增加了什么', answer: '目标、工具与执行循环', options: ['目标、工具与执行循环', '只增加更长文本', '只增加更多参数'], explanation: 'Agent 围绕目标拆解任务、调用工具，并在明确边界内循环执行。' },
+        ],
         steps: ['切分 Token', '读取上下文', '预测候选', '选择下一个 Token', '重复直到完成'],
+        stepExplanations: ['把输入拆成模型可处理的小单位。', '结合当前对话和材料理解临时语境。', '为多个可能的后续 Token 分配概率。', '按概率与生成策略选择一个 Token。', '把新 Token 放回上下文，继续预测直到完成。'],
       },
       quickCheck: [
         { question: '大模型生成回答时最接近哪种行为？', answer: '根据上下文预测后续 Token', explanation: '流畅输出来自连续预测，不等于模型已经查证事实。' },
@@ -166,6 +172,11 @@
         title: '事实、推论、观点与证据',
         instruction: '逐句标记回答性质，再把关键结论连回原文证据。',
         claims: [{ text: '本月销量比上月上升。', kind: '事实', evidence: '销量表' }, { text: '上升主要是营销活动带来。', kind: '推论', evidence: '尚无足够证据' }, { text: '下月应加大投放。', kind: '观点', evidence: '需要结合成本和其他因素' }],
+        evidenceOptions: ['销量表', '营销活动记录', '成本与渠道数据', '尚无足够证据', '需要结合成本和其他因素'],
+        versions: [
+          { label: '版本 A', text: '销量上升，所以营销活动有效，下月应加大投放。', usable: false, explanation: '把事实、归因和建议连成了确定结论，但没有补足证据。' },
+          { label: '版本 B', text: '销量表显示本月销量上升；营销归因仍需补充活动与渠道证据，核验成本后再决定投放。', usable: true, explanation: '区分了事实、待验证推论与后续判断，关键结论也能继续追溯。' },
+        ],
       },
       quickCheck: [
         { question: '引用数量多，是否代表结论一定可信？', answer: '不一定，还要确认引用是否真实、相关并支持结论', explanation: '可追溯不只是有链接，还要对原文、时间口径和推理关系。' },
@@ -197,6 +208,7 @@
         title: '工作流排序与检查点',
         instruction: '将步骤排序，标出 AI、人机协作与人负责，再加入人工检查点。',
         steps: [{ text: '收集当月数据', owner: 'AI' }, { text: '提取变化与异常', owner: '人机协作' }, { text: '核对来源和口径', owner: '人负责', checkpoint: true }, { text: '生成汇报初稿', owner: 'AI' }, { text: '确定优先级并交付', owner: '人负责', checkpoint: true }],
+        shuffleOrder: [3, 0, 4, 1, 2],
       },
       quickCheck: [
         { question: '什么时候值得把一次对话沉淀为工作流？', answer: '同类任务会重复出现，且输入、步骤和输出可以被说清时', explanation: '重复性和可标准化是沉淀流程的两个重要信号。' },
@@ -568,7 +580,6 @@
     button.setAttribute('type', 'button');
     button.setAttribute(hook, '');
     if (value !== undefined) button.setAttribute('data-choice-value', String(value));
-    button.setAttribute('aria-pressed', 'false');
     return button;
   }
 
@@ -595,13 +606,30 @@
     } catch (error) {}
   }
 
-  function appendFlowSteps(ownerDocument, root, steps) {
+  function appendFlowSteps(ownerDocument, root, steps, explanations) {
     var flow = element(ownerDocument, 'ol', 'lesson-model-flow');
     flow.setAttribute('aria-label', '大模型生成内容的五个步骤');
     for (var index = 0; index < steps.length; index += 1) {
       var item = element(ownerDocument, 'li', '');
-      item.appendChild(element(ownerDocument, 'span', 'lesson-flow-number', String(index + 1)));
-      item.appendChild(element(ownerDocument, 'span', '', steps[index]));
+      var button = element(ownerDocument, 'button', 'lesson-flow-step');
+      button.setAttribute('type', 'button');
+      button.setAttribute('data-flow-step', String(index));
+      button.setAttribute('aria-expanded', 'false');
+      button.appendChild(element(ownerDocument, 'span', 'lesson-flow-number', String(index + 1)));
+      button.appendChild(element(ownerDocument, 'span', '', steps[index]));
+      var explanation = element(ownerDocument, 'p', 'lesson-flow-explanation', explanations[index]);
+      explanation.setAttribute('data-flow-explanation', String(index));
+      explanation.hidden = true;
+      (function (flowButton, flowExplanation, stepName) {
+        flowButton.addEventListener('click', function () {
+          var expanded = flowButton.getAttribute('aria-expanded') !== 'true';
+          flowButton.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+          flowExplanation.hidden = !expanded;
+          dispatchExerciseAttempt(root, stepName + '：' + flowExplanation.textContent);
+        });
+      }(button, explanation, steps[index]));
+      item.appendChild(button);
+      item.appendChild(explanation);
       flow.appendChild(item);
     }
     root.appendChild(flow);
@@ -615,6 +643,7 @@
     for (var index = 0; index < exercise.candidates.length; index += 1) {
       (function (candidate) {
         var button = interactionButton(ownerDocument, candidate.label + ' · ' + candidate.probability + '%', 'data-token-option', candidate.label);
+        button.setAttribute('aria-pressed', 'false');
         button.addEventListener('click', function () {
           setChoiceState(options.querySelectorAll('[data-token-option]'), button);
           dispatchExerciseAttempt(root, candidate.label + ' 是一个候选。概率表示模型此刻的预测倾向，不代表事实已经核验。');
@@ -626,10 +655,30 @@
     root.appendChild(fieldset);
 
     var concepts = element(ownerDocument, 'div', 'lesson-concept-map');
-    concepts.appendChild(element(ownerDocument, 'h3', '', '概念关系'));
-    concepts.appendChild(element(ownerDocument, 'p', '', 'AI → 生成式 AI → 大模型；Agent = 大模型 + 目标拆解 + 工具 + 执行循环。'));
+    concepts.appendChild(element(ownerDocument, 'h3', '', '概念关系匹配'));
+    concepts.appendChild(element(ownerDocument, 'p', '', '为每条关系选择最准确的描述，再查看解释。'));
+    for (var relationIndex = 0; relationIndex < exercise.relations.length; relationIndex += 1) {
+      (function (relation, currentRelationIndex) {
+        var relationFieldset = interactionFieldset(ownerDocument, relation.prompt, 'lesson-concept-relation');
+        var relationOptions = element(ownerDocument, 'div', 'lesson-choice-row');
+        for (var optionIndex = 0; optionIndex < relation.options.length; optionIndex += 1) {
+          (function (option) {
+            var relationButton = interactionButton(ownerDocument, option, 'data-concept-choice', option);
+            relationButton.setAttribute('data-relation-index', String(currentRelationIndex));
+            relationButton.setAttribute('aria-pressed', 'false');
+            relationButton.addEventListener('click', function () {
+              setChoiceState(relationOptions.querySelectorAll('[data-concept-choice]'), relationButton);
+              dispatchExerciseAttempt(root, (option === relation.answer ? '关系匹配合理。' : '这个关系还可以再想想。') + relation.explanation);
+            });
+            relationOptions.appendChild(relationButton);
+          }(relation.options[optionIndex]));
+        }
+        relationFieldset.appendChild(relationOptions);
+        concepts.appendChild(relationFieldset);
+      }(exercise.relations[relationIndex], relationIndex));
+    }
     root.appendChild(concepts);
-    appendFlowSteps(ownerDocument, root, exercise.steps);
+    appendFlowSteps(ownerDocument, root, exercise.steps, exercise.stepExplanations);
   }
 
   function renderEvidenceSpotter(exercise, root) {
@@ -643,6 +692,7 @@
           (function (category) {
             var button = interactionButton(ownerDocument, category, 'data-claim-choice', category);
             button.setAttribute('data-claim-index', String(claimIndex));
+            button.setAttribute('aria-pressed', 'false');
             button.addEventListener('click', function () {
               setChoiceState(options.querySelectorAll('[data-claim-choice]'), button);
               var explanation = claim.category === '可以保留'
@@ -672,6 +722,7 @@
           (function (lane) {
             var button = interactionButton(ownerDocument, lane, 'data-sort-choice', lane);
             button.setAttribute('data-task-index', String(taskIndex));
+            button.setAttribute('aria-pressed', 'false');
             button.addEventListener('click', function () {
               setChoiceState(options.querySelectorAll('[data-sort-choice]'), button);
               var explanation = task.lane === 'AI'
@@ -740,24 +791,74 @@
           (function (kind) {
             var button = interactionButton(ownerDocument, kind, 'data-claim-kind', kind);
             button.setAttribute('data-claim-index', String(claimIndex));
+            button.setAttribute('aria-pressed', 'false');
             button.addEventListener('click', function () {
               setChoiceState(options.querySelectorAll('[data-claim-kind]'), button);
-              dispatchExerciseAttempt(root, (kind === claim.kind ? '分类合理。' : '可以再对照定义。') + '证据连接：' + claim.evidence + '。');
+              dispatchExerciseAttempt(root, (kind === claim.kind ? '分类合理。' : '可以再对照定义。') + '接下来请为这句话主动选择证据。');
             });
             options.appendChild(button);
           }(kinds[kindIndex]));
         }
         fieldset.appendChild(options);
+
+        if (claimIndex === 1) {
+          var evidenceTitle = element(ownerDocument, 'p', 'lesson-evidence-label', '关键归因：连接一条最合适的证据');
+          fieldset.appendChild(evidenceTitle);
+          var evidenceOptions = element(ownerDocument, 'div', 'lesson-choice-row lesson-evidence-options');
+          evidenceOptions.setAttribute('role', 'group');
+          evidenceOptions.setAttribute('aria-label', '为关键归因句选择证据');
+          for (var evidenceIndex = 0; evidenceIndex < exercise.evidenceOptions.length; evidenceIndex += 1) {
+            (function (evidenceOption) {
+              var evidenceButton = interactionButton(ownerDocument, evidenceOption, 'data-evidence-choice', evidenceOption);
+              evidenceButton.setAttribute('data-claim-index', String(claimIndex));
+              evidenceButton.setAttribute('aria-pressed', 'false');
+              evidenceButton.addEventListener('click', function () {
+                setChoiceState(evidenceOptions.querySelectorAll('[data-evidence-choice]'), evidenceButton);
+                dispatchExerciseAttempt(root, (evidenceOption === claim.evidence ? '证据连接合理。' : '这条证据还不能完整支持句子。') + '建议连接：' + claim.evidence + '。');
+              });
+              evidenceOptions.appendChild(evidenceButton);
+            }(exercise.evidenceOptions[evidenceIndex]));
+          }
+          fieldset.appendChild(evidenceOptions);
+        }
         root.appendChild(fieldset);
       }(exercise.claims[index], index));
     }
+
+    var versionFieldset = interactionFieldset(ownerDocument, '比较两个版本：哪一个更适合直接进入下一步工作？', 'lesson-version-compare');
+    var versionOptions = element(ownerDocument, 'div', 'lesson-version-options');
+    for (var versionIndex = 0; versionIndex < exercise.versions.length; versionIndex += 1) {
+      (function (version) {
+        var versionCard = element(ownerDocument, 'div', 'lesson-version-card');
+        versionCard.appendChild(element(ownerDocument, 'b', '', version.label));
+        versionCard.appendChild(element(ownerDocument, 'p', '', version.text));
+        var versionButton = interactionButton(ownerDocument, '选择' + version.label, 'data-version-choice', version.label);
+        versionButton.setAttribute('aria-pressed', 'false');
+        versionButton.addEventListener('click', function () {
+          setChoiceState(versionOptions.querySelectorAll('[data-version-choice]'), versionButton);
+          dispatchExerciseAttempt(root, (version.usable ? '这个版本更可用。' : '这个版本还需要补充。') + version.explanation);
+        });
+        versionCard.appendChild(versionButton);
+        versionOptions.appendChild(versionCard);
+      }(exercise.versions[versionIndex]));
+    }
+    versionFieldset.appendChild(versionOptions);
+    root.appendChild(versionFieldset);
   }
 
   function renderWorkflowSorter(exercise, root) {
     var ownerDocument = root.ownerDocument;
     var steps = [];
-    for (var index = 0; index < exercise.steps.length; index += 1) {
-      steps.push({ key: String(index), text: exercise.steps[index].text, owner: exercise.steps[index].owner, checkpoint: Boolean(exercise.steps[index].checkpoint) });
+    for (var index = 0; index < exercise.shuffleOrder.length; index += 1) {
+      var sourceIndex = exercise.shuffleOrder[index];
+      steps.push({
+        key: String(sourceIndex),
+        text: exercise.steps[sourceIndex].text,
+        owner: exercise.steps[sourceIndex].owner,
+        checkpoint: Boolean(exercise.steps[sourceIndex].checkpoint),
+        userOwner: null,
+        userCheckpoint: null,
+      });
     }
     var fieldset = interactionFieldset(ownerDocument, '排列月度汇报步骤，并检查分工与人工检查点', 'lesson-workflow-builder');
     var list = element(ownerDocument, 'ol', 'lesson-workflow-list');
@@ -773,7 +874,6 @@
           item.setAttribute('data-step-key', step.key);
           var copy = element(ownerDocument, 'div', 'lesson-workflow-copy');
           copy.appendChild(element(ownerDocument, 'b', '', String(currentIndex + 1) + '. ' + step.text));
-          copy.appendChild(element(ownerDocument, 'span', '', '建议分工：' + step.owner + (step.checkpoint ? ' · 人工检查点' : '')));
           item.appendChild(copy);
           var actions = element(ownerDocument, 'div', 'lesson-workflow-actions');
           var up = interactionButton(ownerDocument, '上移', 'data-workflow-move', 'up');
@@ -803,29 +903,61 @@
           var owners = ['AI', '人机协作', '人负责'];
           var ownerGroup = element(ownerDocument, 'div', 'lesson-workflow-owner');
           ownerGroup.setAttribute('aria-label', step.text + '的分工');
+          ownerGroup.appendChild(element(ownerDocument, 'span', 'lesson-workflow-question', '这一步谁负责？'));
           for (var ownerIndex = 0; ownerIndex < owners.length; ownerIndex += 1) {
             (function (owner) {
               var ownerButton = interactionButton(ownerDocument, owner, 'data-workflow-owner', owner);
               ownerButton.setAttribute('data-step-key', step.key);
+              ownerButton.setAttribute('aria-pressed', step.userOwner === owner ? 'true' : 'false');
+              if (step.userOwner === owner && ownerButton.classList) ownerButton.classList.add('is-selected');
               ownerButton.addEventListener('click', function () {
+                step.userOwner = owner;
                 setChoiceState(ownerGroup.querySelectorAll('[data-workflow-owner]'), ownerButton);
-                dispatchExerciseAttempt(root, (owner === step.owner ? '分工合理。' : '还可以再看错误代价与业务语境。') + '这一环节建议由“' + step.owner + '”承担。');
+                dispatchExerciseAttempt(root, '已选择责任分工。再判断是否需要人工检查点，然后核对这一环节。');
               });
               ownerGroup.appendChild(ownerButton);
             }(owners[ownerIndex]));
           }
           actions.appendChild(ownerGroup);
-          var checkpoint = interactionButton(ownerDocument, step.checkpoint ? '已设人工检查点' : '设为人工检查点', 'data-workflow-checkpoint', step.checkpoint ? 'true' : 'false');
-          checkpoint.setAttribute('data-step-key', step.key);
-          checkpoint.setAttribute('aria-pressed', step.checkpoint ? 'true' : 'false');
-          checkpoint.addEventListener('click', function () {
-            step.checkpoint = !step.checkpoint;
-            checkpoint.textContent = step.checkpoint ? '已设人工检查点' : '设为人工检查点';
-            checkpoint.setAttribute('aria-pressed', step.checkpoint ? 'true' : 'false');
-            var checkpointMatches = step.checkpoint === Boolean(exercise.steps[Number(step.key)].checkpoint);
-            dispatchExerciseAttempt(root, (checkpointMatches ? '检查点设置合理。' : '可以再看这一环节的错误代价。') + '高代价结论建议保留人工复核。');
+
+          var checkpointGroup = element(ownerDocument, 'div', 'lesson-workflow-checkpoints');
+          checkpointGroup.setAttribute('aria-label', step.text + '是否需要人工检查点');
+          checkpointGroup.appendChild(element(ownerDocument, 'span', 'lesson-workflow-question', '需要人工检查吗？'));
+          var checkpointChoices = [{ label: '需要', value: true }, { label: '不需要', value: false }];
+          for (var checkpointIndex = 0; checkpointIndex < checkpointChoices.length; checkpointIndex += 1) {
+            (function (choice) {
+              var checkpointButton = interactionButton(ownerDocument, choice.label, 'data-workflow-checkpoint', choice.value ? 'true' : 'false');
+              checkpointButton.setAttribute('data-step-key', step.key);
+              checkpointButton.setAttribute('aria-pressed', step.userCheckpoint === choice.value ? 'true' : 'false');
+              if (step.userCheckpoint === choice.value && checkpointButton.classList) checkpointButton.classList.add('is-selected');
+              checkpointButton.addEventListener('click', function () {
+                step.userCheckpoint = choice.value;
+                setChoiceState(checkpointGroup.querySelectorAll('[data-workflow-checkpoint]'), checkpointButton);
+                dispatchExerciseAttempt(root, '已选择检查点设置。完成责任分工后，可以核对这一环节。');
+              });
+              checkpointGroup.appendChild(checkpointButton);
+            }(checkpointChoices[checkpointIndex]));
+          }
+          actions.appendChild(checkpointGroup);
+
+          var result = element(ownerDocument, 'p', 'lesson-workflow-result');
+          result.setAttribute('data-workflow-result', '');
+          result.hidden = true;
+          var checkButton = interactionButton(ownerDocument, '核对这一环节', 'data-workflow-check', step.key);
+          checkButton.setAttribute('data-step-key', step.key);
+          checkButton.addEventListener('click', function () {
+            if (step.userOwner === null || step.userCheckpoint === null) {
+              dispatchExerciseAttempt(root, '先选择责任分工与是否需要人工检查，再核对建议。');
+              return;
+            }
+            var ownerMatches = step.userOwner === step.owner;
+            var checkpointMatches = step.userCheckpoint === step.checkpoint;
+            result.hidden = false;
+            result.textContent = '建议：' + step.owner + '负责；' + (step.checkpoint ? '设置人工检查点。' : '无需单独设置人工检查点。');
+            dispatchExerciseAttempt(root, (ownerMatches && checkpointMatches ? '你的设置与建议一致。' : '可以对照建议继续调整。') + result.textContent);
           });
-          actions.appendChild(checkpoint);
+          actions.appendChild(checkButton);
+          actions.appendChild(result);
           item.appendChild(actions);
           list.appendChild(item);
         }(steps[stepIndex], stepIndex));
@@ -838,6 +970,14 @@
       }
     }
     renderList();
+
+    var orderCheck = interactionButton(ownerDocument, '核对步骤顺序', 'data-workflow-check-order', 'order');
+    orderCheck.addEventListener('click', function () {
+      var currentOrder = steps.map(function (orderedStep) { return orderedStep.text; });
+      var orderMatches = currentOrder.join('\n') === recommendedOrder.join('\n');
+      dispatchExerciseAttempt(root, orderMatches ? '步骤顺序合理，接下来核对每一步的分工与检查点。' : '顺序还可以调整：先收集输入，再分析、核验、形成初稿并由人确定交付。');
+    });
+    fieldset.appendChild(orderCheck);
   }
 
   var exerciseRenderers = {

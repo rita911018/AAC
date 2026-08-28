@@ -60,7 +60,7 @@ const expectedChapterContent = {
     caseTitle: '为什么新对话不记得上次说过的事？',
     caseTerms: ['新对话', '上下文', '临时工作记忆'],
     exerciseType: 'token-and-concepts',
-    exerciseKeys: ['candidates', 'steps'],
+    exerciseKeys: ['candidates', 'relations', 'steps', 'stepExplanations'],
     takeawayTitle: 'AI 概念关系图与 8 个工作必懂词',
     takeawayTerms: ['Token', '上下文', '多模态', '幻觉', 'RAG', 'Prompt', '工作流', 'Agent'],
   },
@@ -100,7 +100,7 @@ const expectedChapterContent = {
     caseTitle: '“销量上升”能否直接证明“营销有效”？',
     caseTerms: ['销量上升', '因果结论', '其他因素'],
     exerciseType: 'evidence-check',
-    exerciseKeys: ['claims'],
+    exerciseKeys: ['claims', 'evidenceOptions', 'versions'],
     takeawayTitle: 'AI 结果核验五步卡',
     takeawayTerms: ['查来源', '对原文', '时间口径', '检查推理', '任务标准'],
   },
@@ -110,7 +110,7 @@ const expectedChapterContent = {
     caseTitle: '把每月重复的汇报从对话变成流程',
     caseTerms: ['每月', '步骤', '人机分工', '检查点'],
     exerciseType: 'workflow-builder',
-    exerciseKeys: ['steps'],
+    exerciseKeys: ['steps', 'shuffleOrder'],
     takeawayTitle: '个人 AI 工作流画布',
     takeawayTerms: ['拆任务', '输入输出', '明确分工', '设置检查点', '保存模板'],
   },
@@ -1174,6 +1174,10 @@ function runContract() {
     'ai-basics token candidate probabilities must sum to 100');
   assert.deepEqual(basics.exercise.steps, ['切分 Token', '读取上下文', '预测候选', '选择下一个 Token', '重复直到完成'],
     'ai-basics exercise must retain the approved five-step model flow');
+  assert.equal(basics.exercise.relations.length, 3, 'ai-basics exercise must include three concept-relationship choices');
+  assert.ok(basics.exercise.relations.every(({ prompt, answer, options, explanation }) => prompt && answer && explanation && options.includes(answer)),
+    'ai-basics concept relationships must retain a valid answer and explanation');
+  assert.equal(basics.exercise.stepExplanations.length, 5, 'ai-basics exercise must explain all five model-flow steps');
   assert.ok(basics.takeaway.template.includes('AI → 生成式 AI → 大模型'),
     'ai-basics takeaway must make the AI / generative AI / model relationship explicit');
   assert.ok(basics.takeaway.template.includes('Agent = 大模型 + 目标拆解 + 工具 + 执行循环'),
@@ -1191,12 +1195,20 @@ function runContract() {
     'ai-verification exercise must distinguish fact, inference, and opinion');
   assert.ok(api.chapters[4].exercise.claims.every(({ evidence }) => typeof evidence === 'string' && evidence.trim()),
     'ai-verification exercise must connect every claim to evidence guidance');
+  assert.ok(api.chapters[4].exercise.claims.every(({ evidence }) => api.chapters[4].exercise.evidenceOptions.includes(evidence)),
+    'ai-verification evidence choices must include every approved claim connection');
+  assert.deepEqual(api.chapters[4].exercise.versions.map(({ label, usable }) => [label, usable]), [['版本 A', false], ['版本 B', true]],
+    'ai-verification must retain the approved two-version usability comparison');
   assert.ok(api.chapters[5].exercise.steps.length >= 4, 'ai-workflow exercise must contain sortable workflow steps');
   assert.deepEqual(api.chapters[5].exercise.steps.map(({ text }) => text),
     ['收集当月数据', '提取变化与异常', '核对来源和口径', '生成汇报初稿', '确定优先级并交付'],
     'ai-workflow exercise must retain the approved sortable monthly-report sequence');
   assert.ok(api.chapters[5].exercise.steps.some(({ owner, checkpoint }) => owner === '人负责' && checkpoint === true),
     'ai-workflow exercise must retain a human-owned checkpoint');
+  assert.deepEqual(api.chapters[5].exercise.shuffleOrder, [3, 0, 4, 1, 2],
+    'ai-workflow exercise must begin from the approved deterministic shuffled order');
+  assert.notDeepEqual(api.chapters[5].exercise.shuffleOrder, [0, 1, 2, 3, 4],
+    'ai-workflow initial order must not leak the recommended sequence');
   assert.deepEqual(api.aliases, aliases, 'legacy learning URL aliases must map to the approved new chapters');
   const renderChapterSource = learningScript.slice(
     learningScript.indexOf('function renderChapter('),

@@ -96,6 +96,22 @@ function startServer() {
         changed = source.replace("          if (focusTarget && typeof focusTarget.focus === 'function') focusTarget.focus({ preventScroll: true });", "          if (false && focusTarget && typeof focusTarget.focus === 'function') focusTarget.focus({ preventScroll: true });");
       } else if (mutation === 'copy-silent-failure' && relative.endsWith('.js')) {
         changed = source.replace('      else showCopyFallback(card, templateText);', '      else return;');
+      } else if (mutation === 'concept-interaction-removed' && relative.endsWith('.js')) {
+        changed = source.replace('for (var relationIndex = 0; relationIndex < exercise.relations.length; relationIndex += 1)', 'for (var relationIndex = 0; false && relationIndex < exercise.relations.length; relationIndex += 1)');
+      } else if (mutation === 'five-step-removed' && relative.endsWith('.js')) {
+        changed = source.replace('    appendFlowSteps(ownerDocument, root, exercise.steps, exercise.stepExplanations);', '    // mutation: five-step interaction removed');
+      } else if (mutation === 'evidence-interaction-removed' && relative.endsWith('.js')) {
+        changed = source.replace('for (var evidenceIndex = 0; evidenceIndex < exercise.evidenceOptions.length; evidenceIndex += 1)', 'for (var evidenceIndex = 0; false && evidenceIndex < exercise.evidenceOptions.length; evidenceIndex += 1)');
+      } else if (mutation === 'version-comparison-removed' && relative.endsWith('.js')) {
+        changed = source.replace('for (var versionIndex = 0; versionIndex < exercise.versions.length; versionIndex += 1)', 'for (var versionIndex = 0; false && versionIndex < exercise.versions.length; versionIndex += 1)');
+      } else if (mutation === 'workflow-not-shuffled' && relative.endsWith('.js')) {
+        changed = source.replace('      var sourceIndex = exercise.shuffleOrder[index];', '      var sourceIndex = index;');
+      } else if (mutation === 'workflow-answer-leak' && relative.endsWith('.js')) {
+        changed = source.replace('          result.hidden = true;', "          result.textContent = '建议分工：' + step.owner + (step.checkpoint ? ' · 已设人工检查点' : ''); result.hidden = false;");
+      } else if (mutation === 'target-below-44' && relative.endsWith('.css')) {
+        changed = source + '\n.lesson a,.lesson button,.lesson input,.lesson textarea,.lesson select,.lesson summary,.lesson label{min-height:10px!important;height:10px!important;padding-top:0!important;padding-bottom:0!important}\n';
+      } else if (mutation === 'ordinary-button-pressed' && relative.endsWith('.js')) {
+        changed = source.replace('    return button;\n  }\n\n  function setChoiceState', "    button.setAttribute('aria-pressed', 'false');\n    return button;\n  }\n\n  function setChoiceState");
       }
       if (changed !== source) {
         response.end(changed);
@@ -140,6 +156,19 @@ async function lessonSnapshot(page) {
     };
     const mainLinks = [...document.querySelectorAll('main a[href], #dcBody a[href]')];
     const controls = [...document.querySelectorAll('.lesson-exercise button, .lesson-exercise input, .lesson-exercise textarea, .lesson-exercise select')];
+    const lessonTargets = [...document.querySelectorAll([
+      '.lesson-nav a',
+      '.lesson-check summary',
+      '.lesson-exercise button',
+      '.lesson-exercise input',
+      '.lesson-exercise textarea',
+      '.lesson-exercise select',
+      '.lesson-exercise label',
+      '.lesson-takeaway button',
+      '.lesson-takeaway textarea',
+      '.lesson-actions a',
+      '.lesson-actions button',
+    ].join(','))].filter(visible);
     return {
       title: document.querySelector('.lesson-header h1')?.textContent.trim() || '',
       progress: document.querySelector('.lesson-progress')?.textContent.trim() || '',
@@ -160,6 +189,12 @@ async function lessonSnapshot(page) {
         visible: visible(node),
         disabled: Boolean(node.disabled),
       })),
+      lessonTargets: lessonTargets.map((node) => ({
+        tag: node.tagName,
+        text: node.textContent.trim().slice(0, 40),
+        width: node.getBoundingClientRect().width,
+        height: node.getBoundingClientRect().height,
+      })),
       linkCount: mainLinks.length,
       badLinks: mainLinks.filter((node) => !node.getAttribute('href') || node.getAttribute('href') === '#').length,
       promptXss: Boolean(window.__promptXss),
@@ -171,6 +206,10 @@ async function lessonSnapshot(page) {
             : document.activeElement?.getAttribute('data-prompt-field') ||
               (document.activeElement?.getAttribute('data-claim-kind') !== null ? 'kind'
                 : document.activeElement?.getAttribute('data-workflow-move') !== null ? 'workflow' : ''),
+      activeRect: document.activeElement && document.activeElement !== document.body
+        ? document.activeElement.getBoundingClientRect().toJSON() : null,
+      activeOutlineWidth: document.activeElement && document.activeElement !== document.body
+        ? Number.parseFloat(getComputedStyle(document.activeElement).outlineWidth) : 0,
     };
   }, rendererNames);
 }
@@ -206,6 +245,8 @@ async function runPrimaryContract(browser, base) {
       expect(snapshot.fieldsetCount >= 1 && snapshot.legendCount >= 1, `${chapter.id} ${width}px: interaction needs semantic fieldset/legend`);
       expect(snapshot.livePolite, `${chapter.id} ${width}px: interaction needs aria-live=polite feedback`);
       expect(snapshot.controls.filter((control) => control.visible && !control.disabled).every((control) => control.height >= 44), `${chapter.id} ${width}px: visible enabled controls must be at least 44px tall`);
+      expect(snapshot.lessonTargets.length > 0 && snapshot.lessonTargets.every((target) => target.height >= 44),
+        `${chapter.id} ${width}px: every visible lesson target must be at least 44px tall (${snapshot.lessonTargets.filter((target) => target.height < 44).map((target) => `${target.tag}:${target.text}:${target.height}`).join(' | ')})`);
       expect(snapshot.overflow <= 1, `${chapter.id} ${width}px: horizontal overflow ${snapshot.overflow}px`);
       expect(snapshot.badLinks === 0 && snapshot.linkCount >= 2, `${chapter.id} ${width}px: chapter links must remain usable`);
       expect(snapshot.nextVisible || chapter.id === 'ai-workflow', `${chapter.id} ${width}px: next chapter must be visible without a score gate`);
@@ -214,6 +255,9 @@ async function runPrimaryContract(browser, base) {
       snapshot = await lessonSnapshot(page);
       expect(!snapshot.doneDisabled, `${chapter.id} ${width}px: first meaningful interaction must enable 我看完了`);
       expect(snapshot.activeHook !== '', `${chapter.id} ${width}px: re-render must retain logical keyboard focus`);
+      expect(snapshot.activeRect && snapshot.activeRect.left >= 3 && snapshot.activeRect.right <= width - 3,
+        `${chapter.id} ${width}px: focused interaction or its ring is clipped horizontally`);
+      expect(snapshot.activeOutlineWidth >= 3, `${chapter.id} ${width}px: keyboard focus must have a visible >=3px outline`);
       expect(!/(未通过|不及格|\bscore\b|评分)/i.test(snapshot.feedback + snapshot.pageText), `${chapter.id} ${width}px: wrong attempts must stay non-punitive`);
       expect(snapshot.nextVisible || chapter.id === 'ai-workflow', `${chapter.id} ${width}px: interaction must not gate next chapter`);
       if (chapter.id === 'ai-prompting') {
@@ -221,7 +265,7 @@ async function runPrimaryContract(browser, base) {
         expect(snapshot.promptPreview.includes('<img src=x onerror=window.__promptXss=1>'), 'prompt preview must visibly preserve user input as text');
       }
       await assertNoPageErrors(page, errors, consoleErrors, `${chapter.id} ${width}px`);
-      await page.screenshot({ path: join(screenshotRoot, `${chapter.id}-${width}.png`), fullPage: true });
+      if (!mutation) await page.screenshot({ path: join(screenshotRoot, `${chapter.id}-${width}.png`), fullPage: true });
     }
   }
 
@@ -251,6 +295,115 @@ async function runPrimaryContract(browser, base) {
   expect(returned.hash === '#chapter-ai-boundaries', 'return navigation must preserve the chapter hash');
   expect(returned.activeId === 'chapter-ai-boundaries', `return navigation must focus the source card (${returned.activeId})`);
   expect(returned.status === '看过', `return navigation must update source-card status (${returned.status})`);
+  await context.close();
+}
+
+async function runDeepInteractionContract(browser, base) {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+
+  await page.goto(`${base}/detail.html?type=learn&id=ai-basics`, { waitUntil: 'domcontentloaded' });
+  const conceptChoices = page.locator('[data-concept-choice]');
+  expect(await conceptChoices.count() >= 6, 'basics: concept relationship activity must expose at least three keyboard-operable choices');
+  const wrongConcept = page.locator('[data-concept-choice][data-relation-index="0"]').last();
+  await wrongConcept.focus({ timeout: 3000 });
+  await page.keyboard.press('Enter');
+  expect(await wrongConcept.getAttribute('aria-pressed') === 'true', 'basics: concept choice must expose selected state');
+  expect((await page.locator('.lesson-feedback').textContent()).length > 8, 'basics: concept choice must explain the attempt');
+  expect(!/(未通过|不及格|评分)/.test(await page.locator('.lesson-feedback').textContent()), 'basics: concept feedback must stay non-punitive');
+  const correctConcept = page.locator('[data-concept-choice][data-relation-index="0"][data-choice-value="生成式 AI 是 AI 的一部分"]');
+  await correctConcept.focus();
+  await page.keyboard.press('Enter');
+  expect((await page.locator('.lesson-feedback').textContent()).includes('合理'), 'basics: concept relationship must support a correct retry with explanation');
+  const flowSteps = page.locator('[data-flow-step]');
+  expect(await flowSteps.count() === 5, 'basics: model flow must expose five clickable steps');
+  const flowStep = flowSteps.nth(2);
+  await flowStep.focus({ timeout: 3000 });
+  await page.keyboard.press('Enter');
+  expect(await flowStep.getAttribute('aria-expanded') === 'true', 'basics: activating a flow step must expose its explanation state');
+  expect(await page.locator('[data-flow-explanation]:visible').count() >= 1, 'basics: a flow step must reveal a short explanation');
+  expect(await page.evaluate(() => document.activeElement?.hasAttribute('data-flow-step')), 'basics: flow interaction must retain focus');
+
+  await page.goto(`${base}/detail.html?type=learn&id=ai-verification`, { waitUntil: 'domcontentloaded' });
+  const evidenceChoices = page.locator('[data-evidence-choice]');
+  expect(await evidenceChoices.count() === 5, 'verification: the key attribution claim must expose a focused five-source evidence connection');
+  expect(await evidenceChoices.evaluateAll((nodes) => nodes.every((node) => node.getAttribute('data-claim-index') === '1')),
+    'verification: evidence connection must stay focused on the key attribution claim');
+  const evidence = page.locator('[data-evidence-choice][data-claim-index="1"]').first();
+  await evidence.focus({ timeout: 3000 });
+  await page.keyboard.press('Enter');
+  expect(await evidence.getAttribute('aria-pressed') === 'true', 'verification: evidence choice must expose selected state');
+  expect((await page.locator('.lesson-feedback').textContent()).includes('证据'), 'verification: evidence attempt must explain the connection');
+  const correctEvidence = page.locator('[data-evidence-choice][data-choice-value="尚无足够证据"]');
+  await correctEvidence.focus();
+  await page.keyboard.press('Enter');
+  expect((await page.locator('.lesson-feedback').textContent()).includes('合理'), 'verification: evidence connection must support a correct retry');
+  const versionChoices = page.locator('[data-version-choice]');
+  expect(await versionChoices.count() === 2, 'verification: two answer versions must be available for comparison');
+  const version = versionChoices.first();
+  await version.focus({ timeout: 3000 });
+  await page.keyboard.press('Enter');
+  expect(await version.getAttribute('aria-pressed') === 'true', 'verification: version choice must expose selected state');
+  expect((await page.locator('.lesson-feedback').textContent()).includes('版本'), 'verification: version comparison must explain usability');
+  const usableVersion = page.locator('[data-version-choice][data-choice-value="版本 B"]');
+  await usableVersion.focus();
+  await page.keyboard.press('Enter');
+  expect((await page.locator('.lesson-feedback').textContent()).includes('更可用'), 'verification: version comparison must support a more-usable retry');
+
+  await page.goto(`${base}/detail.html?type=learn&id=ai-workflow`, { waitUntil: 'domcontentloaded' });
+  const workflowInitial = await page.evaluate(() => ({
+    steps: [...document.querySelectorAll('.lesson-workflow-step .lesson-workflow-copy b')].map((node) => node.textContent.replace(/^\d+\.\s*/, '')),
+    text: document.querySelector('.lesson-workflow-list')?.innerText || '',
+    movePressed: [...document.querySelectorAll('[data-workflow-move]')].some((node) => node.hasAttribute('aria-pressed')),
+    ownerStates: [...document.querySelectorAll('[data-workflow-owner]')].map((node) => node.getAttribute('aria-pressed')),
+    checkpointStates: [...document.querySelectorAll('[data-workflow-checkpoint]')].map((node) => node.getAttribute('aria-pressed')),
+  }));
+  const recommended = ['收集当月数据', '提取变化与异常', '核对来源和口径', '生成汇报初稿', '确定优先级并交付'];
+  expect(workflowInitial.steps.join('|') !== recommended.join('|'), 'workflow: initial steps must be deterministically shuffled');
+  expect(!/(建议分工|建议.*检查点|已设人工检查点)/.test(workflowInitial.text), 'workflow: initial DOM must not reveal recommended ownership or checkpoints');
+  expect(!workflowInitial.movePressed, 'workflow: ordinary up/down buttons must not expose aria-pressed');
+  expect(workflowInitial.ownerStates.length >= 15 && workflowInitial.ownerStates.every((value) => value === 'false'), 'workflow: responsibility choices must start unselected');
+  expect(workflowInitial.checkpointStates.length >= 10 && workflowInitial.checkpointStates.every((value) => value === 'false'), 'workflow: checkpoint choices must start unselected');
+  const firstOwner = page.locator('[data-workflow-owner]').first();
+  const firstCheckpoint = page.locator('[data-workflow-checkpoint]').first();
+  await firstOwner.focus({ timeout: 3000 });
+  await page.keyboard.press('Enter');
+  await firstCheckpoint.focus({ timeout: 3000 });
+  await page.keyboard.press('Enter');
+  const stepCheck = page.locator('[data-workflow-check]').first();
+  await stepCheck.focus({ timeout: 3000 });
+  await page.keyboard.press('Enter');
+  expect((await page.locator('.lesson-feedback').textContent()).includes('建议'), 'workflow: checking a responsibility/checkpoint choice must reveal a recommendation');
+  const correctCheckpoint = page.locator('[data-workflow-checkpoint][data-step-key="3"][data-choice-value="false"]');
+  await correctCheckpoint.focus();
+  await page.keyboard.press('Enter');
+  await stepCheck.focus();
+  await page.keyboard.press('Enter');
+  expect((await page.locator('.lesson-feedback').textContent()).includes('一致'), 'workflow: responsibility/checkpoint controls must support a correct retry');
+  const movable = page.locator('[data-workflow-move]:not(:disabled)').first();
+  await movable.focus({ timeout: 3000 });
+  await page.keyboard.press('Enter');
+  expect(await movable.getAttribute('aria-pressed') === null, 'workflow: move buttons must remain ordinary buttons after activation');
+  expect(await page.evaluate(() => document.activeElement?.hasAttribute('data-workflow-move')), 'workflow: reorder must retain focus on the logical move control');
+  for (const key of ['0', '1', '2', '3', '4']) {
+    for (;;) {
+      const position = await page.locator('.lesson-workflow-step').evaluateAll((nodes, targetKey) => ({
+        current: nodes.findIndex((node) => node.getAttribute('data-step-key') === targetKey),
+        target: Number(targetKey),
+      }), key);
+      if (position.current <= position.target) break;
+      const up = page.locator(`[data-workflow-move][data-step-key="${key}"][data-choice-value="up"]`);
+      await up.focus();
+      await page.keyboard.press('Enter');
+    }
+  }
+  const orderCheck = page.locator('[data-workflow-check-order]');
+  await orderCheck.focus();
+  await page.keyboard.press('Enter');
+  expect((await page.locator('.lesson-feedback').textContent()).includes('顺序合理'), 'workflow: sorting must support a correct retry and explanation');
+  expect(errors.length === 0, `deep interactions: runtime errors: ${errors.join(' | ')}`);
   await context.close();
 }
 
@@ -335,6 +488,7 @@ async function runCopyContract(browser, base) {
     }
     browser = await chromium.launch({ headless: true });
     await runPrimaryContract(browser, base);
+    await runDeepInteractionContract(browser, base);
     await runFreshContextContract(browser, base);
     for (const mode of ['get', 'set', 'invalid-json']) await runStorageFaultContract(browser, base, mode);
     await runCopyContract(browser, base);

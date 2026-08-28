@@ -264,6 +264,9 @@
 }
 
 .lesson-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   color: var(--learning-blue);
   text-decoration: none;
 }
@@ -431,6 +434,9 @@
 }
 
 .lesson-check summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
   color: var(--learning-blue);
   font-size: 17px;
   line-height: 1.65;
@@ -521,6 +527,7 @@
 }
 
 .lesson-choice:focus-visible,
+.lesson-flow-step:focus-visible,
 .lesson-workflow-actions button:focus-visible,
 .lesson-prompt-field input:focus-visible,
 .lesson-prompt-field textarea:focus-visible,
@@ -556,6 +563,11 @@
   margin: 0;
 }
 
+.lesson-concept-relation {
+  border-color: var(--learning-line);
+  box-shadow: none;
+}
+
 .lesson-model-flow {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -570,7 +582,7 @@
   align-content: start;
   gap: 8px;
   min-width: 0;
-  padding: 14px;
+  padding: 10px;
   color: var(--learning-navy);
   font-size: 14px;
   line-height: 1.55;
@@ -579,6 +591,43 @@
   background: #ffffff;
   border: 1px solid var(--learning-line);
   border-radius: 12px;
+}
+
+.lesson-flow-step {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 44px;
+  min-height: 52px;
+  padding: 6px;
+  color: var(--learning-navy);
+  font: inherit;
+  font-weight: 750;
+  text-align: left;
+  overflow-wrap: anywhere;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  cursor: pointer;
+}
+
+.lesson-flow-step[aria-expanded="true"] {
+  color: var(--learning-blue);
+  background: var(--learning-blue-soft);
+  border-color: #b8cdf4;
+}
+
+.lesson-flow-explanation {
+  margin: 8px 4px 2px !important;
+  color: var(--learning-muted);
+  font-size: 13px !important;
+  line-height: 1.6 !important;
+}
+
+.lesson-flow-explanation[hidden] {
+  display: none;
 }
 
 .lesson-flow-number {
@@ -647,10 +696,42 @@
 }
 
 .lesson-exercise-reference summary {
+  display: flex;
+  align-items: center;
   min-height: 44px;
   color: var(--learning-blue);
   font-weight: 750;
   cursor: pointer;
+}
+
+.lesson-evidence-label {
+  margin: 16px 0 8px !important;
+  color: var(--learning-navy) !important;
+  font-size: 14px !important;
+  font-weight: 750;
+}
+
+.lesson-version-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.lesson-version-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 16px;
+  background: var(--learning-page);
+  border: 1px solid var(--learning-line);
+  border-radius: 12px;
+}
+
+.lesson-version-card p {
+  flex: 1;
+  margin: 8px 0 14px;
+  font-size: 14px !important;
+  overflow-wrap: anywhere;
 }
 
 .lesson-workflow-list {
@@ -687,10 +768,37 @@
   gap: 8px;
 }
 
-.lesson-workflow-owner {
+.lesson-workflow-owner,
+.lesson-workflow-checkpoints {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 6px;
+}
+
+.lesson-workflow-question {
+  flex: 1 0 100%;
+  color: var(--learning-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.lesson-workflow-result {
+  flex: 1 0 100%;
+  margin: 2px 0 0 !important;
+  padding: 10px 12px;
+  color: var(--learning-navy) !important;
+  font-size: 13px !important;
+  background: var(--learning-blue-soft);
+  border-radius: 9px;
+}
+
+.lesson-workflow-result[hidden] {
+  display: none;
+}
+
+[data-workflow-check-order] {
+  margin-top: 14px;
 }
 
 .lesson-workflow-actions button {
@@ -888,13 +996,15 @@
   }
 
   .lesson-model-flow,
-  .lesson-prompt-fields {
+  .lesson-prompt-fields,
+  .lesson-version-options {
     grid-template-columns: 1fr;
   }
 
   .lesson-choice-row,
   .lesson-workflow-actions,
-  .lesson-workflow-owner {
+  .lesson-workflow-owner,
+  .lesson-workflow-checkpoints {
     display: grid;
     grid-template-columns: 1fr;
   }
