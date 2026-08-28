@@ -36,6 +36,9 @@ const aliases = {
   'ai-other': 'ai-basics',
 };
 const newImageNames = ['ai-boundaries', 'ai-delegation', 'ai-verification', 'ai-workflow'];
+const requiredApiMethods = ['getStatus', 'markStarted', 'markSeen', 'nextIncomplete', 'initHub', 'renderChapter'];
+const storageKey = 'amersports-ai-beginner-session-v1';
+const allowedRuntimeStatuses = new Set(['unseen', 'in-progress', 'seen']);
 
 function readRequired(relativePath) {
   try {
@@ -382,8 +385,8 @@ function plainClone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-function evaluateLearningApi(source) {
-  const sessionStorage = {
+function evaluateLearningRuntime(source, storageOverride) {
+  const sessionStorage = storageOverride ?? {
     getItem() { throw new Error('storage unavailable in static contract'); },
     setItem() { throw new Error('storage unavailable in static contract'); },
     removeItem() { throw new Error('storage unavailable in static contract'); },
@@ -395,7 +398,8 @@ function evaluateLearningApi(source) {
     querySelectorAll() { return []; },
     getElementById() { return null; },
   };
-  const window = { document, sessionStorage };
+  const location = { href: 'https://example.test/learn.html', search: '', hash: '' };
+  const window = { document, sessionStorage, location };
   window.window = window;
   const context = vm.createContext({
     window,
@@ -403,7 +407,7 @@ function evaluateLearningApi(source) {
     sessionStorage,
     URL,
     URLSearchParams,
-    location: { href: 'https://example.test/learn.html', search: '', hash: '' },
+    location,
     navigator: {},
     console: { log() {}, warn() {}, error() {} },
     setTimeout() { return 0; },
@@ -411,7 +415,34 @@ function evaluateLearningApi(source) {
   });
   vm.runInContext(source, context, { timeout: 100, displayErrors: true });
   assert.ok(window.AIBeginner && typeof window.AIBeginner === 'object', 'learning-experience.js must expose window.AIBeginner');
-  return plainClone(window.AIBeginner);
+  return window.AIBeginner;
+}
+
+function evaluateLearningApi(source) {
+  const api = evaluateLearningRuntime(source);
+  for (const method of requiredApiMethods) {
+    assert.equal(typeof api[method], 'function', `window.AIBeginner.${method} must be a function`);
+  }
+  return plainClone(api);
+}
+
+function createStorage(initialValue = null, options = {}) {
+  let value = initialValue;
+  const calls = { get: [], set: [] };
+  return {
+    calls,
+    get value() { return value; },
+    getItem(key) {
+      calls.get.push(key);
+      if (options.throwGet) throw new Error('getItem unavailable');
+      return value;
+    },
+    setItem(key, nextValue) {
+      calls.set.push([key, nextValue]);
+      if (options.throwSet) throw new Error('setItem unavailable');
+      value = nextValue;
+    },
+  };
 }
 
 function listFiles(root) {
@@ -445,6 +476,22 @@ function stripCssCommentsAndStrings(source) {
   return source
     .replace(/\/\*[\s\S]*?\*\//g, (match) => ' '.repeat(match.length))
     .replace(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/g, (match) => ' '.repeat(match.length));
+}
+
+function findCssBlock(source, pattern, label) {
+  const match = pattern.exec(source);
+  assert.ok(match, `${label} must exist`);
+  const start = source.indexOf('{', match.index);
+  assert.ok(start >= 0, `${label} must open a CSS block`);
+  let depth = 0;
+  for (let cursor = start; cursor < source.length; cursor += 1) {
+    if (source[cursor] === '{') depth += 1;
+    if (source[cursor] === '}') {
+      depth -= 1;
+      if (depth === 0) return source.slice(start + 1, cursor);
+    }
+  }
+  assert.fail(`${label} must close its CSS block`);
 }
 
 function assertNoGradient(files) {
@@ -599,6 +646,7 @@ function runContract() {
   const executableTokens = maskJavaScript(learningScript);
   assert.ok(/\bsessionStorage\b/.test(executableTokens), 'learning-experience.js must use sessionStorage');
   assert.ok(!/\blocalStorage\b/.test(executableTokens), 'learning-experience.js must not use localStorage');
+  assert.ok(learningScript.includes(storageKey), `learning-experience.js must use storage key ${storageKey}`);
   for (const forbidden of forbiddenStatusCopy) {
     const withoutComments = learningScript.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n\r]*/g, '');
     assert.ok(!withoutComments.includes(forbidden), `learning-experience.js must not contain prohibited assessment copy: ${forbidden}`);
@@ -615,6 +663,26 @@ function runContract() {
     }
   }
   assert.deepEqual(api.aliases, aliases, 'legacy learning URL aliases must map to the approved new chapters');
+
+  const learningCss = readRequired('learning-experience.css');
+  const requiredCssClasses = [
+    'learning-hub', 'learning-card', 'learning-status', 'lesson-nav', 'lesson-figure',
+    'lesson-case', 'lesson-exercise', 'lesson-check', 'lesson-takeaway', 'lesson-actions',
+  ];
+  for (const className of requiredCssClasses) {
+    assert.ok(new RegExp(`\\.${className}(?![-_a-zA-Z0-9])`).test(learningCss), `learning-experience.css must define .${className}`);
+  }
+  const reducedMotion = findCssBlock(
+    learningCss.replace(/\/\*[\s\S]*?\*\//g, ''),
+    /@media\s*\(\s*prefers-reduced-motion\s*:\s*reduce\s*\)/i,
+    'learning-experience.css reduced-motion media query',
+  );
+  for (const className of ['learning-card', 'lesson-token', 'lesson-feedback', 'chapter-return-highlight']) {
+    assert.ok(new RegExp(`\\.${className}(?![-_a-zA-Z0-9])`).test(reducedMotion), `reduced-motion block must cover .${className}`);
+  }
+  assert.match(reducedMotion, /scroll-behavior\s*:\s*auto\b/i, 'reduced-motion block must disable smooth scrolling');
+  assert.match(reducedMotion, /transition\s*:\s*none\b/i, 'reduced-motion block must disable transitions');
+  assert.match(reducedMotion, /animation\s*:\s*none\b/i, 'reduced-motion block must disable animations');
 
   const detail = readRequired('detail.html');
   const detailElements = parseElements(detail, 'detail.html');
@@ -701,9 +769,18 @@ function fixtureFiles(order = chapterIds) {
       var chapters=[${chapters}];
       var aliases=${JSON.stringify(aliases)};
       function read(){ try { return sessionStorage.getItem('amersports-ai-beginner-session-v1'); } catch(error) { return null; } }
-      window.AIBeginner={chapters:chapters,aliases:aliases,read:read};
+      function getStatus(){ return 'unseen'; }
+      function markStarted(){ return 'in-progress'; }
+      function markSeen(){ return 'seen'; }
+      function nextIncomplete(){ return 'ai-basics'; }
+      function initHub(){ return true; }
+      function renderChapter(){ return true; }
+      window.AIBeginner={chapters:chapters,aliases:aliases,getStatus:getStatus,markStarted:markStarted,markSeen:markSeen,nextIncomplete:nextIncomplete,initHub:initHub,renderChapter:renderChapter,read:read};
     }());`,
-    'learning-experience.css': '.learning-card { color: #0e2144; }',
+    'learning-experience.css': `.learning-hub,.learning-card,.learning-status,.lesson-nav,.lesson-figure,.lesson-case,.lesson-exercise,.lesson-check,.lesson-takeaway,.lesson-actions { color: #0e2144; }
+      @media (prefers-reduced-motion: reduce) {
+        .learning-card,.lesson-token,.lesson-feedback,.chapter-return-highlight { scroll-behavior:auto; transition:none; animation:none; }
+      }`,
   };
 }
 
@@ -762,6 +839,114 @@ function expectMutationBatch(cases) {
   assert.deepEqual(missed, [], `contract missed review mutations: ${missed.join(', ')}`);
 }
 
+function runRuntimeUnitTest() {
+  const source = readRequired('learning-experience.js');
+
+  const freshStorage = createStorage();
+  const fresh = evaluateLearningRuntime(source, freshStorage);
+  for (const method of requiredApiMethods) {
+    assert.equal(typeof fresh[method], 'function', `window.AIBeginner.${method} must be a function`);
+  }
+  assert.deepEqual(plainClone(fresh.chapters.map(({ id }) => id)), chapterIds, 'runtime chapter order must remain stable');
+  assert.deepEqual(plainClone(fresh.aliases), aliases, 'runtime aliases must remain exact');
+  assert.equal(fresh.getStatus('ai-basics'), 'unseen', 'fresh known chapters must start unseen');
+  assert.equal(fresh.markStarted('ai-basics'), 'in-progress', 'markStarted must move a known unseen chapter to in-progress');
+  assert.equal(fresh.getStatus('ai-basics'), 'in-progress', 'markStarted must be visible in this session');
+  assert.equal(fresh.markSeen('ai-basics'), 'seen', 'markSeen must move a known chapter to seen');
+  assert.equal(fresh.markStarted('ai-basics'), 'seen', 'markStarted must not downgrade seen to in-progress');
+  assert.equal(fresh.getStatus('ai-basics'), 'seen', 'seen chapters must remain seen');
+  for (const status of chapterIds.map((id) => fresh.getStatus(id))) {
+    assert.ok(allowedRuntimeStatuses.has(status), `runtime status must be unseen, in-progress, or seen: ${status}`);
+  }
+  assert.ok(freshStorage.calls.get.every((key) => key === storageKey), 'runtime must read only the approved session key');
+  assert.ok(freshStorage.calls.set.every(([key]) => key === storageKey), 'runtime must write only the approved session key');
+
+  const writesBeforeUnknown = freshStorage.calls.set.length;
+  assert.equal(fresh.markStarted('unknown-chapter'), 'unseen', 'markStarted must ignore unknown chapter IDs');
+  assert.equal(fresh.markSeen('unknown-chapter'), 'unseen', 'markSeen must ignore unknown chapter IDs');
+  assert.equal(freshStorage.calls.set.length, writesBeforeUnknown, 'unknown chapter IDs must not trigger storage writes');
+
+  const invalidStates = [
+    '{not valid json',
+    '[]',
+    'null',
+    JSON.stringify({ 'ai-basics': 'unknown-status', 'ai-boundaries': null, extra: 'seen' }),
+    JSON.stringify({ 'ai-basics': { status: 'seen' }, 'ai-boundaries': ['seen'] }),
+  ];
+  for (const raw of invalidStates) {
+    const runtime = evaluateLearningRuntime(source, createStorage(raw));
+    assert.equal(runtime.getStatus('ai-basics'), 'unseen', `invalid state must be discarded safely: ${raw}`);
+    assert.equal(runtime.getStatus('ai-boundaries'), 'unseen', `invalid status shapes must be discarded safely: ${raw}`);
+  }
+
+  const sanitized = evaluateLearningRuntime(source, createStorage(JSON.stringify({
+    'ai-basics': 'seen',
+    'ai-boundaries': 'in-progress',
+    'ai-delegation': 'forged',
+    unknown: 'seen',
+  })));
+  assert.equal(sanitized.getStatus('ai-basics'), 'seen', 'known seen state must load');
+  assert.equal(sanitized.getStatus('ai-boundaries'), 'in-progress', 'known in-progress state must load');
+  assert.equal(sanitized.getStatus('ai-delegation'), 'unseen', 'unknown statuses must not load');
+  assert.equal(sanitized.getStatus('unknown'), 'unseen', 'unknown IDs must not load');
+
+  const getFailure = evaluateLearningRuntime(source, createStorage(null, { throwGet: true }));
+  assert.doesNotThrow(() => getFailure.getStatus('ai-basics'), 'sessionStorage getItem failure must not interrupt reading');
+  assert.equal(getFailure.getStatus('ai-basics'), 'unseen', 'getItem failure must fall back to an empty session state');
+
+  const setFailureStorage = createStorage(null, { throwSet: true });
+  const setFailure = evaluateLearningRuntime(source, setFailureStorage);
+  assert.doesNotThrow(() => setFailure.markStarted('ai-prompting'), 'sessionStorage setItem failure must not interrupt progress updates');
+  assert.equal(setFailure.getStatus('ai-prompting'), 'in-progress', 'memory fallback must keep progress coherent after setItem failure');
+  setFailure.markSeen('ai-prompting');
+  assert.equal(setFailure.getStatus('ai-prompting'), 'seen', 'memory fallback must preserve later progress updates');
+
+  const orderStorage = createStorage(JSON.stringify({ 'ai-basics': 'seen', 'ai-boundaries': 'in-progress' }));
+  const ordered = evaluateLearningRuntime(source, orderStorage);
+  assert.equal(ordered.nextIncomplete(), 'ai-boundaries', 'nextIncomplete must return the first non-seen chapter in approved order');
+  ordered.markSeen('ai-boundaries');
+  assert.equal(ordered.nextIncomplete(), 'ai-delegation', 'nextIncomplete must advance in approved order');
+  for (const id of chapterIds) ordered.markSeen(id);
+  assert.equal(ordered.nextIncomplete(), null, 'nextIncomplete must return null when all chapters are seen');
+
+  const movedTarget = { innerHTML: '' };
+  assert.equal(fresh.renderChapter('ai-models', movedTarget), true, 'legacy company/model routes must render a moved notice');
+  assert.match(movedTarget.innerHTML, /已移至\s*AI 工具与资源/, 'legacy route notice must explain where the content moved');
+  assert.match(movedTarget.innerHTML, /href=["']resources\.html["']/, 'legacy route notice must link to resources.html');
+  assert.doesNotThrow(() => fresh.initHub(), 'initHub must remain safe without a matching DOM hub');
+
+  console.log('PASS beginner learning runtime unit tests (state validation, storage failure, order, legacy routes)');
+}
+
+function runRuntimeMutationTest() {
+  const source = readRequired('learning-experience.js');
+  const downgradeNeedle = "if (state[id] !== STATUS_SEEN && state[id] !== STATUS_STARTED)";
+  assert.ok(source.includes(downgradeNeedle), 'runtime downgrade mutation source must contain the seen guard');
+  const downgradedSource = source.replace(downgradeNeedle, 'if (true)');
+  const downgraded = evaluateLearningRuntime(downgradedSource, createStorage());
+  downgraded.markSeen('ai-basics');
+  downgraded.markStarted('ai-basics');
+  assert.throws(
+    () => assert.equal(downgraded.getStatus('ai-basics'), 'seen', 'seen chapters must remain seen'),
+    assert.AssertionError,
+    'runtime unit assertion must catch the status downgrade mutation',
+  );
+
+  const keyStorage = createStorage();
+  const keyMutation = evaluateLearningRuntime(source.replace(storageKey, 'wrong-session-key'), keyStorage);
+  keyMutation.markStarted('ai-basics');
+  assert.throws(
+    () => assert.ok(
+      keyStorage.calls.get.every((key) => key === storageKey) && keyStorage.calls.set.every(([key]) => key === storageKey),
+      'runtime must use only the approved session key',
+    ),
+    assert.AssertionError,
+    'runtime unit assertion must catch the storage-key mutation',
+  );
+
+  console.log('PASS beginner learning runtime mutations (seen guard + storage key)');
+}
+
 function runSelfTest() {
   const greenRoot = createFixture();
   try {
@@ -781,6 +966,9 @@ function runSelfTest() {
   expectMutation('localStorage', (root) => {
     replaceIn(root, 'learning-experience.js', 'window.AIBeginner=', 'localStorage.getItem("bad"); window.AIBeginner=');
   }, 'learning-experience.js must not use localStorage');
+  expectMutation('missing runtime API', (root) => {
+    replaceIn(root, 'learning-experience.js', 'renderChapter:renderChapter,read:read', 'read:read');
+  }, 'window.AIBeginner.renderChapter must be a function');
   expectMutation('hidden failed status', (root) => {
     replaceIn(root, 'learn.html', '<main>', '<main><span hidden>未通过</span>');
   }, 'learn.html must not contain prohibited status or assessment copy: 未通过');
@@ -799,6 +987,9 @@ function runSelfTest() {
   expectMutation('CSS gradient', (root) => {
     replaceIn(root, 'learning-experience.css', '#0e2144', 'linear-gradient(#fff, #0e2144)');
   }, 'learning-experience.css must not use CSS gradients');
+  expectMutation('missing reduced motion coverage', (root) => {
+    replaceIn(root, 'learning-experience.css', '.chapter-return-highlight', '.chapter-return-highlight-missing');
+  }, 'reduced-motion block must cover .chapter-return-highlight');
   expectMutation('old model search entry', (root) => {
     replaceIn(root, 'search.js', chapterHrefs[0], 'detail.html?type=learn&id=ai-models');
   }, 'search beginner links must match the six approved chapter URLs');
@@ -851,10 +1042,12 @@ function runSelfTest() {
     },
   ]);
 
-  console.log('PASS learning experience contract self-test (valid fixture + 21 mutations)');
+  console.log('PASS learning experience contract self-test (valid fixture + 23 mutations)');
 }
 
-if (process.argv.includes('--self-test')) runSelfTest();
+if (process.argv.includes('--runtime-test')) runRuntimeUnitTest();
+else if (process.argv.includes('--runtime-mutation-test')) runRuntimeMutationTest();
+else if (process.argv.includes('--self-test')) runSelfTest();
 else {
   runContract();
   console.log('PASS AI beginner learning contract');
