@@ -98,7 +98,7 @@ const viewports = [
         expect(!metrics.homeTitleMascotOverlap, `index ${width}px: title and mascot rectangles overlap`);
         expect(Math.abs(metrics.homeHeroRect.bottom - metrics.homeSectionRect.bottom) <= 3.1, `index ${width}px: mascot crop boundary is not aligned to hero bottom (${metrics.homeHeroRect.bottom}/${metrics.homeSectionRect.bottom})`);
         expect(metrics.homeImageRect.top >= metrics.homeHeroRect.top - 1, `index ${width}px: mascot rises above hero (${metrics.homeImageRect.top}/${metrics.homeHeroRect.top})`);
-        expect(metrics.homeImageRect.bottom >= metrics.homeHeroRect.bottom + 20, `index ${width}px: mascot legs are not cropped by hero (${metrics.homeImageRect.bottom}/${metrics.homeHeroRect.bottom})`);
+        expect(metrics.homeImageRect.bottom > metrics.homeHeroRect.bottom + 20, `index ${width}px: mascot legs are not cropped by hero (${metrics.homeImageRect.bottom}/${metrics.homeHeroRect.bottom})`);
         expect(metrics.homeImageRect.height / metrics.homeHeroRect.height >= 1.12, `index ${width}px: mascot is not sufficiently enlarged (${metrics.homeImageRect.height}/${metrics.homeHeroRect.height})`);
         expect(metrics.homeImageCurrentSrc.endsWith('/img/xiaoa-home-480.webp'), `index ${width}px: browser did not select the WebP mascot (${metrics.homeImageCurrentSrc})`);
         homeViewportEvidence.push({
