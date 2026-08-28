@@ -301,24 +301,81 @@
     var source = card.querySelector('[data-template-content]');
     var feedback = card.querySelector('[data-copy-feedback]');
     if (!source || !feedback) return;
+    if (button.disabled) return;
+
+    var templateText = source.textContent || '';
+    var copyToken = (button.__learningCopyToken || 0) + 1;
+    var settled = false;
+    button.__learningCopyToken = copyToken;
+    button.disabled = true;
+    if (typeof button.setAttribute === 'function') button.setAttribute('aria-busy', 'true');
+    feedback.textContent = '';
+
+    function showCopyFallback(card, value) {
+      var fallback = card.querySelector('[data-copy-fallback]');
+      if (!fallback) {
+        var ownerDocument = card.ownerDocument || (typeof document !== 'undefined' ? document : null);
+        if (!ownerDocument || typeof ownerDocument.createElement !== 'function' || typeof card.appendChild !== 'function') return;
+        fallback = ownerDocument.createElement('textarea');
+        fallback.className = 'tool-copy-fallback';
+        fallback.readOnly = true;
+        fallback.setAttribute('readonly', '');
+        fallback.setAttribute('data-copy-fallback', '');
+        fallback.setAttribute('aria-label', '手动复制模板');
+        card.appendChild(fallback);
+      }
+      fallback.value = value;
+      fallback.hidden = false;
+      try {
+        if (typeof fallback.focus === 'function') fallback.focus();
+        if (typeof fallback.select === 'function') fallback.select();
+        else if (typeof fallback.setSelectionRange === 'function') fallback.setSelectionRange(0, value.length);
+      } catch (error) {
+        try {
+          if (typeof fallback.setSelectionRange === 'function') fallback.setSelectionRange(0, value.length);
+        } catch (selectionError) {}
+      }
+    }
+
+    function hideCopyFallback() {
+      var fallback = card.querySelector('[data-copy-fallback]');
+      if (fallback) fallback.hidden = true;
+    }
 
     function announce(message) {
-      feedback.textContent = message;
+      if (typeof setTimeout === 'function') {
+        setTimeout(function () {
+          if (button.__learningCopyToken === copyToken) feedback.textContent = message;
+        }, 0);
+      } else if (button.__learningCopyToken === copyToken) {
+        feedback.textContent = message;
+      }
+    }
+
+    function finishCopy(succeeded) {
+      if (settled || button.__learningCopyToken !== copyToken) return;
+      settled = true;
+      if (succeeded) hideCopyFallback();
+      else showCopyFallback(card, templateText);
+      announce(succeeded ? '已复制' : '请手动复制');
+      button.disabled = false;
+      if (typeof button.removeAttribute === 'function') button.removeAttribute('aria-busy');
+      else if (typeof button.setAttribute === 'function') button.setAttribute('aria-busy', 'false');
     }
 
     try {
       if (typeof navigator === 'undefined' || !navigator.clipboard || typeof navigator.clipboard.writeText !== 'function') {
-        announce('请手动复制');
+        finishCopy(false);
         return;
       }
-      var result = navigator.clipboard.writeText(source.textContent || '');
+      var result = navigator.clipboard.writeText(templateText);
       if (result && typeof result.then === 'function') {
-        result.then(function () { announce('已复制'); }, function () { announce('请手动复制'); });
+        result.then(function () { finishCopy(true); }, function () { finishCopy(false); });
       } else {
-        announce('已复制');
+        finishCopy(true);
       }
     } catch (error) {
-      announce('请手动复制');
+      finishCopy(false);
     }
   }
 

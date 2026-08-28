@@ -172,6 +172,15 @@
   cursor: pointer;
 }
 
+.learning-tool-copy {
+  min-width: 112px;
+}
+
+.learning-tool-copy:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}
+
 .learning-tool-copy:focus-visible,
 .progress-compat-cta:focus-visible {
   outline: 3px solid rgba(47, 104, 237, 0.35);
@@ -184,6 +193,33 @@
   font-size: 14px;
   font-weight: 700;
   transition: opacity 160ms ease;
+}
+
+.tool-copy-fallback {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  min-height: 132px;
+  margin: 16px 0 0;
+  padding: 14px 16px;
+  overflow: auto;
+  color: var(--learning-navy);
+  font: 600 14px/1.7 var(--font-mono, monospace);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  resize: vertical;
+  background: #ffffff;
+  border: 1px solid var(--learning-blue);
+  border-radius: 12px;
+}
+
+.tool-copy-fallback[hidden] {
+  display: none;
+}
+
+.tool-copy-fallback:focus-visible {
+  outline: 3px solid rgba(47, 104, 237, 0.35);
+  outline-offset: 3px;
 }
 
 .progress-compat-card {
@@ -436,7 +472,8 @@
   .lesson-feedback,
   .chapter-return-highlight,
   .learning-tool-card,
-  .tool-copy-feedback {
+  .tool-copy-feedback,
+  .tool-copy-fallback {
     scroll-behavior: auto;
     transition: none;
     animation: none;

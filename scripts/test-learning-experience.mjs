@@ -421,7 +421,7 @@ function evaluateLearningRuntime(source, storageOverride, environment = {}) {
     location,
     navigator,
     console: { log() {}, warn() {}, error() {} },
-    setTimeout: environment.setTimeout ?? function () { return 0; },
+    setTimeout: environment.setTimeout ?? function (callback) { callback(); return 0; },
     clearTimeout() {},
   });
   vm.runInContext(source, context, { timeout: 100, displayErrors: true });
@@ -451,27 +451,78 @@ function createHubStateHarness() {
   };
 }
 
-function createCopyHarness(templateText) {
-  const feedback = { textContent: '' };
+function createCopyHarness(templateText, options = {}) {
+  const feedbackHistory = [];
+  let feedbackText = '';
+  const feedback = {
+    get textContent() { return feedbackText; },
+    set textContent(value) {
+      feedbackText = value;
+      feedbackHistory.push(value);
+    },
+  };
   const template = { textContent: templateText };
+  let fallback = null;
+  const document = {
+    createElement(tagName) {
+      assert.equal(tagName, 'textarea', 'manual-copy fallback must use a textarea');
+      const attributes = new Map();
+      const textarea = {
+        tagName: 'TEXTAREA',
+        className: '',
+        value: '',
+        readOnly: false,
+        hidden: false,
+        focused: false,
+        selected: false,
+        selectionStart: null,
+        selectionEnd: null,
+        setAttribute(name, value) { attributes.set(name, String(value)); },
+        getAttribute(name) { return attributes.get(name) ?? null; },
+        focus() { this.focused = true; },
+        select() {
+          this.selected = true;
+          this.selectionStart = 0;
+          this.selectionEnd = this.value.length;
+        },
+        setSelectionRange(start, end) {
+          this.selectionStart = start;
+          this.selectionEnd = end;
+        },
+      };
+      if (options.noSelect) delete textarea.select;
+      return textarea;
+    },
+  };
   const card = {
+    ownerDocument: document,
     querySelector(selector) {
       if (selector === '[data-template-content]') return template;
       if (selector === '[data-copy-feedback]') return feedback;
+      if (selector === '[data-copy-fallback]') return fallback;
       return null;
     },
+    appendChild(node) { fallback = node; return node; },
   };
   let handler = null;
   const attributes = new Map();
   const button = {
+    disabled: false,
     addEventListener(type, listener) { if (type === 'click') handler = listener; },
     closest(selector) { return selector === '.learning-tool-card' ? card : null; },
     getAttribute(name) { return attributes.get(name) ?? null; },
     setAttribute(name, value) { attributes.set(name, value); },
+    removeAttribute(name) { attributes.delete(name); },
   };
   return {
+    button,
     feedback,
-    click() { assert.equal(typeof handler, 'function', 'copy button must receive a click handler'); handler(); },
+    feedbackHistory,
+    get fallback() { return fallback; },
+    click() {
+      assert.equal(typeof handler, 'function', 'copy button must receive a click handler');
+      if (!button.disabled) handler();
+    },
     root: {
       querySelectorAll(selector) {
         if (selector === '[data-copy-template]') return [button];
@@ -835,7 +886,7 @@ function runContract() {
   const requiredCssClasses = [
     'learning-hub', 'learning-card', 'learning-status', 'lesson-nav', 'lesson-figure',
     'lesson-case', 'lesson-exercise', 'lesson-check', 'lesson-takeaway', 'lesson-actions',
-    'learning-session-summary', 'learning-toolkit', 'learning-tool-card', 'learning-tool-copy', 'progress-compat-cta',
+    'learning-session-summary', 'learning-toolkit', 'learning-tool-card', 'learning-tool-copy', 'tool-copy-fallback', 'progress-compat-cta',
   ];
   for (const className of requiredCssClasses) {
     assert.ok(new RegExp(`\\.${className}(?![-_a-zA-Z0-9])`).test(learningCss), `learning-experience.css must define .${className}`);
@@ -845,7 +896,7 @@ function runContract() {
     /@media\s*\(\s*prefers-reduced-motion\s*:\s*reduce\s*\)/i,
     'learning-experience.css reduced-motion media query',
   );
-  for (const className of ['learning-card', 'lesson-token', 'lesson-feedback', 'chapter-return-highlight', 'learning-tool-card', 'tool-copy-feedback']) {
+  for (const className of ['learning-card', 'lesson-token', 'lesson-feedback', 'chapter-return-highlight', 'learning-tool-card', 'tool-copy-feedback', 'tool-copy-fallback']) {
     assert.ok(new RegExp(`\\.${className}(?![-_a-zA-Z0-9])`).test(reducedMotion), `reduced-motion block must cover .${className}`);
   }
   assert.match(reducedMotion, /scroll-behavior\s*:\s*auto\b/i, 'reduced-motion block must disable smooth scrolling');
@@ -972,9 +1023,9 @@ function fixtureFiles(order = chapterIds) {
       function renderChapter(){ return true; }
       window.AIBeginner={chapters:chapters,aliases:aliases,getStatus:getStatus,markStarted:markStarted,markSeen:markSeen,nextIncomplete:nextIncomplete,initHub:initHub,renderChapter:renderChapter,read:read};
     }());`,
-    'learning-experience.css': `.learning-hub,.learning-card,.learning-status,.lesson-nav,.lesson-figure,.lesson-case,.lesson-exercise,.lesson-check,.lesson-takeaway,.lesson-actions,.learning-session-summary,.learning-toolkit,.learning-tool-card,.learning-tool-copy,.progress-compat-cta { color: #0e2144; }
+    'learning-experience.css': `.learning-hub,.learning-card,.learning-status,.lesson-nav,.lesson-figure,.lesson-case,.lesson-exercise,.lesson-check,.lesson-takeaway,.lesson-actions,.learning-session-summary,.learning-toolkit,.learning-tool-card,.learning-tool-copy,.tool-copy-fallback,.progress-compat-cta { color: #0e2144; }
       @media (prefers-reduced-motion: reduce) {
-        .learning-card,.lesson-token,.lesson-feedback,.chapter-return-highlight,.learning-tool-card,.tool-copy-feedback { scroll-behavior:auto; transition:none; animation:none; }
+        .learning-card,.lesson-token,.lesson-feedback,.chapter-return-highlight,.learning-tool-card,.tool-copy-feedback,.tool-copy-fallback { scroll-behavior:auto; transition:none; animation:none; }
       }`,
   };
 }
@@ -1135,6 +1186,9 @@ function runRuntimeUnitTest() {
   successCopy.click();
   assert.deepEqual(copied, ['目标：完成月报'], 'copy tool must send only its template text to the Clipboard API');
   assert.equal(successCopy.feedback.textContent, '已复制', 'successful copy must announce 已复制');
+  assert.equal(successCopy.fallback, null, 'successful copy must not expose a manual-copy textarea');
+  assert.equal(successCopy.button.disabled, false, 'successful copy must restore the copy button');
+  assert.equal(successCopy.button.getAttribute('aria-busy'), null, 'successful copy must clear the busy state');
 
   const throwingCopy = createCopyHarness('事实：');
   const throwingCopyRuntime = evaluateLearningRuntime(source, createStorage(), {
@@ -1143,12 +1197,86 @@ function runRuntimeUnitTest() {
   throwingCopyRuntime.initHub(throwingCopy.root);
   assert.doesNotThrow(() => throwingCopy.click(), 'clipboard exceptions must not interrupt the learning hub');
   assert.equal(throwingCopy.feedback.textContent, '请手动复制', 'clipboard exceptions must announce the manual-copy fallback');
+  assert.ok(throwingCopy.fallback, 'clipboard exceptions must expose a manual-copy textarea');
+  assert.equal(throwingCopy.fallback.value, '事实：', 'manual-copy textarea must preserve the exact template');
+  assert.equal(throwingCopy.fallback.readOnly, true, 'manual-copy textarea must be readonly');
+  assert.equal(throwingCopy.fallback.hidden, false, 'manual-copy textarea must remain visible');
+  assert.equal(throwingCopy.fallback.focused, true, 'manual-copy textarea must receive focus');
+  assert.equal(throwingCopy.fallback.selected, true, 'manual-copy textarea must select its contents');
+  assert.deepEqual([throwingCopy.fallback.selectionStart, throwingCopy.fallback.selectionEnd], [0, '事实：'.length],
+    'manual-copy textarea must select the complete template range');
+  assert.equal(throwingCopy.button.disabled, false, 'throwing Clipboard API must restore the copy button');
+  assert.equal(throwingCopy.button.getAttribute('aria-busy'), null, 'throwing Clipboard API must clear the busy state');
 
   const missingCopy = createCopyHarness('输入：');
   const missingCopyRuntime = evaluateLearningRuntime(source, createStorage(), { navigator: {} });
   missingCopyRuntime.initHub(missingCopy.root);
   missingCopy.click();
   assert.equal(missingCopy.feedback.textContent, '请手动复制', 'missing Clipboard API must announce the manual-copy fallback');
+  assert.ok(missingCopy.fallback && !missingCopy.fallback.hidden, 'missing Clipboard API must expose a visible manual-copy textarea');
+  assert.equal(missingCopy.fallback.value, '输入：', 'missing Clipboard API fallback must preserve the exact template');
+
+  const noSelectCopy = createCopyHarness('最终交付：摘要', { noSelect: true });
+  const noSelectRuntime = evaluateLearningRuntime(source, createStorage(), { navigator: {} });
+  noSelectRuntime.initHub(noSelectCopy.root);
+  assert.doesNotThrow(() => noSelectCopy.click(), 'manual-copy fallback must tolerate a textarea without select()');
+  assert.ok(noSelectCopy.fallback.focused, 'manual-copy fallback without select() must still receive focus');
+  assert.deepEqual([noSelectCopy.fallback.selectionStart, noSelectCopy.fallback.selectionEnd], [0, '最终交付：摘要'.length],
+    'manual-copy fallback without select() must still select the complete range when setSelectionRange is available');
+
+  const rejectingCopy = createCopyHarness('背景：当前季度');
+  const rejectingRuntime = evaluateLearningRuntime(source, createStorage(), {
+    navigator: { clipboard: { writeText() { return { then(resolve, reject) { reject(new Error('denied')); } }; } } },
+  });
+  rejectingRuntime.initHub(rejectingCopy.root);
+  rejectingCopy.click();
+  assert.ok(rejectingCopy.fallback && !rejectingCopy.fallback.hidden, 'rejected Clipboard API must expose a visible manual-copy textarea');
+  assert.equal(rejectingCopy.fallback.value, '背景：当前季度', 'rejected Clipboard API fallback must preserve the exact template');
+  assert.equal(rejectingCopy.feedback.textContent, '请手动复制', 'rejected Clipboard API must announce the manual-copy fallback');
+
+  let laterWriteSucceeds = false;
+  const retryCopy = createCopyHarness('检查点：来源');
+  const retryRuntime = evaluateLearningRuntime(source, createStorage(), {
+    navigator: { clipboard: { writeText() {
+      if (!laterWriteSucceeds) throw new Error('first write denied');
+      return { then(resolve) { resolve(); } };
+    } } },
+  });
+  retryRuntime.initHub(retryCopy.root);
+  retryCopy.click();
+  assert.ok(retryCopy.fallback && !retryCopy.fallback.hidden, 'first failed copy must expose the textarea');
+  laterWriteSucceeds = true;
+  retryCopy.click();
+  assert.equal(retryCopy.feedback.textContent, '已复制', 'later successful copy must replace the failure feedback');
+  assert.equal(retryCopy.fallback.hidden, true, 'later successful copy must hide the manual-copy textarea');
+  assert.equal(retryCopy.fallback.value, '检查点：来源', 'hiding the fallback must not discard its template data');
+
+  let pendingResolve = null;
+  let pendingWrites = 0;
+  const pendingCopy = createCopyHarness('输出要求：表格');
+  const pendingRuntime = evaluateLearningRuntime(source, createStorage(), {
+    navigator: { clipboard: { writeText() {
+      pendingWrites += 1;
+      return { then(resolve) { pendingResolve = resolve; } };
+    } } },
+  });
+  pendingRuntime.initHub(pendingCopy.root);
+  pendingCopy.click();
+  assert.equal(pendingCopy.button.disabled, true, 'copy button must be disabled while Clipboard API is pending');
+  assert.equal(pendingCopy.button.getAttribute('aria-busy'), 'true', 'pending copy button must expose aria-busy=true');
+  pendingCopy.click();
+  assert.equal(pendingWrites, 1, 'a second click while pending must not start another Clipboard API write');
+  pendingResolve();
+  assert.equal(pendingCopy.button.disabled, false, 'settled Clipboard API must restore the copy button');
+  assert.equal(pendingCopy.button.getAttribute('aria-busy'), null, 'settled Clipboard API must clear aria-busy');
+
+  const repeatedCopy = createCopyHarness('风险：');
+  const repeatedRuntime = evaluateLearningRuntime(source, createStorage(), { navigator: {} });
+  repeatedRuntime.initHub(repeatedCopy.root);
+  repeatedCopy.click();
+  repeatedCopy.click();
+  assert.deepEqual(repeatedCopy.feedbackHistory, ['', '请手动复制', '', '请手动复制'],
+    'repeated manual-copy feedback must clear before each asynchronous live announcement');
 
   const movedTarget = { innerHTML: '' };
   assert.equal(fresh.renderChapter('ai-models', movedTarget), true, 'legacy company/model routes must render a moved notice');
@@ -1182,7 +1310,7 @@ function runRuntimeUnitTest() {
     get() { throw new Error('matches unavailable'); },
   }));
 
-  console.log('PASS beginner learning runtime unit tests (state validation, session summary, copy fallback, order, legacy routes, reduced motion)');
+  console.log('PASS beginner learning runtime unit tests (state validation, session summary, copy fallback, pending guard, order, legacy routes, reduced motion)');
 }
 
 function runRuntimeMutationTest() {
@@ -1238,10 +1366,10 @@ function runRuntimeMutationTest() {
     'runtime unit assertion must catch a missing seen-count update target',
   );
 
-  const fallbackNeedle = "announce('请手动复制');";
+  const fallbackNeedle = "announce(succeeded ? '已复制' : '请手动复制');";
   assert.ok(source.includes(fallbackNeedle), 'copy fallback mutation source must contain the approved feedback');
   const fallbackHarness = createCopyHarness('目标：');
-  const wrongFallback = evaluateLearningRuntime(source.replace(fallbackNeedle, "announce('复制失败');"), createStorage(), { navigator: {} });
+  const wrongFallback = evaluateLearningRuntime(source.replace(fallbackNeedle, "announce(succeeded ? '已复制' : '复制失败');"), createStorage(), { navigator: {} });
   wrongFallback.initHub(fallbackHarness.root);
   fallbackHarness.click();
   assert.throws(
@@ -1250,7 +1378,38 @@ function runRuntimeMutationTest() {
     'runtime unit assertion must catch changed copy fallback feedback',
   );
 
-  console.log('PASS beginner learning runtime mutations (seen guard + storage key + reduced motion + summary + copy fallback)');
+  const fallbackUiNeedle = 'showCopyFallback(card, templateText);';
+  assert.ok(source.includes(fallbackUiNeedle), 'copy fallback mutation source must contain the textarea fallback call');
+  const missingFallbackUiHarness = createCopyHarness('目标：');
+  const missingFallbackUi = evaluateLearningRuntime(source.replace(fallbackUiNeedle, ''), createStorage(), { navigator: {} });
+  missingFallbackUi.initHub(missingFallbackUiHarness.root);
+  missingFallbackUiHarness.click();
+  assert.throws(
+    () => assert.ok(missingFallbackUiHarness.fallback, 'missing Clipboard API must expose a manual-copy textarea'),
+    assert.AssertionError,
+    'runtime unit assertion must catch a removed manual-copy textarea fallback',
+  );
+
+  const pendingGuardNeedle = 'button.disabled = true;';
+  assert.ok(source.includes(pendingGuardNeedle), 'copy pending mutation source must contain the disabled guard');
+  let mutatedPendingWrites = 0;
+  const pendingMutationHarness = createCopyHarness('任务：');
+  const pendingMutation = evaluateLearningRuntime(source.replace(pendingGuardNeedle, ''), createStorage(), {
+    navigator: { clipboard: { writeText() {
+      mutatedPendingWrites += 1;
+      return { then() {} };
+    } } },
+  });
+  pendingMutation.initHub(pendingMutationHarness.root);
+  pendingMutationHarness.click();
+  pendingMutationHarness.click();
+  assert.throws(
+    () => assert.equal(mutatedPendingWrites, 1, 'pending copy must ignore a rapid second click'),
+    assert.AssertionError,
+    'runtime unit assertion must catch a removed pending-click guard',
+  );
+
+  console.log('PASS beginner learning runtime mutations (seen guard + storage key + reduced motion + summary + copy fallback + pending guard)');
 }
 
 function runSelfTest() {
