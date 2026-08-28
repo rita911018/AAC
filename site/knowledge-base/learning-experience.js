@@ -759,6 +759,20 @@
     revealExercise.addEventListener('click', function () {
       enableCompletion('已查看练习说明。完成一次尝试后，就可以记为看过。');
       revealExercise.disabled = true;
+      var moveFocusToCompletion = function () {
+        try {
+          if (typeof seenButton.scrollIntoView === 'function') seenButton.scrollIntoView({ block: 'center', behavior: 'auto' });
+        } catch (error) {}
+        try {
+          if (typeof seenButton.focus === 'function') seenButton.focus({ preventScroll: true });
+        } catch (error) {}
+      };
+      try {
+        if (typeof setTimeout === 'function') setTimeout(moveFocusToCompletion, 0);
+        else moveFocusToCompletion();
+      } catch (error) {
+        moveFocusToCompletion();
+      }
     });
     var checkItems = checkSection.querySelectorAll('details');
     for (var itemIndex = 0; itemIndex < checkItems.length; itemIndex += 1) {

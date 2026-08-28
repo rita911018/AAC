@@ -550,7 +550,12 @@ var VIDEO_REAL = {
 /* ================= 工具函数 ================= */
 function qs(name){
   var m = location.search.match(new RegExp('[?&]' + name + '=([^&]*)'));
-  return m ? decodeURIComponent(m[1]) : '';
+  if(!m) return '';
+  try {
+    return decodeURIComponent(m[1]);
+  } catch(error) {
+    return '';
+  }
 }
 function esc(s){
   var entities = {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};

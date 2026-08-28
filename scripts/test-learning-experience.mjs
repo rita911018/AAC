@@ -590,6 +590,7 @@ function createMiniDom() {
       event.currentTarget = this;
       for (const listener of this._listeners.get(event.type) ?? []) listener.call(this, event);
     }
+    focus() { this.ownerDocument.activeElement = this; }
     matches(selector) {
       if (selector === '*') return this.nodeType === 1;
       if (selector.startsWith('.')) return this.className.split(/\s+/).includes(selector.slice(1));
@@ -615,6 +616,7 @@ function createMiniDom() {
     }
   }
   const document = {
+    activeElement: null,
     readyState: 'complete',
     addEventListener() {},
     createElement(tagName) { return new MiniNode(document, tagName); },
@@ -856,6 +858,21 @@ function findCssBlock(source, pattern, label) {
     }
   }
   assert.fail(`${label} must close its CSS block`);
+}
+
+function extractFunctionDeclaration(source, name) {
+  const start = source.indexOf(`function ${name}(`);
+  assert.ok(start >= 0, `${name} function must exist`);
+  const bodyStart = source.indexOf('{', start);
+  let depth = 0;
+  for (let cursor = bodyStart; cursor < source.length; cursor += 1) {
+    if (source[cursor] === '{') depth += 1;
+    if (source[cursor] === '}') {
+      depth -= 1;
+      if (depth === 0) return source.slice(start, cursor + 1);
+    }
+  }
+  assert.fail(`${name} function must close`);
 }
 
 function hexContrast(left, right) {
@@ -1238,6 +1255,25 @@ function runContract() {
   assert.match(reducedMotion, /animation\s*:\s*none\b/i, 'reduced-motion block must disable animations');
 
   const detail = readRequired('detail.html');
+  const qsSource = extractFunctionDeclaration(detail, 'qs');
+  for (const malformed of ['%E0%A4%A', '%', '%ZZ']) {
+    const context = vm.createContext({ location: { search: `?type=learn&id=${malformed}` } });
+    const query = vm.runInContext(`(${qsSource})`, context);
+    assert.doesNotThrow(() => query('id'), `malformed id ${malformed} must not throw`);
+    assert.equal(query('id'), '', `malformed id ${malformed} must fail closed instead of aliasing`);
+  }
+  for (const malformedType of ['%E0%A4%A', '%', '%ZZ']) {
+    const context = vm.createContext({ location: { search: `?type=${malformedType}&id=ai-basics` } });
+    const query = vm.runInContext(`(${qsSource})`, context);
+    assert.doesNotThrow(() => query('type'), `malformed type ${malformedType} must not throw`);
+    assert.equal(query('type'), '', `malformed type ${malformedType} must fail closed`);
+  }
+  {
+    const context = vm.createContext({ location: { search: '?type=learn&id=%E8%AE%A4%E8%AF%86AI' } });
+    const query = vm.runInContext(`(${qsSource})`, context);
+    assert.equal(query('type'), 'learn', 'normal query type decoding must not regress');
+    assert.equal(query('id'), '认识AI', 'normal percent-encoded Chinese query decoding must not regress');
+  }
   const detailElements = parseElements(detail, 'detail.html');
   const learningScriptTags = detailElements.filter((element) => element.tagName === 'script' && element.attributes.get('src') === 'learning-experience.js');
   assert.equal(learningScriptTags.length, 1, 'detail.html must load learning-experience.js exactly once');
@@ -1359,6 +1395,7 @@ function fixtureFiles(order = chapterIds) {
       <script>var decoy='<a class="learning-card">decoy 未通过</a>';</script>
       <main><h1>AI 新手入门</h1><p>${learnHeroDescription}</p><picture><source srcset="img/xiaoa-learn.webp" type="image/webp"><img src="img/xiaoa-learn.png" width="432" height="480" alt="小A学习插画"></picture><h2>${learnHubHeading}</h2><a href="${chapterHrefs[0]}" data-learning-continue>继续学习</a><p class="learning-session-summary" data-learning-summary>已看 <span data-learning-seen-count>0</span> / 6</p><p>章节案例可以自然提到 AI 公司、主流 AI 模型、推荐课程、精选视频或值得关注的博主，不代表这里承载资源目录。必要时可引用<a href="https://www.anthropic.com/research">单一权威来源</a>。</p><section class="learning-hub"><a class="learning-card" hidden href="detail.html?type=learn&id=hidden"><h2>隐藏占位</h2><span class="learning-status">未看</span></a>${cards}</section><section class="learning-toolkit"><h2>可复制工具</h2>${toolCards}</section></main><footer><a href="learn.html">继续学习</a></footer><script src="learning-experience.js"></script><script>window.AIBeginner.initHub();</script></body></html>`,
     'detail.html': `<!doctype html><html><head><link rel="stylesheet" href="learning-experience.css"></head><body><section id="detailHero"><h1 id="dhTitle"></h1></section><main id="learningExperience"></main><script src="learning-experience.js"></script><script>
+      function qs(name){var m=location.search.match(new RegExp('[?&]'+name+'=([^&]*)'));if(!m)return '';try{return decodeURIComponent(m[1]);}catch(error){return '';}}
       function safeOwnGet(object,key){try{return object&&Object.prototype.hasOwnProperty.call(object,key)?object[key]:undefined;}catch(error){return undefined;}}
       var CONFIG={learn:{subs:{${detailConfigs}}}};
       var board=safeOwnGet(CONFIG,type),subs=board?safeOwnGet(board,'subs'):undefined,sub=safeOwnGet(subs,id);
@@ -1689,6 +1726,30 @@ function runRuntimeUnitTest() {
   assert.equal(exerciseFieldsets.length, 1, 'chapter exercise must render one semantic fieldset');
   assert.equal(exerciseFieldsets[0].querySelectorAll('legend').length, 1, 'chapter exercise fieldset must have one legend');
   assert.ok(exerciseFieldsets[0].querySelector('legend').textContent.trim(), 'chapter exercise legend must have an accessible label');
+  const revealExercise = firstTarget.querySelector('[data-exercise-reveal]');
+  const seenButton = firstTarget.querySelector('[data-mark-seen]');
+  const exerciseFeedback = firstTarget.querySelector('.lesson-feedback');
+  assert.ok(revealExercise && seenButton && exerciseFeedback, 'chapter must expose exercise, completion, and live-feedback controls');
+  assert.equal(seenButton.disabled, true, 'completion button must start disabled');
+  revealExercise.dispatchEvent({ type: 'click' });
+  assert.equal(revealExercise.disabled, true, 'activating exercise guidance must keep the explanation visible and prevent duplicate activation');
+  assert.equal(seenButton.disabled, false, 'activating exercise guidance must enable completion');
+  assert.equal(firstDom.document.activeElement, seenButton,
+    'activating exercise guidance must move focus to the newly enabled completion button');
+  assert.ok(exerciseFeedback.textContent.includes('已查看练习说明'),
+    'moving focus after exercise guidance must preserve polite live feedback');
+
+  const throwingFocusDom = createMiniDom();
+  const throwingFocusRuntime = evaluateLearningRuntime(source, createStorage(), { document: throwingFocusDom.document });
+  const throwingFocusTarget = throwingFocusDom.createTarget();
+  assert.equal(throwingFocusRuntime.renderChapter('ai-basics', throwingFocusTarget), true, 'focus-throw fixture must render');
+  const throwingSeenButton = throwingFocusTarget.querySelector('[data-mark-seen]');
+  throwingSeenButton.focus = function () { throw new Error('focus unavailable'); };
+  assert.doesNotThrow(() => throwingFocusTarget.querySelector('[data-exercise-reveal]').dispatchEvent({ type: 'click' }),
+    'focus failures must not interrupt exercise completion enablement');
+  assert.equal(throwingSeenButton.disabled, false, 'focus failures must still leave completion enabled');
+  assert.ok(throwingFocusTarget.querySelector('.lesson-feedback').textContent.includes('已查看练习说明'),
+    'focus failures must not suppress live exercise feedback');
 
   const instrumentedDom = createMiniDom();
   const instrumentedRuntime = evaluateLearningRuntime(source, createStorage(), { document: instrumentedDom.document });
@@ -1921,6 +1982,21 @@ function runRuntimeMutationTest() {
       `${name} must be caught by recorded runtime innerHTML writes`,
     );
   }
+  const focusCompletionNeedle = "        if (typeof seenButton.focus === 'function') seenButton.focus({ preventScroll: true });";
+  const missingFocusSource = mutateProduction('completion focus', focusCompletionNeedle, '        // mutation: completion focus removed');
+  const missingFocusDom = createMiniDom();
+  const missingFocusRuntime = evaluateLearningRuntime(missingFocusSource, createStorage(), { document: missingFocusDom.document });
+  const missingFocusTarget = missingFocusDom.createTarget();
+  assert.equal(missingFocusRuntime.renderChapter('ai-basics', missingFocusTarget), true, 'completion-focus mutation fixture must render');
+  const missingFocusSeen = missingFocusTarget.querySelector('[data-mark-seen]');
+  missingFocusTarget.querySelector('[data-exercise-reveal]').dispatchEvent({ type: 'click' });
+  assert.throws(
+    () => assert.equal(missingFocusDom.document.activeElement, missingFocusSeen,
+      'exercise activation must focus the newly enabled completion button'),
+    assert.AssertionError,
+    'runtime assertion must catch removed completion focus management',
+  );
+
   const safeLessonRenderNeedle = "    lesson.appendChild(element(ownerDocument, 'strong', '', '关键启发：'));\n" +
     '    lesson.appendChild(ownerDocument.createTextNode(chapter.caseStudy.lesson));';
   assertDynamicInnerHtmlMutationCaught('case concatenated dynamic innerHTML', mutateProduction('case concatenation', safeLessonRenderNeedle,
@@ -1945,7 +2021,7 @@ function runRuntimeMutationTest() {
     "    var template = element(ownerDocument, 'pre', 'lesson-template');\n" +
     "    template.innerHTML = '<code>' + chapter.takeaway.template + '</code>';"));
 
-  console.log('PASS beginner learning runtime mutations (state + copy + generalized dynamic innerHTML across header/case/check/takeaway)');
+  console.log('PASS beginner learning runtime mutations (state + copy + completion focus + generalized dynamic innerHTML)');
 }
 
 function runSelfTest() {
@@ -2070,6 +2146,9 @@ function runSelfTest() {
   expectMutation('unknown route falls back to basics', (root) => {
     replaceIn(root, 'detail.html', "if(!sub){sub={structure:'learning-unknown',name:'暂未找到这一章'};}", "if(!sub){id='ai-basics';sub={structure:'learning',name:'认识 AI'};}");
   }, 'unknown detail routes must not silently fall back to ai-basics');
+  expectMutation('unguarded malformed query decoding', (root) => {
+    replaceIn(root, 'detail.html', "if(!m)return '';try{return decodeURIComponent(m[1]);}catch(error){return '';}", 'return m?decodeURIComponent(m[1]):\'\';');
+  }, 'malformed id %E0%A4%A must not throw');
   expectMutation('old model search entry', (root) => {
     replaceIn(root, 'search.js', chapterHrefs[0], 'detail.html?type=learn&id=ai-models');
   }, 'search beginner links must match the six approved chapter URLs');
@@ -2138,7 +2217,7 @@ function runSelfTest() {
     },
   ]);
 
-  console.log('PASS learning experience contract self-test (valid fixture + 73 mutations)');
+  console.log('PASS learning experience contract self-test (valid fixture + 74 mutations)');
 }
 
 if (process.argv.includes('--runtime-test')) runRuntimeUnitTest();
