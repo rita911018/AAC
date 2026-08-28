@@ -203,18 +203,40 @@ function sliceUniqueRegion(source, startMarker, endMarker, label) {
   return source.slice(start, end);
 }
 
+function decodeHtmlEntities(source) {
+  const namedEntities = new Map([
+    ['amp', '&'],
+    ['apos', "'"],
+    ['gt', '>'],
+    ['lt', '<'],
+    ['middot', '·'],
+    ['nbsp', '\u00a0'],
+    ['quot', '"'],
+  ]);
+  return source.replace(/&(?:#(\d+);?|#x([\da-f]+);?|([a-z][\da-z]+);)/gi, (entity, decimal, hexadecimal, named) => {
+    if (named) return namedEntities.get(named.toLowerCase()) ?? entity;
+    const codePoint = Number.parseInt(decimal ?? hexadecimal, hexadecimal ? 16 : 10);
+    if (!Number.isInteger(codePoint) || codePoint < 0 || codePoint > 0x10FFFF) return '\uFFFD';
+    return String.fromCodePoint(codePoint);
+  });
+}
+
 function parseTagAttributes(rawAttributes) {
   return new Map(parseTagAttributeEntries(rawAttributes).map(({ name, value }) => [name, value]));
 }
 
 function parseTagAttributeEntries(rawAttributes) {
   const entries = [];
+  const seenNames = new Set();
   const attributePattern = /([^\s"'<>\/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
 
   for (const match of rawAttributes.matchAll(attributePattern)) {
+    const name = match[1].toLowerCase();
+    assert.ok(!seenNames.has(name), `attributes must not repeat ${name}`);
+    seenNames.add(name);
     entries.push({
-      name: match[1].toLowerCase(),
-      value: match[2] ?? match[3] ?? match[4] ?? '',
+      name,
+      value: decodeHtmlEntities(match[2] ?? match[3] ?? match[4] ?? ''),
     });
   }
   return entries;
@@ -225,46 +247,125 @@ const voidHtmlTags = new Set([
   'param', 'source', 'track', 'wbr',
 ]);
 
+function scanHtmlTagEnd(source, start, label) {
+  let quote = null;
+  for (let index = start + 1; index < source.length; index += 1) {
+    const character = source[index];
+    if (quote) {
+      if (character === quote) quote = null;
+      continue;
+    }
+    if (character === "'" || character === '"') {
+      quote = character;
+      continue;
+    }
+    if (character === '>') return index + 1;
+  }
+  assert.fail(`${label} tag must close, including any quoted attribute value`);
+}
+
+function scanNextHtmlTag(source, start, label) {
+  let tagStart = source.indexOf('<', start);
+  while (tagStart >= 0) {
+    let cursor = tagStart + 1;
+    while (/\s/.test(source[cursor] ?? '')) cursor += 1;
+
+    if (source[cursor] === '!' || source[cursor] === '?') {
+      return { special: true, start: tagStart, end: scanHtmlTagEnd(source, tagStart, label) };
+    }
+
+    let closing = false;
+    if (source[cursor] === '/') {
+      closing = true;
+      cursor += 1;
+      while (/\s/.test(source[cursor] ?? '')) cursor += 1;
+    }
+
+    const nameMatch = /^[a-z][\w:-]*/i.exec(source.slice(cursor));
+    if (!nameMatch) {
+      tagStart = source.indexOf('<', tagStart + 1);
+      continue;
+    }
+
+    const tagName = nameMatch[0].toLowerCase();
+    const attributesStart = cursor + nameMatch[0].length;
+    const end = scanHtmlTagEnd(source, tagStart, label);
+    return {
+      special: false,
+      closing,
+      tagName,
+      rawAttributes: closing ? '' : source.slice(attributesStart, end - 1),
+      start: tagStart,
+      end,
+    };
+  }
+  return null;
+}
+
+function scanHtmlTagTokens(source, label) {
+  const tokens = [];
+  let cursor = 0;
+  while (cursor < source.length) {
+    const token = scanNextHtmlTag(source, cursor, label);
+    if (!token) break;
+    tokens.push(token);
+    cursor = token.end;
+  }
+  return tokens;
+}
+
 function blankNonMarkup(source) {
-  return source
-    .replace(/<!--[\s\S]*?-->/g, (match) => ' '.repeat(match.length))
-    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, (match) => ' '.repeat(match.length));
+  let searchable = source.replace(/<!--[\s\S]*?-->/g, (match) => ' '.repeat(match.length));
+  let cursor = 0;
+  while (cursor < searchable.length) {
+    const token = scanNextHtmlTag(searchable, cursor, 'HTML');
+    if (!token) break;
+    if (!token.special && !token.closing && (token.tagName === 'script' || token.tagName === 'style')) {
+      const closingPattern = new RegExp(`<\\/\\s*${token.tagName}\\s*>`, 'gi');
+      closingPattern.lastIndex = token.end;
+      const closing = closingPattern.exec(searchable);
+      assert.ok(closing, `<${token.tagName}> must have a closing tag`);
+      const regionEnd = closing.index + closing[0].length;
+      searchable = `${searchable.slice(0, token.start)}${' '.repeat(regionEnd - token.start)}${searchable.slice(regionEnd)}`;
+      cursor = regionEnd;
+      continue;
+    }
+    cursor = token.end;
+  }
+  return searchable;
 }
 
 function parseHtmlElements(source, label = 'HTML') {
   const searchable = blankNonMarkup(source);
   const elements = [];
   const stack = [];
-  const tagPattern = /<\s*(\/?)\s*([a-z][\w:-]*)\b([^>]*)>/gi;
-
-  for (const match of searchable.matchAll(tagPattern)) {
-    const closing = match[1] === '/';
-    const tagName = match[2].toLowerCase();
-    if (closing) {
+  for (const token of scanHtmlTagTokens(searchable, label)) {
+    if (token.special) continue;
+    if (token.closing) {
       const element = stack.pop();
-      assert.ok(element, `${label} must not contain an unmatched closing </${tagName}>`);
-      assert.equal(element.tagName, tagName, `${label} must contain properly nested <${element.tagName}> markup`);
-      element.closeStart = match.index;
-      element.closeEnd = match.index + match[0].length;
+      assert.ok(element, `${label} must not contain an unmatched closing </${token.tagName}>`);
+      assert.equal(element.tagName, token.tagName, `${label} must contain properly nested <${element.tagName}> markup`);
+      element.closeStart = token.start;
+      element.closeEnd = token.end;
       element.innerHtml = source.slice(element.openEnd, element.closeStart);
       continue;
     }
 
-    const rawAttributes = match[3];
+    const rawAttributes = token.rawAttributes;
     const element = {
-      tagName,
+      tagName: token.tagName,
       attributes: parseTagAttributes(rawAttributes),
       attributeEntries: parseTagAttributeEntries(rawAttributes),
-      openStart: match.index,
-      openEnd: match.index + match[0].length,
-      closeStart: match.index + match[0].length,
-      closeEnd: match.index + match[0].length,
+      openStart: token.start,
+      openEnd: token.end,
+      closeStart: token.end,
+      closeEnd: token.end,
       innerHtml: '',
       parent: stack.at(-1) ?? null,
     };
     elements.push(element);
 
-    if (!voidHtmlTags.has(tagName) && !/\/\s*$/.test(rawAttributes)) stack.push(element);
+    if (!voidHtmlTags.has(token.tagName) && !/\/\s*$/.test(rawAttributes)) stack.push(element);
   }
 
   assert.equal(stack.length, 0, `${label} must not contain unclosed HTML elements`);
@@ -298,28 +399,21 @@ function extractUniqueElementByClass(source, tagName, className, label) {
 }
 
 function stripNonMarkup(source) {
-  return source
-    .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, '');
+  return blankNonMarkup(source);
 }
 
 function findOpeningTags(source) {
-  return [...stripNonMarkup(source).matchAll(/<([a-z][\w:-]*)\b([^>]*)>/gi)]
-    .map((match) => ({
-      tagName: match[1].toLowerCase(),
-      attributes: parseTagAttributes(match[2]),
-      attributeEntries: parseTagAttributeEntries(match[2]),
+  return scanHtmlTagTokens(stripNonMarkup(source), 'HTML opening tags')
+    .filter((token) => !token.special && !token.closing)
+    .map((token) => ({
+      tagName: token.tagName,
+      attributes: parseTagAttributes(token.rawAttributes),
+      attributeEntries: parseTagAttributeEntries(token.rawAttributes),
     }));
 }
 
 function extractSvgElements(source) {
-  const withoutComments = stripNonMarkup(source);
-  return [...withoutComments.matchAll(/<svg\b([^>]*)>([\s\S]*?)<\/svg\s*>/gi)]
-    .map((match) => ({
-      attributes: parseTagAttributes(match[1]),
-      attributeEntries: parseTagAttributeEntries(match[1]),
-      innerHtml: match[2],
-    }));
+  return parseHtmlElements(source, 'SVG region').filter(({ tagName }) => tagName === 'svg');
 }
 
 function openingTagsByClass(source, className) {
@@ -334,8 +428,20 @@ function extractUniqueElementByTag(source, tagName, label) {
   return elements[0];
 }
 
+function textContent(source) {
+  const withoutNonMarkup = stripNonMarkup(source);
+  const textParts = [];
+  let cursor = 0;
+  for (const token of scanHtmlTagTokens(withoutNonMarkup, 'visible text')) {
+    textParts.push(withoutNonMarkup.slice(cursor, token.start));
+    cursor = token.end;
+  }
+  textParts.push(withoutNonMarkup.slice(cursor));
+  return decodeHtmlEntities(textParts.join(''));
+}
+
 function normalizedText(source) {
-  return stripNonMarkup(source).replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+  return textContent(source).replace(/\s+/g, ' ').trim();
 }
 
 function normalizedPathData(source) {
@@ -409,13 +515,21 @@ function extractUniqueAnchorByExactText(source, text, label) {
 }
 
 function relTokenSet(element) {
-  return new Set((element.attributes.get('rel') ?? '').split(/\s+/).filter(Boolean));
+  return new Set((element.attributes.get('rel') ?? '').split(/\s+/).filter(Boolean).map((token) => token.toLowerCase()));
+}
+
+function assertSafeExternalLink(element, expectedHref, label) {
+  const relTokens = relTokenSet(element);
+  assert.equal(element.attributes.get('href'), expectedHref, `${label} must use the exact approved href`);
+  assert.equal(element.attributes.get('target'), '_blank', `${label} must open in a new tab`);
+  assert.ok(relTokens.has('noopener'), `${label} must include the noopener rel token`);
+  assert.ok(!relTokens.has('opener'), `${label} must reject the opener rel token`);
 }
 
 function isLocallyHidden(element) {
   const classTokens = new Set((element.attributes.get('class') ?? '').split(/\s+/).filter(Boolean));
   return element.attributes.has('hidden')
-    || element.attributes.get('aria-hidden') === 'true'
+    || element.attributes.get('aria-hidden')?.toLowerCase() === 'true'
     || /(?:display\s*:\s*none|visibility\s*:\s*hidden)/i.test(element.attributes.get('style') ?? '')
     || ['hidden', 'sr-only', 'visually-hidden'].some((className) => classTokens.has(className));
 }
@@ -439,9 +553,27 @@ function normalizedVisibleText(source, label) {
   return normalizedText(visibleSource);
 }
 
+function assertNoInternalMascotAttributes(element, label) {
+  const descendants = parseHtmlElements(element.innerHtml, label);
+  const relevantAttributeNames = ['alt', 'aria-label', 'src', 'srcset', 'title'];
+  for (const candidate of [element, ...descendants]) {
+    for (const attributeName of relevantAttributeNames) {
+      const value = candidate.attributes.get(attributeName);
+      if (value === undefined) continue;
+      const canonical = decodeHtmlEntities(value).normalize('NFKC').toLowerCase().replace(/[\s_./-]+/g, '');
+      assert.ok(
+        !['xiaoa', 'mascot', '小a', '公司内部'].some((forbidden) => canonical.includes(forbidden)),
+        `${label} attributes must not reference internal Xiao A or mascot media`,
+      );
+    }
+  }
+}
+
 for (const [fileName, content] of htmlFiles) {
   const header = extractUniqueElementByClass(content, 'header', 'topbar', `${fileName} header`);
   const footer = extractUniqueElementByClass(content, 'footer', 'footer', `${fileName} footer`);
+  assertVisiblyRendered(header, `${fileName} header`);
+  assertVisiblyRendered(footer, `${fileName} footer`);
   const brandRegions = [header.innerHtml, footer.innerHtml];
   const brandIconCounts = brandRegions.map((region) => extractSvgElements(region).filter(
     ({ attributes }) => attributes.get('data-brand-icon') === 'knowledge-book',
@@ -498,13 +630,14 @@ for (const [fileName, content] of htmlFiles) {
 }
 
 const homeHero = extractUniqueElementByClass(files.index, 'section', 'home-hero', 'home hero');
+assertVisiblyRendered(homeHero, 'home hero');
 const homeHeroCopy = extractUniqueElementByClass(homeHero.innerHtml, 'div', 'bh-left', 'home hero copy');
 const homeTitle = extractUniqueElementByTag(homeHeroCopy.innerHtml, 'h1', 'home hero title');
-assert.equal(homeTitle.innerHtml.replace(/<[^>]*>/g, ''), '亚玛芬 AI 知识库', 'home h1 must use the exact approved title');
+assert.equal(textContent(homeTitle.innerHtml), '亚玛芬 AI 知识库', 'home h1 must use the exact approved title');
 
 const homeSubtitle = extractUniqueElementByClass(homeHeroCopy.innerHtml, 'p', 'bh-subtitle', 'home hero subtitle');
 assert.equal(
-  homeSubtitle.innerHtml.replace(/<[^>]*>/g, ''),
+  textContent(homeSubtitle.innerHtml),
   '一站式 AI 学习资源与实践指南',
   'home subtitle must use the exact approved copy without extra whitespace',
 );
@@ -535,12 +668,7 @@ assert.equal(
 const homeShortcutCta = extractUniqueAnchorByExactText(homeXiaoAShortcut.innerHtml, '打开小A', 'home Hero shortcut');
 assert.equal(findElementsByTag(homeXiaoAShortcut.innerHtml, 'a', 'home Hero shortcut').length, 1, 'home Hero shortcut must contain exactly one anchor');
 assertVisiblyRendered(homeShortcutCta, 'home Hero shortcut CTA');
-assert.ok(
-  homeShortcutCta.attributes.get('href') === portalUrl
-    && homeShortcutCta.attributes.get('target') === '_blank'
-    && relTokenSet(homeShortcutCta).has('noopener'),
-  'home Hero shortcut must open the exact Portal URL in a safe new tab',
-);
+assertSafeExternalLink(homeShortcutCta, portalUrl, 'home Hero shortcut');
 const homeShortcutSvgs = extractSvgElements(homeShortcutCta.innerHtml);
 assert.equal(homeShortcutSvgs.length, 1, 'home Hero shortcut CTA must retain the upper-right arrow icon');
 const homeShortcutGraphicElements = findOpeningTags(homeShortcutSvgs[0].innerHtml);
@@ -673,6 +801,7 @@ for (const [fileName, content] of nonResourcesPages) {
 }
 
 const resourcesHero = extractUniqueElementByClass(files.resources, 'section', 'resources-hero', 'resources hero');
+assertVisiblyRendered(resourcesHero, 'resources hero');
 const resourcesHeroCopy = extractUniqueElementByClass(resourcesHero.innerHtml, 'div', 'bh-left', 'resources hero copy');
 const resourcesHeroDescription = extractUniqueElementByTag(resourcesHeroCopy.innerHtml, 'p', 'resources hero description');
 assert.equal(
@@ -686,6 +815,39 @@ assertVisiblyRendered(resourcesXiaoA, 'resources internal Xiao A section');
 assert.equal(resourcesXiaoA.attributes.get('id'), 'xiaoa', 'resources internal Xiao A section must be section.xiaoa-section#xiaoa');
 const externalResources = extractUniqueElementByClass(files.resources, 'section', 'external-resources', 'resources external resources section');
 assertVisiblyRendered(externalResources, 'resources external resources section');
+const resourcesPageElements = parseHtmlElements(files.resources, 'resources');
+const resourcesMain = extractUniqueElementByTag(files.resources, 'main', 'resources main');
+assertVisiblyRendered(resourcesMain, 'resources main');
+assert.equal(resourcesMain.parent?.tagName, 'body', 'resources main must be a direct child of body, never nested in footer');
+const resourcesMainDirectElements = parseHtmlElements(resourcesMain.innerHtml, 'resources main')
+  .filter(({ parent }) => parent === null);
+assert.equal(
+  resourcesMainDirectElements.length,
+  3,
+  'resources main must contain exactly the Hero, internal Xiao A, and external resources sections',
+);
+assert.ok(
+  resourcesMainDirectElements.every(({ tagName }) => tagName === 'section'),
+  'resources main direct elements must all be sections',
+);
+assert.ok(hasClass(resourcesMainDirectElements[0], 'resources-hero'), 'resources main first section must be the Hero');
+assert.ok(
+  hasClass(resourcesMainDirectElements[1], 'xiaoa-section') && resourcesMainDirectElements[1].attributes.get('id') === 'xiaoa',
+  'resources main second section must be section.xiaoa-section#xiaoa',
+);
+assert.ok(hasClass(resourcesMainDirectElements[2], 'external-resources'), 'resources main third section must be external resources');
+assert.equal(
+  resourcesPageElements.filter(({ tagName }) => tagName === 'section').length,
+  3,
+  'resources must contain exactly three sections total',
+);
+for (const [element, label] of [
+  [resourcesHero, 'resources Hero'],
+  [resourcesXiaoA, 'resources internal Xiao A'],
+  [externalResources, 'resources external resources'],
+]) {
+  assert.equal(element.parent?.tagName, 'main', `${label} section must be a direct child of resources main`);
+}
 assert.ok(
   resourcesHero.openStart < resourcesXiaoA.openStart && resourcesXiaoA.openStart < externalResources.openStart,
   'resources order must be Hero, internal Xiao A, then external resources',
@@ -694,7 +856,6 @@ assert.ok(
   resourcesXiaoA.openStart < externalResources.openStart,
   'resources internal Xiao A section must appear before the external resources section',
 );
-const resourcesPageElements = parseHtmlElements(files.resources, 'resources');
 assert.equal(
   resourcesPageElements.filter(({ attributes }) => attributes.get('id') === 'xiaoa').length,
   1,
@@ -726,12 +887,7 @@ assert.equal(
 assertVisiblyRendered(xiaoANote, 'resources Xiao A Portal note');
 const xiaoACta = extractUniqueAnchorByExactText(resourcesXiaoA.innerHtml, '前往 Portal 打开小A', 'resources Xiao A CTA');
 assertVisiblyRendered(xiaoACta, 'resources Xiao A CTA');
-assert.ok(
-  xiaoACta.attributes.get('href') === portalUrl
-    && xiaoACta.attributes.get('target') === '_blank'
-    && relTokenSet(xiaoACta).has('noopener'),
-  'resources Xiao A CTA must open Portal in a safe new tab with the approved copy',
-);
+assertSafeExternalLink(xiaoACta, portalUrl, 'resources Xiao A CTA');
 
 const xiaoASide = extractUniqueElementByClass(resourcesXiaoA.innerHtml, 'div', 'xh-side', 'resources Xiao A capabilities');
 const xiaoATitle = extractUniqueElementByTag(xiaoASide.innerHtml, 'h4', 'resources Xiao A capabilities title');
@@ -786,6 +942,7 @@ assert.ok(
   !visibleExternalText.includes('公司内部') && !visibleExternalText.includes('小A'),
   'resources external section visible text must not include internal-company or Xiao A copy',
 );
+assertNoInternalMascotAttributes(externalResources, 'resources external section');
 const resourceEntries = findElementsByClass(externalResources.innerHtml, 'a', 'res-entry', 'resources external entries');
 assert.equal(resourceEntries.length, 4, 'resources external section must contain exactly four res-entry anchors');
 assert.equal(
@@ -817,6 +974,47 @@ const deepSeekRows = findElementsByClass(toolsPreview.innerHtml, 'div', 'p-row',
   .filter(({ innerHtml }) => normalizedText(innerHtml).includes('DeepSeek'));
 assert.equal(deepSeekRows.length, 1, 'AI tools preview must contain exactly one DeepSeek replacement row');
 assertVisiblyRendered(deepSeekRows[0], 'AI tools DeepSeek replacement row');
+const deepSeekLogo = extractUniqueElementByClass(
+  deepSeekRows[0].innerHtml,
+  'span',
+  'p-logo',
+  'AI tools DeepSeek replacement row logo',
+);
+const deepSeekInfo = extractUniqueElementByClass(
+  deepSeekRows[0].innerHtml,
+  'div',
+  'p-info',
+  'AI tools DeepSeek replacement row info',
+);
+const deepSeekDirectElements = parseHtmlElements(deepSeekRows[0].innerHtml, 'AI tools DeepSeek replacement row')
+  .filter(({ parent }) => parent === null);
+assert.equal(deepSeekDirectElements.length, 2, 'AI tools DeepSeek replacement row must contain exactly its logo and info');
+assert.ok(
+  deepSeekDirectElements[0].tagName === 'span' && hasClass(deepSeekDirectElements[0], 'p-logo'),
+  'AI tools DeepSeek replacement row first element must be span.p-logo',
+);
+assert.ok(
+  deepSeekDirectElements[1].tagName === 'div' && hasClass(deepSeekDirectElements[1], 'p-info'),
+  'AI tools DeepSeek replacement row second element must be div.p-info',
+);
+assertVisiblyRendered(deepSeekLogo, 'AI tools DeepSeek replacement row logo');
+assertVisiblyRendered(deepSeekInfo, 'AI tools DeepSeek replacement row info');
+assert.equal(normalizedText(deepSeekLogo.innerHtml), 'DS', 'AI tools DeepSeek replacement row logo must be DS');
+const deepSeekName = extractUniqueElementByTag(deepSeekInfo.innerHtml, 'b', 'AI tools DeepSeek replacement row name');
+const deepSeekBadge = extractUniqueElementByClass(
+  deepSeekName.innerHtml,
+  'span',
+  'p-badge',
+  'AI tools DeepSeek replacement row badge',
+);
+const deepSeekDescription = extractUniqueElementByTag(
+  deepSeekInfo.innerHtml,
+  'small',
+  'AI tools DeepSeek replacement row description',
+);
+assert.equal(normalizedText(deepSeekName.innerHtml), 'DeepSeek 国内', 'AI tools DeepSeek replacement row must retain its exact name and badge');
+assert.equal(normalizedText(deepSeekBadge.innerHtml), '国内', 'AI tools DeepSeek replacement row badge must be 国内');
+assert.equal(normalizedText(deepSeekDescription.innerHtml), '通用推理与编程助手', 'AI tools DeepSeek replacement row must retain its exact description');
 assert.equal(
   normalizedVisibleText(deepSeekRows[0].innerHtml, 'AI tools DeepSeek replacement row').match(/DeepSeek/g)?.length,
   1,
@@ -846,12 +1044,7 @@ for (const [name, href] of [
   assert.equal(matches.length, 1, `resources external-sites must retain the ${name} card`);
   const link = matches[0];
   assertVisiblyRendered(link, `resources external-sites ${name} link`);
-  assert.ok(
-    link.attributes.get('href') === href
-      && link.attributes.get('target') === '_blank'
-      && relTokenSet(link).has('noopener'),
-    `resources external-sites ${name} card must retain its approved safe external link`,
-  );
+  assertSafeExternalLink(link, href, `resources external-sites ${name} card`);
 }
 
 for (const [name, content] of Object.entries(files)) {
