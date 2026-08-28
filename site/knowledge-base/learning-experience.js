@@ -280,6 +280,61 @@
     return 'smooth';
   }
 
+  function updateSessionSummary(scope) {
+    if (!scope || typeof scope.querySelector !== 'function') return;
+    var seenCount = 0;
+    for (var index = 0; index < chapters.length; index += 1) {
+      if (getStatus(chapters[index].id) === STATUS_SEEN) seenCount += 1;
+    }
+    var countNode = scope.querySelector('[data-learning-seen-count]');
+    if (countNode) {
+      countNode.textContent = String(seenCount);
+      return;
+    }
+    var summaryNode = scope.querySelector('[data-learning-summary]');
+    if (summaryNode) summaryNode.textContent = '已看 ' + seenCount + ' / ' + chapters.length;
+  }
+
+  function copyToolTemplate(button) {
+    var card = button && typeof button.closest === 'function' ? button.closest('.learning-tool-card') : null;
+    if (!card || typeof card.querySelector !== 'function') return;
+    var source = card.querySelector('[data-template-content]');
+    var feedback = card.querySelector('[data-copy-feedback]');
+    if (!source || !feedback) return;
+
+    function announce(message) {
+      feedback.textContent = message;
+    }
+
+    try {
+      if (typeof navigator === 'undefined' || !navigator.clipboard || typeof navigator.clipboard.writeText !== 'function') {
+        announce('请手动复制');
+        return;
+      }
+      var result = navigator.clipboard.writeText(source.textContent || '');
+      if (result && typeof result.then === 'function') {
+        result.then(function () { announce('已复制'); }, function () { announce('请手动复制'); });
+      } else {
+        announce('已复制');
+      }
+    } catch (error) {
+      announce('请手动复制');
+    }
+  }
+
+  function bindCopyTools(scope) {
+    if (!scope || typeof scope.querySelectorAll !== 'function') return;
+    var buttons = scope.querySelectorAll('[data-copy-template]');
+    for (var index = 0; index < buttons.length; index += 1) {
+      (function (button) {
+        if (!button || typeof button.addEventListener !== 'function' ||
+          (typeof button.getAttribute === 'function' && button.getAttribute('data-copy-bound') === 'true')) return;
+        if (typeof button.setAttribute === 'function') button.setAttribute('data-copy-bound', 'true');
+        button.addEventListener('click', function () { copyToolTemplate(button); });
+      }(buttons[index]));
+    }
+  }
+
   function initHub(root) {
     var scope = root || (typeof document !== 'undefined' ? document : null);
     if (!scope || typeof scope.querySelectorAll !== 'function') return false;
@@ -301,6 +356,8 @@
     if (continueLink && nextId && typeof continueLink.setAttribute === 'function') {
       continueLink.setAttribute('href', 'detail.html?type=learn&id=' + encodeURIComponent(nextId));
     }
+    updateSessionSummary(scope);
+    bindCopyTools(scope);
 
     var hash = typeof window !== 'undefined' && window.location ? window.location.hash : '';
     var returnedId = hash.indexOf('#chapter-') === 0 ? hash.slice(9) : '';

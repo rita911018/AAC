@@ -41,6 +41,13 @@ const storageKey = 'amersports-ai-beginner-session-v1';
 const allowedRuntimeStatuses = new Set(['unseen', 'in-progress', 'seen']);
 const learnHeroDescription = '从看懂 AI 到会协作，用六个轻量章节掌握分工、表达与判断。每章都有案例和小练习，无需技术背景。';
 const learnHubHeading = '选择一个章节，轻松开始';
+const toolkitTitles = ['任务分工卡', '四要素提问模板', '结果验证清单', '工作流拆解模板'];
+const toolkitFields = [
+  ['目标', 'AI负责', '我负责', '检查点'],
+  ['目标', '背景', '任务', '输出要求'],
+  ['事实', '来源', '推论', '风险'],
+  ['输入', '步骤', '人工判断点', '最终交付'],
+];
 
 function readRequired(relativePath) {
   try {
@@ -401,7 +408,8 @@ function evaluateLearningRuntime(source, storageOverride, environment = {}) {
     getElementById() { return null; },
   };
   const location = environment.location ?? { href: 'https://example.test/learn.html', search: '', hash: '' };
-  const window = { document, sessionStorage, location };
+  const navigator = environment.navigator ?? {};
+  const window = { document, sessionStorage, location, navigator };
   if (Object.hasOwn(environment, 'matchMedia')) window.matchMedia = environment.matchMedia;
   window.window = window;
   const context = vm.createContext({
@@ -411,7 +419,7 @@ function evaluateLearningRuntime(source, storageOverride, environment = {}) {
     URL,
     URLSearchParams,
     location,
-    navigator: {},
+    navigator,
     console: { log() {}, warn() {}, error() {} },
     setTimeout: environment.setTimeout ?? function () { return 0; },
     clearTimeout() {},
@@ -419,6 +427,60 @@ function evaluateLearningRuntime(source, storageOverride, environment = {}) {
   vm.runInContext(source, context, { timeout: 100, displayErrors: true });
   assert.ok(window.AIBeginner && typeof window.AIBeginner === 'object', 'learning-experience.js must expose window.AIBeginner');
   return window.AIBeginner;
+}
+
+function createHubStateHarness() {
+  const countNode = { textContent: '0' };
+  const summary = { textContent: '已看 0 / 6' };
+  const continueLink = { setAttribute() {} };
+  return {
+    countNode,
+    summary,
+    root: {
+      querySelectorAll(selector) {
+        if (selector === '.learning-card' || selector === '[data-copy-template]') return [];
+        return [];
+      },
+      querySelector(selector) {
+        if (selector === '[data-learning-summary]') return summary;
+        if (selector === '[data-learning-seen-count]') return countNode;
+        if (selector === '[data-learning-continue]') return continueLink;
+        return null;
+      },
+    },
+  };
+}
+
+function createCopyHarness(templateText) {
+  const feedback = { textContent: '' };
+  const template = { textContent: templateText };
+  const card = {
+    querySelector(selector) {
+      if (selector === '[data-template-content]') return template;
+      if (selector === '[data-copy-feedback]') return feedback;
+      return null;
+    },
+  };
+  let handler = null;
+  const attributes = new Map();
+  const button = {
+    addEventListener(type, listener) { if (type === 'click') handler = listener; },
+    closest(selector) { return selector === '.learning-tool-card' ? card : null; },
+    getAttribute(name) { return attributes.get(name) ?? null; },
+    setAttribute(name, value) { attributes.set(name, value); },
+  };
+  return {
+    feedback,
+    click() { assert.equal(typeof handler, 'function', 'copy button must receive a click handler'); handler(); },
+    root: {
+      querySelectorAll(selector) {
+        if (selector === '[data-copy-template]') return [button];
+        if (selector === '.learning-card') return [];
+        return [];
+      },
+      querySelector() { return null; },
+    },
+  };
 }
 
 function createHubReturnHarness(chapterId = 'ai-basics') {
@@ -679,6 +741,43 @@ function runContract() {
 
   const continueLinks = learnElements.filter((element) => element.tagName === 'a' && element.attributes.has('data-learning-continue') && isVisible(element));
   assert.equal(continueLinks.length, 1, 'learn hub must contain one session-aware continue link');
+  const summaries = learnElements.filter((element) => hasClass(element, 'learning-session-summary') && isVisible(element));
+  assert.equal(summaries.length, 1, 'learn.html must contain one visible session summary');
+  assert.equal(visibleText(summaries[0].innerHtml, 'learning session summary'), '已看 0 / 6', 'session summary must have the approved static fallback');
+  const summaryParts = parseElements(summaries[0].innerHtml, 'learning session summary');
+  assert.equal(summaryParts.filter((element) => element.attributes.has('data-learning-seen-count')).length, 1,
+    'session summary must expose one seen-count update target');
+
+  const toolkits = learnElements.filter((element) => hasClass(element, 'learning-toolkit') && isVisible(element));
+  assert.equal(toolkits.length, 1, 'learn.html must contain one visible copyable toolkit');
+  assert.ok(toolkits[0].openStart > cards.at(-1).closeEnd, 'copyable toolkit must appear after the six chapter cards');
+  const footer = uniqueElement(learnElements, (element) => element.tagName === 'footer' && isVisible(element), 'learn.html must contain exactly one footer');
+  assert.ok(toolkits[0].closeEnd < footer.openStart, 'copyable toolkit must appear before the footer');
+  const toolkitElements = parseElements(toolkits[0].innerHtml, 'learning toolkit');
+  const toolCards = toolkitElements.filter((element) => element.tagName === 'article' && hasClass(element, 'learning-tool-card') && isVisible(element));
+  assert.equal(toolCards.length, 4, 'learning toolkit must contain exactly four tool cards');
+  for (const [index, toolCard] of toolCards.entries()) {
+    const descendants = parseElements(toolCard.innerHtml, `tool card ${index + 1}`);
+    const headings = descendants.filter((element) => /^h[1-6]$/.test(element.tagName) && isVisible(element));
+    assert.equal(headings.length, 1, `tool card ${index + 1} must contain one visible heading`);
+    assert.equal(visibleText(headings[0].innerHtml, `tool card ${index + 1} heading`), toolkitTitles[index],
+      `tool card ${index + 1} title must match the approved tool`);
+    assert.ok(descendants.some((element) => element.tagName === 'p' && isVisible(element) && visibleText(element.innerHtml, `tool card ${index + 1} description`).length > 0),
+      `tool card ${index + 1} must contain a short visible description`);
+    const templates = descendants.filter((element) => element.tagName === 'pre' && isVisible(element));
+    assert.equal(templates.length, 1, `tool card ${index + 1} must contain one visible preformatted template`);
+    const templateCopy = visibleText(templates[0].innerHtml, `tool card ${index + 1} template`);
+    for (const field of toolkitFields[index]) assert.ok(templateCopy.includes(field), `tool card ${index + 1} template must include ${field}`);
+    assert.equal(descendants.filter((element) => element.attributes.has('data-template-content')).length, 1,
+      `tool card ${index + 1} must expose one copy source`);
+    const copyButtons = descendants.filter((element) => element.tagName === 'button' && element.attributes.has('data-copy-template') && isVisible(element));
+    assert.equal(copyButtons.length, 1, `tool card ${index + 1} must contain one semantic copy button`);
+    assert.equal(visibleText(copyButtons[0].innerHtml, `tool card ${index + 1} button`), '复制模板',
+      `tool card ${index + 1} copy button must use the approved label`);
+    const feedback = descendants.filter((element) => element.attributes.has('data-copy-feedback') && isVisible(element));
+    assert.equal(feedback.length, 1, `tool card ${index + 1} must contain one copy feedback region`);
+    assert.equal(feedback[0].attributes.get('aria-live'), 'polite', `tool card ${index + 1} feedback must use polite live announcements`);
+  }
   for (const forbidden of ['课程目录', '视频目录', '博主目录']) {
     assert.ok(!visibleMainCopy.includes(forbidden), `learn hub must not contain the external-resource directory copy: ${forbidden}`);
   }
@@ -736,6 +835,7 @@ function runContract() {
   const requiredCssClasses = [
     'learning-hub', 'learning-card', 'learning-status', 'lesson-nav', 'lesson-figure',
     'lesson-case', 'lesson-exercise', 'lesson-check', 'lesson-takeaway', 'lesson-actions',
+    'learning-session-summary', 'learning-toolkit', 'learning-tool-card', 'learning-tool-copy', 'progress-compat-cta',
   ];
   for (const className of requiredCssClasses) {
     assert.ok(new RegExp(`\\.${className}(?![-_a-zA-Z0-9])`).test(learningCss), `learning-experience.css must define .${className}`);
@@ -745,7 +845,7 @@ function runContract() {
     /@media\s*\(\s*prefers-reduced-motion\s*:\s*reduce\s*\)/i,
     'learning-experience.css reduced-motion media query',
   );
-  for (const className of ['learning-card', 'lesson-token', 'lesson-feedback', 'chapter-return-highlight']) {
+  for (const className of ['learning-card', 'lesson-token', 'lesson-feedback', 'chapter-return-highlight', 'learning-tool-card', 'tool-copy-feedback']) {
     assert.ok(new RegExp(`\\.${className}(?![-_a-zA-Z0-9])`).test(reducedMotion), `reduced-motion block must cover .${className}`);
   }
   assert.match(reducedMotion, /scroll-behavior\s*:\s*auto\b/i, 'reduced-motion block must disable smooth scrolling');
@@ -814,6 +914,10 @@ function runContract() {
   const progressCtas = progressElements.filter((element) => element.tagName === 'a' && element.attributes.get('href') === 'learn.html' &&
     isVisible(element) && visibleText(element.innerHtml, 'progress CTA') === '进入 AI 新手入门');
   assert.equal(progressCtas.length, 1, 'progress.html must provide one compatibility CTA to AI 新手入门');
+  assert.ok(hasClass(progressCtas[0], 'progress-compat-cta'), 'progress CTA must use the dedicated accessible target class');
+  assert.equal(parseElements(progressCtas[0].innerHtml, 'progress CTA').length, 0, 'progress CTA must contain only its clear text label');
+  assert.equal(progressElements.filter((element) => element.tagName === 'a' && hasClass(element, 'entry-card')).length, 0,
+    'progress compatibility copy must not be wrapped in a full-card anchor');
 
   for (const pageName of ['index.html', 'video.html', 'resources.html', 'learn.html', 'progress.html']) {
     const page = readRequired(pageName);
@@ -838,13 +942,14 @@ function fixtureFiles(order = chapterIds) {
     caseStudy:{title:'案例'}, exercise:{type:'互动'}, quickCheck:[{q:'想一想'}], takeaway:{title:'模板'}
   }`).join(',\n');
   const searchEntries = chapterIds.map((id, index) => `{t:${JSON.stringify(titles[index])},d:'章节',tag:'入门',href:${JSON.stringify(chapterHrefs[index])}}`).join(',\n');
+  const toolCards = toolkitTitles.map((title, index) => `<article class="learning-tool-card"><h3>${title}</h3><p>轻量说明</p><pre><code data-template-content>${toolkitFields[index].join('：\n')}：</code></pre><button class="learning-tool-copy" type="button" data-copy-template>复制模板</button><span class="tool-copy-feedback" data-copy-feedback aria-live="polite"></span></article>`).join('');
   return {
     'learn.html': `<!doctype html><html><head><link rel="stylesheet" href="learning-experience.css"></head><body>
       <!-- <a class="learning-card"><h2>decoy 未通过</h2></a> -->
       <script>var decoy='<a class="learning-card">decoy 未通过</a>';</script>
-      <main><h1>AI 新手入门</h1><p>${learnHeroDescription}</p><picture><source srcset="img/xiaoa-learn.webp" type="image/webp"><img src="img/xiaoa-learn.png" width="432" height="480" alt="小A学习插画"></picture><h2>${learnHubHeading}</h2><a href="${chapterHrefs[0]}" data-learning-continue>继续学习</a><p>章节案例可以自然提到 AI 公司、主流 AI 模型、推荐课程、精选视频或值得关注的博主，不代表这里承载资源目录。必要时可引用<a href="https://www.anthropic.com/research">单一权威来源</a>。</p><section class="learning-hub"><a class="learning-card" hidden href="detail.html?type=learn&id=hidden"><h2>隐藏占位</h2><span class="learning-status">未看</span></a>${cards}</section></main><footer><a href="learn.html">继续学习</a></footer><script src="learning-experience.js"></script><script>window.AIBeginner.initHub();</script></body></html>`,
+      <main><h1>AI 新手入门</h1><p>${learnHeroDescription}</p><picture><source srcset="img/xiaoa-learn.webp" type="image/webp"><img src="img/xiaoa-learn.png" width="432" height="480" alt="小A学习插画"></picture><h2>${learnHubHeading}</h2><a href="${chapterHrefs[0]}" data-learning-continue>继续学习</a><p class="learning-session-summary" data-learning-summary>已看 <span data-learning-seen-count>0</span> / 6</p><p>章节案例可以自然提到 AI 公司、主流 AI 模型、推荐课程、精选视频或值得关注的博主，不代表这里承载资源目录。必要时可引用<a href="https://www.anthropic.com/research">单一权威来源</a>。</p><section class="learning-hub"><a class="learning-card" hidden href="detail.html?type=learn&id=hidden"><h2>隐藏占位</h2><span class="learning-status">未看</span></a>${cards}</section><section class="learning-toolkit"><h2>可复制工具</h2>${toolCards}</section></main><footer><a href="learn.html">继续学习</a></footer><script src="learning-experience.js"></script><script>window.AIBeginner.initHub();</script></body></html>`,
     'detail.html': '<!doctype html><html><head><link rel="stylesheet" href="learning-experience.css"></head><body><main id="learningExperience"></main><script src="learning-experience.js"></script></body></html>',
-    'progress.html': '<!doctype html><html><body><main><p>进度只在本次标签会话有效。</p><a href="learn.html">进入 AI 新手入门</a></main><footer><a href="learn.html">继续学习</a></footer></body></html>',
+    'progress.html': '<!doctype html><html><head><link rel="stylesheet" href="learning-experience.css"></head><body><main><p>进度只在本次标签会话有效。</p><article class="progress-compat-card"><p>兼容说明</p><a class="progress-compat-cta" href="learn.html">进入 AI 新手入门</a></article></main><footer><a href="learn.html">继续学习</a></footer></body></html>',
     'search.js': `(function(){ var SEARCH_INDEX=[${searchEntries},{t:'本次学习进度',tag:'功能',href:'learn.html'},{t:'AI 公司介绍',tag:'资源',href:'resources.html'}]; var decoy='SEARCH_INDEX.push({tag:"入门"})'; /* SEARCH_INDEX = []; */ window.search=SEARCH_INDEX; }());`,
     'index.html': '<!doctype html><html><body><main></main><footer><a href="learn.html">继续学习</a></footer></body></html>',
     'video.html': '<!doctype html><html><body><main></main><footer><a href="learn.html">继续学习</a></footer></body></html>',
@@ -867,9 +972,9 @@ function fixtureFiles(order = chapterIds) {
       function renderChapter(){ return true; }
       window.AIBeginner={chapters:chapters,aliases:aliases,getStatus:getStatus,markStarted:markStarted,markSeen:markSeen,nextIncomplete:nextIncomplete,initHub:initHub,renderChapter:renderChapter,read:read};
     }());`,
-    'learning-experience.css': `.learning-hub,.learning-card,.learning-status,.lesson-nav,.lesson-figure,.lesson-case,.lesson-exercise,.lesson-check,.lesson-takeaway,.lesson-actions { color: #0e2144; }
+    'learning-experience.css': `.learning-hub,.learning-card,.learning-status,.lesson-nav,.lesson-figure,.lesson-case,.lesson-exercise,.lesson-check,.lesson-takeaway,.lesson-actions,.learning-session-summary,.learning-toolkit,.learning-tool-card,.learning-tool-copy,.progress-compat-cta { color: #0e2144; }
       @media (prefers-reduced-motion: reduce) {
-        .learning-card,.lesson-token,.lesson-feedback,.chapter-return-highlight { scroll-behavior:auto; transition:none; animation:none; }
+        .learning-card,.lesson-token,.lesson-feedback,.chapter-return-highlight,.learning-tool-card,.tool-copy-feedback { scroll-behavior:auto; transition:none; animation:none; }
       }`,
   };
 }
@@ -999,6 +1104,52 @@ function runRuntimeUnitTest() {
   for (const id of chapterIds) ordered.markSeen(id);
   assert.equal(ordered.nextIncomplete(), null, 'nextIncomplete must return null when all chapters are seen');
 
+  function assertSeenSummary(name, rawState, expectedCount, storageOptions) {
+    const harness = createHubStateHarness();
+    const runtime = evaluateLearningRuntime(source, createStorage(rawState, storageOptions));
+    assert.doesNotThrow(() => runtime.initHub(harness.root), `${name} must not interrupt hub initialization`);
+    assert.equal(harness.countNode.textContent, String(expectedCount), `${name} must render 已看 ${expectedCount} / 6`);
+  }
+  assertSeenSummary('fresh session summary', null, 0);
+  assertSeenSummary('partial session summary', JSON.stringify({
+    'ai-basics': 'seen',
+    'ai-boundaries': 'in-progress',
+    'ai-delegation': 'seen',
+  }), 2);
+  assertSeenSummary('complete session summary', JSON.stringify(Object.fromEntries(chapterIds.map((id) => [id, 'seen']))), 6);
+  assertSeenSummary('storage failure summary fallback', null, 0, { throwGet: true });
+
+  const copied = [];
+  const successCopy = createCopyHarness('目标：完成月报');
+  const copyRuntime = evaluateLearningRuntime(source, createStorage(), {
+    navigator: {
+      clipboard: {
+        writeText(value) {
+          copied.push(value);
+          return { then(resolve) { resolve(); } };
+        },
+      },
+    },
+  });
+  copyRuntime.initHub(successCopy.root);
+  successCopy.click();
+  assert.deepEqual(copied, ['目标：完成月报'], 'copy tool must send only its template text to the Clipboard API');
+  assert.equal(successCopy.feedback.textContent, '已复制', 'successful copy must announce 已复制');
+
+  const throwingCopy = createCopyHarness('事实：');
+  const throwingCopyRuntime = evaluateLearningRuntime(source, createStorage(), {
+    navigator: { clipboard: { writeText() { throw new Error('clipboard denied'); } } },
+  });
+  throwingCopyRuntime.initHub(throwingCopy.root);
+  assert.doesNotThrow(() => throwingCopy.click(), 'clipboard exceptions must not interrupt the learning hub');
+  assert.equal(throwingCopy.feedback.textContent, '请手动复制', 'clipboard exceptions must announce the manual-copy fallback');
+
+  const missingCopy = createCopyHarness('输入：');
+  const missingCopyRuntime = evaluateLearningRuntime(source, createStorage(), { navigator: {} });
+  missingCopyRuntime.initHub(missingCopy.root);
+  missingCopy.click();
+  assert.equal(missingCopy.feedback.textContent, '请手动复制', 'missing Clipboard API must announce the manual-copy fallback');
+
   const movedTarget = { innerHTML: '' };
   assert.equal(fresh.renderChapter('ai-models', movedTarget), true, 'legacy company/model routes must render a moved notice');
   assert.match(movedTarget.innerHTML, /已移至\s*AI 工具与资源/, 'legacy route notice must explain where the content moved');
@@ -1031,7 +1182,7 @@ function runRuntimeUnitTest() {
     get() { throw new Error('matches unavailable'); },
   }));
 
-  console.log('PASS beginner learning runtime unit tests (state validation, storage failure, order, legacy routes, reduced motion)');
+  console.log('PASS beginner learning runtime unit tests (state validation, session summary, copy fallback, order, legacy routes, reduced motion)');
 }
 
 function runRuntimeMutationTest() {
@@ -1075,7 +1226,31 @@ function runRuntimeMutationTest() {
     'runtime unit assertion must catch the smooth-only reduced-motion mutation',
   );
 
-  console.log('PASS beginner learning runtime mutations (seen guard + storage key + reduced motion)');
+  const summaryNeedle = "scope.querySelector('[data-learning-seen-count]')";
+  assert.ok(source.includes(summaryNeedle), 'summary mutation source must contain the seen-count selector');
+  const summaryHarness = createHubStateHarness();
+  const missingSummaryUpdate = evaluateLearningRuntime(source.replace(summaryNeedle, "scope.querySelector('[data-learning-seen-count-missing]')"),
+    createStorage(JSON.stringify({ 'ai-basics': 'seen', 'ai-boundaries': 'seen' })));
+  missingSummaryUpdate.initHub(summaryHarness.root);
+  assert.throws(
+    () => assert.equal(summaryHarness.countNode.textContent, '2', 'partial session summary must render 已看 2 / 6'),
+    assert.AssertionError,
+    'runtime unit assertion must catch a missing seen-count update target',
+  );
+
+  const fallbackNeedle = "announce('请手动复制');";
+  assert.ok(source.includes(fallbackNeedle), 'copy fallback mutation source must contain the approved feedback');
+  const fallbackHarness = createCopyHarness('目标：');
+  const wrongFallback = evaluateLearningRuntime(source.replace(fallbackNeedle, "announce('复制失败');"), createStorage(), { navigator: {} });
+  wrongFallback.initHub(fallbackHarness.root);
+  fallbackHarness.click();
+  assert.throws(
+    () => assert.equal(fallbackHarness.feedback.textContent, '请手动复制', 'missing Clipboard API must announce the manual-copy fallback'),
+    assert.AssertionError,
+    'runtime unit assertion must catch changed copy fallback feedback',
+  );
+
+  console.log('PASS beginner learning runtime mutations (seen guard + storage key + reduced motion + summary + copy fallback)');
 }
 
 function runSelfTest() {
@@ -1100,12 +1275,27 @@ function runSelfTest() {
   expectMutation('changed hero description', (root) => {
     replaceIn(root, 'learn.html', learnHeroDescription, '旧的学习页介绍');
   }, 'learn hero description must match the approved copy');
+  expectMutation('missing session summary', (root) => {
+    replaceIn(root, 'learn.html', 'class="learning-session-summary"', 'class="learning-session-summary-missing"');
+  }, 'learn.html must contain one visible session summary');
+  expectMutation('missing copyable tool card', (root) => {
+    replaceIn(root, 'learn.html', 'class="learning-tool-card"', 'class="learning-tool-card-missing"');
+  }, 'learning toolkit must contain exactly four tool cards');
+  expectMutation('missing tool template field', (root) => {
+    replaceIn(root, 'learn.html', '目标：\nAI负责', '预期：\nAI负责');
+  }, 'tool card 1 template must include 目标');
+  expectMutation('missing semantic copy control', (root) => {
+    replaceIn(root, 'learn.html', 'data-copy-template', 'data-copy-template-missing');
+  }, 'tool card 1 must contain one semantic copy button');
   expectMutation('legacy footer progress route', (root) => {
     replaceIn(root, 'index.html', '<a href="learn.html">继续学习</a>', '<a href="progress.html">我的学习进度</a>');
   }, 'index.html footer must contain one 继续学习 link to learn.html');
   expectMutation('missing session-only progress scope', (root) => {
     replaceIn(root, 'progress.html', '进度只在本次标签会话有效。', '查看学习状态。');
   }, 'progress.html must explain the session-only progress scope');
+  expectMutation('full-card progress anchor', (root) => {
+    replaceIn(root, 'progress.html', 'class="progress-compat-cta"', 'class="progress-compat-cta entry-card"');
+  }, 'progress compatibility copy must not be wrapped in a full-card anchor');
   expectMutation('localStorage', (root) => {
     replaceIn(root, 'learning-experience.js', 'window.AIBeginner=', 'localStorage.getItem("bad"); window.AIBeginner=');
   }, 'learning-experience.js must not use localStorage');
@@ -1185,7 +1375,7 @@ function runSelfTest() {
     },
   ]);
 
-  console.log('PASS learning experience contract self-test (valid fixture + 27 mutations)');
+  console.log('PASS learning experience contract self-test (valid fixture + 32 mutations)');
 }
 
 if (process.argv.includes('--runtime-test')) runRuntimeUnitTest();
