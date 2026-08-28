@@ -385,21 +385,22 @@ function plainClone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-function evaluateLearningRuntime(source, storageOverride) {
+function evaluateLearningRuntime(source, storageOverride, environment = {}) {
   const sessionStorage = storageOverride ?? {
     getItem() { throw new Error('storage unavailable in static contract'); },
     setItem() { throw new Error('storage unavailable in static contract'); },
     removeItem() { throw new Error('storage unavailable in static contract'); },
   };
-  const document = {
+  const document = environment.document ?? {
     readyState: 'loading',
     addEventListener() {},
     querySelector() { return null; },
     querySelectorAll() { return []; },
     getElementById() { return null; },
   };
-  const location = { href: 'https://example.test/learn.html', search: '', hash: '' };
+  const location = environment.location ?? { href: 'https://example.test/learn.html', search: '', hash: '' };
   const window = { document, sessionStorage, location };
+  if (Object.hasOwn(environment, 'matchMedia')) window.matchMedia = environment.matchMedia;
   window.window = window;
   const context = vm.createContext({
     window,
@@ -410,12 +411,37 @@ function evaluateLearningRuntime(source, storageOverride) {
     location,
     navigator: {},
     console: { log() {}, warn() {}, error() {} },
-    setTimeout() { return 0; },
+    setTimeout: environment.setTimeout ?? function () { return 0; },
     clearTimeout() {},
   });
   vm.runInContext(source, context, { timeout: 100, displayErrors: true });
   assert.ok(window.AIBeginner && typeof window.AIBeginner === 'object', 'learning-experience.js must expose window.AIBeginner');
   return window.AIBeginner;
+}
+
+function createHubReturnHarness(chapterId = 'ai-basics') {
+  const scrollCalls = [];
+  const classChanges = [];
+  const card = {
+    classList: {
+      add(value) { classChanges.push(['add', value]); },
+      remove(value) { classChanges.push(['remove', value]); },
+    },
+    getAttribute(name) {
+      if (name === 'data-chapter-id') return chapterId;
+      if (name === 'href') return `detail.html?type=learn&id=${chapterId}`;
+      return null;
+    },
+    setAttribute() {},
+    querySelector() { return null; },
+    scrollIntoView(options) { scrollCalls.push(options); },
+    focus() {},
+  };
+  const root = {
+    querySelectorAll(selector) { return selector === '.learning-card' ? [card] : []; },
+    querySelector() { return null; },
+  };
+  return { card, classChanges, root, scrollCalls };
 }
 
 function evaluateLearningApi(source) {
@@ -915,7 +941,33 @@ function runRuntimeUnitTest() {
   assert.match(movedTarget.innerHTML, /href=["']resources\.html["']/, 'legacy route notice must link to resources.html');
   assert.doesNotThrow(() => fresh.initHub(), 'initHub must remain safe without a matching DOM hub');
 
-  console.log('PASS beginner learning runtime unit tests (state validation, storage failure, order, legacy routes)');
+  function assertReturnScroll(name, expectedBehavior, matchMedia) {
+    const harness = createHubReturnHarness();
+    const environment = {
+      location: { href: 'https://example.test/learn.html#chapter-ai-basics', search: '', hash: '#chapter-ai-basics' },
+    };
+    if (matchMedia !== undefined) environment.matchMedia = matchMedia;
+    const runtime = evaluateLearningRuntime(source, createStorage(), environment);
+    assert.doesNotThrow(() => runtime.initHub(harness.root), `${name} must not interrupt hub initialization`);
+    assert.deepEqual(plainClone(harness.scrollCalls), [{ block: 'center', behavior: expectedBehavior }], `${name} must use ${expectedBehavior} return scrolling`);
+    assert.deepEqual(harness.classChanges[0], ['add', 'chapter-return-highlight'], `${name} must still highlight the returned chapter`);
+  }
+
+  assertReturnScroll('reduced motion enabled', 'auto', (query) => {
+    assert.equal(query, '(prefers-reduced-motion: reduce)', 'runtime must request the standard reduced-motion media query');
+    return { matches: true };
+  });
+  assertReturnScroll('reduced motion enabled through matches getter', 'auto', () => Object.defineProperty({}, 'matches', {
+    get() { return true; },
+  }));
+  assertReturnScroll('reduced motion disabled', 'smooth', () => ({ matches: false }));
+  assertReturnScroll('missing matchMedia', 'smooth');
+  assertReturnScroll('throwing matchMedia', 'smooth', () => { throw new Error('matchMedia unavailable'); });
+  assertReturnScroll('throwing matches getter', 'smooth', () => Object.defineProperty({}, 'matches', {
+    get() { throw new Error('matches unavailable'); },
+  }));
+
+  console.log('PASS beginner learning runtime unit tests (state validation, storage failure, order, legacy routes, reduced motion)');
 }
 
 function runRuntimeMutationTest() {
@@ -944,7 +996,22 @@ function runRuntimeMutationTest() {
     'runtime unit assertion must catch the storage-key mutation',
   );
 
-  console.log('PASS beginner learning runtime mutations (seen guard + storage key)');
+  const reducedMotionNeedle = "window.matchMedia('(prefers-reduced-motion: reduce)').matches) return 'auto';";
+  assert.ok(source.includes(reducedMotionNeedle), 'reduced-motion mutation source must contain the auto behavior');
+  const smoothOnlySource = source.replace(reducedMotionNeedle, "window.matchMedia('(prefers-reduced-motion: reduce)').matches) return 'smooth';");
+  const harness = createHubReturnHarness();
+  const smoothOnly = evaluateLearningRuntime(smoothOnlySource, createStorage(), {
+    location: { href: 'https://example.test/learn.html#chapter-ai-basics', search: '', hash: '#chapter-ai-basics' },
+    matchMedia: () => ({ matches: true }),
+  });
+  smoothOnly.initHub(harness.root);
+  assert.throws(
+    () => assert.equal(harness.scrollCalls[0].behavior, 'auto', 'reduced motion must use auto scrolling'),
+    assert.AssertionError,
+    'runtime unit assertion must catch the smooth-only reduced-motion mutation',
+  );
+
+  console.log('PASS beginner learning runtime mutations (seen guard + storage key + reduced motion)');
 }
 
 function runSelfTest() {

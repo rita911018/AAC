@@ -270,6 +270,16 @@
     }
   }
 
+  function returnScrollBehavior() {
+    try {
+      if (typeof window !== 'undefined' && typeof window.matchMedia === 'function' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches) return 'auto';
+    } catch (error) {
+      return 'smooth';
+    }
+    return 'smooth';
+  }
+
   function initHub(root) {
     var scope = root || (typeof document !== 'undefined' ? document : null);
     if (!scope || typeof scope.querySelectorAll !== 'function') return false;
@@ -299,7 +309,9 @@
         if (cardChapterId(cards[cardIndex]) !== returnedId) continue;
         var returnedCard = cards[cardIndex];
         if (returnedCard.classList) returnedCard.classList.add('chapter-return-highlight');
-        if (typeof returnedCard.scrollIntoView === 'function') returnedCard.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        if (typeof returnedCard.scrollIntoView === 'function') {
+          returnedCard.scrollIntoView({ block: 'center', behavior: returnScrollBehavior() });
+        }
         if (typeof returnedCard.focus === 'function') returnedCard.focus({ preventScroll: true });
         if (typeof setTimeout === 'function') {
           setTimeout(function () {
