@@ -146,6 +146,47 @@ function readPngDimensions(relativePath) {
   return [bytes.readUInt32BE(16), bytes.readUInt32BE(20)];
 }
 
+function readWebpAsset(relativePath) {
+  let bytes;
+  try {
+    bytes = readFileSync(path.join(siteRoot, relativePath));
+  } catch (error) {
+    assert.fail(`${relativePath} must exist and be readable: ${error.message}`);
+  }
+  assert.ok(bytes.length >= 30, `${relativePath} must contain a complete WebP image`);
+  assert.equal(bytes.subarray(0, 4).toString('ascii'), 'RIFF', `${relativePath} must use a RIFF WebP container`);
+  assert.equal(bytes.subarray(8, 12).toString('ascii'), 'WEBP', `${relativePath} must be a WebP image`);
+  let offset = 12;
+  while (offset + 8 <= bytes.length) {
+    const kind = bytes.subarray(offset, offset + 4).toString('ascii');
+    const chunkLength = bytes.readUInt32LE(offset + 4);
+    const dataOffset = offset + 8;
+    assert.ok(dataOffset + chunkLength <= bytes.length, `${relativePath} must not contain a truncated WebP chunk`);
+    if (kind === 'VP8X') {
+      assert.ok(chunkLength >= 10, `${relativePath} VP8X header must be complete`);
+      const width = 1 + bytes.readUIntLE(dataOffset + 4, 3);
+      const height = 1 + bytes.readUIntLE(dataOffset + 7, 3);
+      return { width, height, bytes: bytes.length };
+    }
+    if (kind === 'VP8 ') {
+      assert.ok(chunkLength >= 10 && bytes.subarray(dataOffset + 3, dataOffset + 6).equals(Buffer.from([0x9d, 0x01, 0x2a])),
+        `${relativePath} VP8 frame header must be complete`);
+      return {
+        width: bytes.readUInt16LE(dataOffset + 6) & 0x3fff,
+        height: bytes.readUInt16LE(dataOffset + 8) & 0x3fff,
+        bytes: bytes.length,
+      };
+    }
+    if (kind === 'VP8L') {
+      assert.ok(chunkLength >= 5 && bytes[dataOffset] === 0x2f, `${relativePath} VP8L frame header must be complete`);
+      const bits = bytes.readUInt32LE(dataOffset + 1);
+      return { width: (bits & 0x3fff) + 1, height: ((bits >>> 14) & 0x3fff) + 1, bytes: bytes.length };
+    }
+    offset = dataOffset + chunkLength + (chunkLength % 2);
+  }
+  assert.fail(`${relativePath} must contain a supported VP8, VP8L, or VP8X image chunk`);
+}
+
 function decodeHtmlEntities(source) {
   const named = new Map([
     ['amp', '&'], ['apos', "'"], ['bsol', '\\'], ['gt', '>'], ['lt', '<'], ['nbsp', '\u00a0'],
@@ -1167,6 +1208,25 @@ function runContract() {
     'ai-basics history image metadata must match its optimized intrinsic dimensions');
   assert.deepEqual(readPngDimensions(basics.history.image.fallback), [1536, 1024],
     'ai-basics history PNG fallback dimensions must match the actual asset');
+  const optimizedAssets = [
+    ...api.chapters.map((chapter) => ({
+      path: chapter.image.webp,
+      expected: [chapter.image.width, chapter.image.height],
+    })),
+    {
+      path: basics.history.image.webp,
+      expected: [basics.history.image.width, basics.history.image.height],
+    },
+  ];
+  for (const asset of optimizedAssets) {
+    const inspected = readWebpAsset(asset.path);
+    assert.deepEqual([inspected.width, inspected.height], asset.expected,
+      `${asset.path} dimensions must match its declared intrinsic dimensions`);
+    assert.ok(Math.max(inspected.width, inspected.height) <= 1200,
+      `${asset.path} longest edge must not exceed 1200px`);
+    assert.ok(inspected.bytes < 180 * 1024,
+      `${asset.path} must stay below the 180KB web delivery budget`);
+  }
   assert.equal(basics.exercise.candidates.length, 3, 'ai-basics token exercise must expose three candidates');
   assert.ok(basics.exercise.candidates.every(({ label, probability }) => typeof label === 'string' && label && Number.isFinite(probability)),
     'ai-basics token candidates must have labels and numeric probabilities');
@@ -1472,13 +1532,24 @@ function createFixture(order = chapterIds) {
     bytes.writeUInt32BE(height, 20);
     return bytes;
   }
+  function webpHeader(width, height) {
+    const bytes = Buffer.alloc(30);
+    bytes.write('RIFF', 0, 'ascii');
+    bytes.writeUInt32LE(22, 4);
+    bytes.write('WEBP', 8, 'ascii');
+    bytes.write('VP8X', 12, 'ascii');
+    bytes.writeUInt32LE(10, 16);
+    bytes.writeUIntLE(width - 1, 24, 3);
+    bytes.writeUIntLE(height - 1, 27, 3);
+    return bytes;
+  }
   for (const [index, [, fallback]] of chapterImages.entries()) {
     const [width, height] = chapterFallbackDimensions[index];
     writeFileSync(path.join(root, fallback), pngHeader(width, height));
-    writeFileSync(path.join(root, chapterImages[index][0]), 'webp');
+    writeFileSync(path.join(root, chapterImages[index][0]), webpHeader(...chapterDimensions[index]));
   }
   writeFileSync(path.join(root, 'images/ai-history.png'), pngHeader(1536, 1024));
-  writeFileSync(path.join(root, 'images/ai-history.webp'), 'webp');
+  writeFileSync(path.join(root, 'images/ai-history.webp'), webpHeader(1200, 800));
   return root;
 }
 
@@ -2156,6 +2227,19 @@ function runSelfTest() {
   expectMutation('missing WebP', (root) => {
     unlinkSync(path.join(root, 'images', 'ai-boundaries.webp'));
   }, 'images/ai-boundaries.webp must exist');
+  expectMutation('truncated WebP', (root) => {
+    writeFileSync(path.join(root, 'images', 'ai-boundaries.webp'), Buffer.from('WEBP'));
+  }, 'images/ai-boundaries.webp must contain a complete WebP image');
+  expectMutation('wrong WebP dimensions', (root) => {
+    const absolute = path.join(root, 'images', 'ai-boundaries.webp');
+    const bytes = readFileSync(absolute);
+    bytes.writeUIntLE(899, 24, 3);
+    writeFileSync(absolute, bytes);
+  }, 'images/ai-boundaries.webp dimensions must match its declared intrinsic dimensions');
+  expectMutation('oversized WebP', (root) => {
+    const absolute = path.join(root, 'images', 'ai-boundaries.webp');
+    writeFileSync(absolute, Buffer.concat([readFileSync(absolute), Buffer.alloc(180 * 1024)]));
+  }, 'images/ai-boundaries.webp must stay below the 180KB web delivery budget');
   expectMutation('CSS gradient', (root) => {
     replaceIn(root, 'learning-experience.css', '#0e2144', 'linear-gradient(#fff, #0e2144)');
   }, 'learning-experience.css must not use CSS gradients');
@@ -2248,7 +2332,7 @@ function runSelfTest() {
     },
   ]);
 
-  console.log('PASS learning experience contract self-test (valid fixture + 74 mutations)');
+  console.log('PASS learning experience contract self-test (valid fixture + 77 mutations)');
 }
 
 if (process.argv.includes('--runtime-test')) runRuntimeUnitTest();

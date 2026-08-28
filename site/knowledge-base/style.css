@@ -477,15 +477,15 @@ body .xa-hero .xh-side li b{color:var(--white)}
 
 @media(max-width:560px){
   .external-sites{margin-top:32px;padding-top:24px}
-  body{font-size:16px;line-height:1.75}.container,.topbar-inner{width:min(100% - 32px,var(--content))}
+  body{font-size:17px;line-height:1.75}.container,.topbar-inner{width:min(100% - 32px,var(--content))}
   .brand{max-width:calc(100vw - 132px);font-size:14px}.brand .logo{width:30px;height:30px}
   .search-box{position:relative;width:44px;padding:0;justify-content:center}.search-box input{position:absolute;inset:0;width:44px;opacity:0;cursor:pointer}.search-box .kbd{display:none}
   .search-wrap:focus-within{position:absolute;right:52px;left:0;z-index:30}.search-wrap:focus-within .search-box{width:100%;padding:0 10px;justify-content:flex-start;background:var(--white)}
   .search-wrap:focus-within .search-box input{position:static;width:auto;opacity:1;cursor:text}.search-wrap:focus-within .search-drop{right:0;left:0;width:100%}
   .crumb{width:min(100% - 32px,var(--content));min-height:52px}
   .detail-hero::before,body .xa-hero::before,.hero-grid{background-position:45% center;background-size:640px auto;opacity:.28}
-  .board-hero .container{padding-block:42px}.bh-left h1,.detail-hero h1{font-size:30px;line-height:1.2}.bh-left p,.detail-hero p.desc,.section-head .desc,.entry-card p,.sub-card p,.xa-prompt-card p,body .xa-hero p,.gate-home-card .gh-desc{font-size:16px}
-  body .rt-sec p,body .rt-ul li,body .lp-lead,body .lp-tl-item p,body .lp-step-panel p,body .lp-term .tr,body .kb-step p,body .tl-body p{font-size:16px}
+  .board-hero .container{padding-block:42px}.bh-left h1,.detail-hero h1{font-size:30px;line-height:1.2}.bh-left p,.detail-hero p.desc,.section-head .desc,.entry-card p,.sub-card p,.xa-prompt-card p,body .xa-hero p,.gate-home-card .gh-desc{font-size:17px}
+  body .rt-sec p,body .rt-ul li,body .lp-lead,body .lp-tl-item p,body .lp-step-panel p,body .lp-term .tr,body .kb-step p,body .tl-body p{font-size:17px}
   .bh-meta .bm{min-width:50%;flex:1}.bh-meta .bm:nth-child(odd){border-left:0}.bh-meta .bm:nth-child(n+3){border-top:1px solid rgba(255,255,255,.18)}
   .video-hero .container{gap:12px;padding-block:24px}
   .resources-hero .container{gap:12px;padding-block:24px}

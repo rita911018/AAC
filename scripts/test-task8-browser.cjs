@@ -52,7 +52,7 @@ const allPages = [
   ['video', 'video.html'],
   ['resources', 'resources.html'],
   ['progress', 'progress.html'],
-  ['detail-learn', 'detail.html?type=learn&id=ai-what'],
+  ['detail-learn', 'detail.html?type=learn&id=ai-basics'],
   ['detail-resources', 'detail.html?type=resources&id=tools'],
 ];
 const allViewports = [
@@ -63,6 +63,14 @@ const allViewports = [
 ];
 const pages = mutationMode ? allPages.filter(([name]) => name === 'index' || name === 'resources') : allPages;
 const viewports = mutationMode ? [[390, 844]] : allViewports;
+const learningChapters = [
+  ['ai-basics', '认识 AI'],
+  ['ai-boundaries', '看清边界'],
+  ['ai-delegation', '学会分工'],
+  ['ai-prompting', '把需求说清楚'],
+  ['ai-verification', '验证结果'],
+  ['ai-workflow', '从对话走向工作流'],
+];
 
 (async () => {
   const browser = await chromium.launch({ headless: true });
@@ -145,6 +153,9 @@ const viewports = mutationMode ? [[390, 844]] : allViewports;
         const selectedSiteLinks = gateway ? [...gateway.querySelectorAll('a.gate-home-card[href]')].map(safeLink) : [];
         const internalPortal = internal?.querySelector('.xh-cta') ?? null;
         const pageTextNoWhitespace = normalizedText(document.body.innerText).replace(/\s+/g, '');
+        const learningCards = [...document.querySelectorAll('.learning-hub .learning-card')];
+        const learningToolCards = [...document.querySelectorAll('.learning-tool-grid .learning-tool-card')];
+        const progressCta = document.querySelector('.progress-compat-cta');
 
         return {
           scrollWidth: document.documentElement.scrollWidth,
@@ -230,12 +241,25 @@ const viewports = mutationMode ? [[390, 844]] : allViewports;
           standaloneGatewaySectionCount: document.querySelectorAll('section#gateway').length,
           visibleAiGatewayLabel: pageTextNoWhitespace.includes('AI网闸'),
           resourcesGatewayCards: selectedSiteLinks,
+          learningCardCount: learningCards.length,
+          visibleLearningCardCount: learningCards.filter(isVisible).length,
+          learningCards: learningCards.map((node) => ({
+            id: node.getAttribute('data-chapter-id'),
+            title: normalizedText(node.querySelector('h3')?.textContent),
+            status: normalizedText(node.querySelector('.learning-status')?.textContent),
+            href: node.getAttribute('href'),
+          })),
+          learningToolCardCount: learningToolCards.length,
+          visibleLearningToolCardCount: learningToolCards.filter(isVisible).length,
+          learningMovedTextVisible: /AI\s*公司|模型入口|视频博主|课程目录/.test(normalizedText(document.querySelector('main')?.innerText)),
+          progressCta: safeLink(progressCta),
+          progressText: normalizedText(document.querySelector('main')?.innerText),
         };
       }, { oldStarPath, portalUrl });
 
       expect(metrics.scrollWidth <= metrics.viewportWidth + 1, `${name} ${width}px: horizontal overflow ${metrics.scrollWidth}/${metrics.viewportWidth}`);
-      expect(metrics.fontSize === (width <= 560 ? '16px' : '17px'), `${name} ${width}px: unexpected body font ${metrics.fontSize}`);
-      expect(Number.parseFloat(metrics.lineHeight) >= (width <= 560 ? 28 : 30.6) - 0.1, `${name} ${width}px: line-height too small (${metrics.lineHeight})`);
+      expect(metrics.fontSize === '17px', `${name} ${width}px: body copy must remain at least 17px (${metrics.fontSize})`);
+      expect(Number.parseFloat(metrics.lineHeight) >= (width <= 560 ? 29.75 : 30.6) - 0.1, `${name} ${width}px: line-height too small (${metrics.lineHeight})`);
       expect(metrics.brandIconCount === 2, `${name} ${width}px: expected exactly two rendered knowledge-book brand icons (${metrics.brandIconCount})`);
       expect(metrics.visibleBrandIconCount === 2, `${name} ${width}px: expected both knowledge-book brand icons to be visible (${metrics.visibleBrandIconCount}/2)`);
       expect(metrics.oldStarPathCount === 0, `${name} ${width}px: old star brand path is still rendered (${metrics.oldStarPathCount})`);
@@ -329,6 +353,21 @@ const viewports = mutationMode ? [[390, 844]] : allViewports;
           expect(exactLinks.length === 1 && exactLinks[0].visible, `resources ${width}px: selected-site link is hidden (${href})`);
           expect(exactLinks.length === 1 && exactLinks[0].target === '_blank' && exactLinks[0].rel.split(/\s+/).includes('noopener'), `resources ${width}px: selected-site link is not a safe new-tab target (${href})`);
         }
+      }
+
+      if (name === 'learn') {
+        expect(metrics.learningCardCount === 6 && metrics.visibleLearningCardCount === 6, `learn ${width}px: expected six visible chapter cards (${metrics.visibleLearningCardCount}/${metrics.learningCardCount})`);
+        expect(JSON.stringify(metrics.learningCards.map((card) => [card.id, card.title])) === JSON.stringify(learningChapters), `learn ${width}px: chapter order or titles changed (${JSON.stringify(metrics.learningCards)})`);
+        expect(metrics.learningCards.every((card) => card.status === '未看' && card.href === `detail.html?type=learn&id=${card.id}`), `learn ${width}px: fresh-session cards must expose 未看 and canonical detail URLs`);
+        expect(metrics.learningToolCardCount === 4 && metrics.visibleLearningToolCardCount === 4, `learn ${width}px: expected four visible takeaway tools (${metrics.visibleLearningToolCardCount}/${metrics.learningToolCardCount})`);
+        expect(!metrics.learningMovedTextVisible, `learn ${width}px: moved external resource directory returned to the beginner hub`);
+      }
+
+      if (name === 'progress') {
+        expect(metrics.progressCta?.visible && metrics.progressCta.text === '进入 AI 新手入门', `progress ${width}px: compatibility CTA is missing or hidden`);
+        expect(metrics.progressCta?.href.endsWith('/learn.html'), `progress ${width}px: compatibility CTA does not return to learn.html`);
+        expect(metrics.progressText.includes('进度只在本次标签会话有效'), `progress ${width}px: session-only progress explanation is missing`);
+        expect(!/localStorage|长期保存|永久保存/.test(metrics.progressText), `progress ${width}px: obsolete persistent-progress promise is visible`);
       }
 
       await page.screenshot({ path: resolve(output, `${name}-${width}.png`), fullPage: true });
@@ -465,31 +504,69 @@ const viewports = mutationMode ? [[390, 844]] : allViewports;
     expect(await page.locator('#topbar').evaluate((node) => node.classList.contains('scrolled')), 'topbar initial state is stale at a restored scroll position');
 
     await page.goto(`${base}/progress.html`, { waitUntil: 'domcontentloaded' });
-    await page.evaluate(() => localStorage.removeItem('amer_ai_progress_v1'));
-    await page.reload({ waitUntil: 'domcontentloaded' });
-    const firstProgress = page.locator('.mod-check').first();
-    await firstProgress.click();
-    const stored = await page.evaluate(() => localStorage.getItem('amer_ai_progress_v1'));
-    expect(Boolean(stored && stored !== '{}'), 'progress click is not persisted');
-    const completedBefore = await page.locator('.mod-item.done').count();
-    await page.reload({ waitUntil: 'domcontentloaded' });
-    expect(await page.locator('.mod-item.done').count() === completedBefore && completedBefore > 0, 'progress state does not survive reload');
-    await page.locator('.mod-check').first().click();
+    const progressCta = page.locator('.progress-compat-cta');
+    expect(await progressCta.count() === 1 && await progressCta.isVisible(), 'progress compatibility route must expose one visible CTA');
+    await progressCta.click();
+    expect(new URL(page.url()).pathname.endsWith('/learn.html'), 'progress compatibility CTA cannot return to the learning hub');
 
-    await page.goto(`${base}/detail.html?type=learn&id=prompt-basics`, { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(150);
-    const detailTables = page.locator('.rt-table');
-    expect(await detailTables.count() > 0, 'prompt-basics detail route did not render its real comparison table');
-    const overflowingTables = detailTables.filter({ has: page.locator('tbody') });
-    const overflowCount = await overflowingTables.evaluateAll((nodes) => nodes.filter((node) => node.scrollWidth > node.clientWidth + 1).length);
-    expect(overflowCount > 0, 'prompt-basics has no real horizontally overflowing table at 390px');
-    const scrollableTable = page.locator('.rt-table[tabindex="0"]').first();
-    expect(await scrollableTable.count() === 1 && Boolean(await scrollableTable.getAttribute('aria-label')), 'overflowing detail table is not keyboard-scrollable and labelled');
-    await scrollableTable.focus();
-    const scrollBefore = await scrollableTable.evaluate((node) => node.scrollLeft);
-    await page.keyboard.press('ArrowRight');
-    await page.waitForTimeout(100);
-    expect(await scrollableTable.evaluate((node) => node.scrollLeft) > scrollBefore, 'ArrowRight does not scroll the focused detail table');
+    await page.evaluate(() => {
+      localStorage.clear();
+      sessionStorage.removeItem('amersports-ai-beginner-session-v1');
+    });
+    await page.goto(`${base}/detail.html?type=learn&id=ai-basics`, { waitUntil: 'domcontentloaded' });
+    await page.locator('.lesson[data-chapter-id="ai-basics"]').waitFor();
+    const sessionAfterVisit = await page.evaluate(() => ({
+      session: sessionStorage.getItem('amersports-ai-beginner-session-v1'),
+      persistentKeys: Object.keys(localStorage),
+    }));
+    expect(JSON.parse(sessionAfterVisit.session || '{}')['ai-basics'] === 'in-progress', 'opening a canonical chapter must mark it 正在看 in sessionStorage');
+    expect(sessionAfterVisit.persistentKeys.length === 0, 'learning progress must not write localStorage');
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    expect(JSON.parse(await page.evaluate(() => sessionStorage.getItem('amersports-ai-beginner-session-v1')) || '{}')['ai-basics'] === 'in-progress', 'session progress must survive reload in the same tab');
+    await page.goto(`${base}/learn.html`, { waitUntil: 'domcontentloaded' });
+    expect((await page.locator('#chapter-ai-basics .learning-status').textContent()).trim() === '正在看', 'learning hub must reflect session progress');
+
+    for (const [alias, canonicalTitle] of [
+      ['ai-what', '认识 AI'],
+      ['ai-history', '认识 AI'],
+      ['prompt-basics', '把需求说清楚'],
+      ['ai-other', '认识 AI'],
+    ]) {
+      await page.goto(`${base}/detail.html?type=learn&id=${alias}`, { waitUntil: 'domcontentloaded' });
+      await page.locator('.lesson-header h1').waitFor();
+      expect((await page.locator('.lesson-header h1').textContent()).trim() === canonicalTitle, `${alias}: legacy learning alias did not render ${canonicalTitle}`);
+    }
+
+    for (const movedId of ['ai-companies', 'ai-models']) {
+      await page.goto(`${base}/detail.html?type=learn&id=${movedId}`, { waitUntil: 'domcontentloaded' });
+      const moved = page.locator('.lesson-moved');
+      await moved.waitFor();
+      expect((await moved.textContent()).includes('已移至 AI 工具与资源'), `${movedId}: moved-content notice is missing`);
+      expect((await moved.locator('a[href="resources.html"]').count()) === 1, `${movedId}: moved-content notice must link to resources.html`);
+    }
+
+    await page.goto(`${base}/detail.html?type=learn&id=%E0%A4%A`, { waitUntil: 'domcontentloaded' });
+    const malformedNotice = page.locator('.lesson-moved');
+    expect(await malformedNotice.count() === 1 && (await malformedNotice.textContent()).includes('暂未找到这一章'), 'malformed learning query must fail safely with a not-found state');
+
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto(`${base}/learn.html`, { waitUntil: 'domcontentloaded' });
+    const reducedCardMotion = await page.locator('.learning-card').first().evaluate((node) => {
+      const style = getComputedStyle(node);
+      return { animationName: style.animationName, transitionDuration: style.transitionDuration, scrollBehavior: style.scrollBehavior };
+    });
+    expect(reducedCardMotion.animationName === 'none' && reducedCardMotion.transitionDuration.split(',').every((duration) => Number.parseFloat(duration) <= .001),
+      `reduced motion must disable learning-card animation and transitions (${JSON.stringify(reducedCardMotion)})`);
+    await page.goto(`${base}/detail.html?type=learn&id=ai-basics`, { waitUntil: 'domcontentloaded' });
+    const reducedFeedbackMotion = await page.locator('.lesson-feedback').evaluate((node) => {
+      const style = getComputedStyle(node);
+      return { animationName: style.animationName, transitionDuration: style.transitionDuration };
+    });
+    expect(reducedFeedbackMotion.animationName === 'none' && reducedFeedbackMotion.transitionDuration.split(',').every((duration) => Number.parseFloat(duration) <= .001),
+      `reduced motion must disable lesson-feedback animation and transitions (${JSON.stringify(reducedFeedbackMotion)})`);
+    await page.locator('[data-token-option]').first().click();
+    expect((await page.locator('.lesson-feedback').textContent()).trim().length > 0, 'reduced-motion preference must not disable lesson interaction feedback');
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
 
     await page.goto(`${base}/video.html`, { waitUntil: 'domcontentloaded' });
     const replayCards = await page.locator('a.video-card').evaluateAll((nodes) => nodes.map((node) => ({ target: node.target, rel: node.rel, height: node.getBoundingClientRect().height })));
