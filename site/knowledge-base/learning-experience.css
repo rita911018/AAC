@@ -45,7 +45,7 @@
 .lesson-actions a:focus-visible,
 .lesson-actions button:focus-visible,
 .lesson-nav a:focus-visible {
-  outline: 3px solid rgba(47, 104, 237, 0.28);
+  outline: 3px solid #0E2144;
   outline-offset: 4px;
 }
 
@@ -183,7 +183,7 @@
 
 .learning-tool-copy:focus-visible,
 .progress-compat-cta:focus-visible {
-  outline: 3px solid rgba(47, 104, 237, 0.35);
+  outline: 3px solid #0E2144;
   outline-offset: 4px;
 }
 
@@ -218,7 +218,7 @@
 }
 
 .tool-copy-fallback:focus-visible {
-  outline: 3px solid rgba(47, 104, 237, 0.35);
+  outline: 3px solid #0E2144;
   outline-offset: 3px;
 }
 
@@ -502,7 +502,7 @@
 .lesson-check summary:focus-visible,
 .lesson-history summary:focus-visible,
 .lesson-template:focus-visible {
-  outline: 3px solid rgba(47, 104, 237, 0.35);
+  outline: 3px solid #0E2144;
   outline-offset: 4px;
 }
 

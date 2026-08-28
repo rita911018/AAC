@@ -12,7 +12,7 @@
       number: '01',
       title: '认识 AI',
       description: '理解 AI、生成式 AI、大模型与 Agent 的关系。',
-      image: { webp: 'images/ai-concept.webp', fallback: 'images/ai-concept.png', alt: 'AI 与大模型概念关系插画' },
+      image: { webp: 'images/ai-concept.webp', fallback: 'images/ai-concept.png', width: 1200, height: 800, alt: 'AI 与大模型概念关系插画', caption: '图解四个概念如何连接' },
       sections: [
         {
           title: '先把四个概念放对位置',
@@ -27,7 +27,7 @@
       ],
       history: {
         title: '可选：五个节点看懂 AI 演进',
-        image: { webp: 'images/ai-history.webp', fallback: 'images/ai-history.png', alt: 'AI 发展历程插画' },
+        image: { webp: 'images/ai-history.webp', fallback: 'images/ai-history.png', width: 1200, height: 800, alt: 'AI 发展历程插画' },
         nodes: ['规则系统', '机器学习', '深度学习', '大模型', 'Agent'],
       },
       caseStudy: {
@@ -57,7 +57,7 @@
       number: '02',
       title: '看清边界',
       description: '知道 AI 擅长什么、不擅长什么，以及为什么流畅不等于正确。',
-      image: { webp: 'images/ai-boundaries.webp', fallback: 'images/ai-boundaries.png', alt: '人员核验 AI 回答证据的插画' },
+      image: { webp: 'images/ai-boundaries.webp', fallback: 'images/ai-boundaries.png', width: 1200, height: 800, alt: '人员核验 AI 回答证据的插画', caption: '核验答案背后的证据' },
       sections: [
         { title: 'AI 擅长加速，人擅长把关', paragraphs: ['AI 很适合整理、改写、提取、归纳、生成初稿、发散思路和寻找模式。涉及事实确认、业务取舍、正式承诺和高代价判断时，人必须把关。'], bullets: ['可直接加速：整理、改写、初稿', '需要人机协作：分析、创作、决策准备', '最终由人决定：承诺、审批、高代价选择'] },
         { title: '“说得像真的”为什么还会错', paragraphs: ['模型的目标是生成像答案的文本，不是主动查证每个事实。缺少资料时，它仍可能给出流畅、自信但无来源的内容。'], bullets: ['精确数字要找原始来源', '时效信息要确认日期', '内部信息要提供当前材料'] },
@@ -88,7 +88,7 @@
       number: '03',
       title: '学会分工',
       description: '判断一项工作应交给 AI、人机协作，还是必须由人负责。',
-      image: { webp: 'images/ai-delegation.webp', fallback: 'images/ai-delegation.png', alt: '人与 AI 通过三条通道分工的插画' },
+      image: { webp: 'images/ai-delegation.webp', fallback: 'images/ai-delegation.png', width: 1200, height: 800, alt: '人与 AI 通过三条通道分工的插画', caption: '把任务放进合适的协作通道' },
       sections: [
         { title: '三种分工方式', paragraphs: ['不是每项工作都要“全交给 AI”。有些任务可以委托，有些适合往返协作，有些必须保留在人手中。'], bullets: ['AI：格式化、整理、提取、初稿、方案发散', '人机协作：分析、汇报、决策准备、内容创作', '人负责：战略选择、优先级、对外口径、审批签字、利益协调'] },
         { title: '分工前先问五个问题', paragraphs: ['一项任务越清晰、越容易检查、错误代价越低，越适合交给 AI。当任务依赖大量业务语境或涉及明确责任，人应该保留主导权。'], bullets: ['目标清晰吗？', '结果可验证吗？', '错误代价高吗？', '需要多少业务语境？', '最终责任归谁？'] },
@@ -119,7 +119,7 @@
       number: '04',
       title: '把需求说清楚',
       description: '用目标、背景、任务、输出要求四要素，把提示词变成可执行的工作 brief。',
-      image: { webp: 'images/ai-prompt.webp', fallback: 'images/ai-prompt.png', alt: '人员与 AI 整理提示词信息的插画' },
+      image: { webp: 'images/ai-prompt.webp', fallback: 'images/ai-prompt.png', width: 1024, height: 1024, alt: '人员与 AI 整理提示词信息的插画', caption: '四个要素组成清晰工作 brief' },
       sections: [
         { title: '提示词就是一份工作 brief', paragraphs: ['不用追求神奇口令。像给同事交代任务一样，把目标、背景、具体任务和输出要求说清楚。'], bullets: ['目标：为什么做，什么算成功', '背景：对象、材料和必要语境', '任务：要 AI 具体做什么', '输出要求：格式、长度、语气和限制'] },
         { title: '用多轮协作逐步校准', paragraphs: ['可以补充一个好示例，也可以约定不确定时先提问。第一版不理想时，指出具体差距、给出修改标准，不必每次重新开始。'], bullets: ['先要结构', '再补信息', '对照标准检查', '针对差距修改'] },
@@ -151,7 +151,7 @@
       number: '05',
       title: '验证结果',
       description: '区分事实、推论和观点，查来源、对原文，用明确标准检查质量。',
-      image: { webp: 'images/ai-verification.webp', fallback: 'images/ai-verification.png', alt: '原始材料、AI 回答与核验清单的插画' },
+      image: { webp: 'images/ai-verification.webp', fallback: 'images/ai-verification.png', width: 1200, height: 800, alt: '原始材料、AI 回答与核验清单的插画', caption: '从原文到结论的核验路径' },
       sections: [
         { title: '先区分回答里的三种内容', paragraphs: ['事实是材料直接支持的内容；推论是基于事实做的解释；观点是一种判断或建议。三者都可以有，但不应该混在一起写成“已经证明”。'], bullets: ['事实：可回到原文', '推论：需说明推理链', '观点：需标注判断角度'] },
         { title: '五步核验，再检查可用性', paragraphs: ['先查来源、对原文、看时间口径、检查推理关系，再对照任务标准。最后用准确、完整、相关、清晰、可追溯五项检查是否可交付。'], bullets: ['“写得完整”不等于真实', '“引用很多”不等于支持结论', 'AI 可以辅助分析，最终判断与交付仍由人负责'] },
@@ -182,7 +182,7 @@
       number: '06',
       title: '从对话走向工作流',
       description: '拆任务、定义输入输出、设置检查点，把一次成功对话沉淀为可复用方法。',
-      image: { webp: 'images/ai-workflow.webp', fallback: 'images/ai-workflow.png', alt: '对话、模板、工作流与 Agent 四阶段插画' },
+      image: { webp: 'images/ai-workflow.webp', fallback: 'images/ai-workflow.png', width: 1200, height: 800, alt: '对话、模板、工作流与 Agent 四阶段插画', caption: '把一次对话沉淀为可复用流程' },
       sections: [
         { title: '从一次成功，到稳定复用', paragraphs: ['一次对话解决临时问题；Prompt 模板让同类任务可以重复使用；工作流则固定输入、步骤、检查点与输出。'], bullets: ['对话：一次临时解决', '模板：复用任务说明', '工作流：固定过程与检查点', 'Agent：在明确边界内调用工具、循环执行'] },
         { title: '沉淀一条工作流的五步', paragraphs: ['先拆任务，再定义每步的输入输出，明确 AI、人机协作和人负责的边界，在关键节点加人工检查，最后保存为模板。'], bullets: ['拆任务', '定义输入输出', '明确分工', '设置检查点', '保存模板'] },
@@ -210,12 +210,12 @@
     },
   ];
 
-  var aliases = {
+  var aliases = Object.assign(Object.create(null), {
     'ai-what': 'ai-basics',
     'ai-history': 'ai-basics',
     'prompt-basics': 'ai-prompting',
     'ai-other': 'ai-basics',
-  };
+  });
 
   var chapterById = Object.create(null);
   for (var chapterIndex = 0; chapterIndex < chapters.length; chapterIndex += 1) {
@@ -267,6 +267,15 @@
 
   function isKnownChapter(id) {
     return typeof id === 'string' && Object.prototype.hasOwnProperty.call(chapterById, id);
+  }
+
+  function safeOwnGet(object, key) {
+    if (!object || (typeof object !== 'object' && typeof object !== 'function') || typeof key !== 'string') return undefined;
+    try {
+      return Object.prototype.hasOwnProperty.call(object, key) ? object[key] : undefined;
+    } catch (error) {
+      return undefined;
+    }
   }
 
   function getStatus(id) {
@@ -522,13 +531,14 @@
   }
 
   function canonicalizeLearningUrl(originalId, resolvedId) {
-    if (originalId === resolvedId || typeof history === 'undefined' || typeof history.replaceState !== 'function' ||
-      typeof location === 'undefined') return;
+    if (originalId === resolvedId || typeof history === 'undefined' || typeof location === 'undefined') return;
     try {
+      var replaceState = history.replaceState;
+      if (typeof replaceState !== 'function') return;
       var url = new URL(location.href);
       url.searchParams.set('type', 'learn');
       url.searchParams.set('id', resolvedId);
-      history.replaceState(history.state || null, '', url.pathname + url.search + url.hash);
+      replaceState.call(history, history.state || null, '', url.pathname + url.search + url.hash);
     } catch (error) {}
   }
 
@@ -592,8 +602,9 @@
       return true;
     }
 
-    var resolvedId = aliases[id] || id;
-    var chapter = chapterById[resolvedId];
+    var alias = safeOwnGet(aliases, id);
+    var resolvedId = typeof alias === 'string' ? alias : id;
+    var chapter = safeOwnGet(chapterById, resolvedId);
     if (!chapter) return renderUnknownNotice(container);
     canonicalizeLearningUrl(id, resolvedId);
     markStarted(resolvedId);
@@ -624,13 +635,15 @@
     var image = element(ownerDocument, 'img', '');
     image.setAttribute('src', chapter.image.fallback);
     image.setAttribute('alt', chapter.image.alt);
-    image.setAttribute('width', '1200');
-    image.setAttribute('height', '800');
+    image.setAttribute('width', String(chapter.image.width));
+    image.setAttribute('height', String(chapter.image.height));
     image.setAttribute('loading', 'eager');
     picture.appendChild(source);
     picture.appendChild(image);
     figure.appendChild(picture);
-    figure.appendChild(element(ownerDocument, 'figcaption', '', chapter.image.alt));
+    var figcaption = element(ownerDocument, 'figcaption', '', chapter.image.caption);
+    figcaption.setAttribute('aria-hidden', 'true');
+    figure.appendChild(figcaption);
     article.appendChild(figure);
 
     var content = element(ownerDocument, 'div', 'lesson-content');
@@ -654,6 +667,8 @@
       var historyImage = element(ownerDocument, 'img', '');
       historyImage.setAttribute('src', chapter.history.image.fallback);
       historyImage.setAttribute('alt', chapter.history.image.alt);
+      historyImage.setAttribute('width', String(chapter.history.image.width));
+      historyImage.setAttribute('height', String(chapter.history.image.height));
       historyImage.setAttribute('loading', 'lazy');
       historyPicture.appendChild(historySource);
       historyPicture.appendChild(historyImage);

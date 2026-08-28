@@ -47,6 +47,8 @@ const chapterImages = [
   ['images/ai-verification.webp', 'images/ai-verification.png'],
   ['images/ai-workflow.webp', 'images/ai-workflow.png'],
 ];
+const chapterDimensions = [[1200, 800], [1200, 800], [1200, 800], [1024, 1024], [1200, 800], [1200, 800]];
+const chapterFallbackDimensions = [[1536, 1024], [1536, 1024], [1536, 1024], [1024, 1024], [1536, 1024], [1536, 1024]];
 const expectedChapterContent = {
   'ai-basics': {
     sectionTitles: ['先把四个概念放对位置', '大模型在做什么'],
@@ -126,6 +128,18 @@ function readRequired(relativePath) {
   } catch (error) {
     assert.fail(`${relativePath} must exist and be readable: ${error.message}`);
   }
+}
+
+function readPngDimensions(relativePath) {
+  let bytes;
+  try {
+    bytes = readFileSync(path.join(siteRoot, relativePath));
+  } catch (error) {
+    assert.fail(`${relativePath} must exist and be readable: ${error.message}`);
+  }
+  assert.equal(bytes.subarray(1, 4).toString('ascii'), 'PNG', `${relativePath} must be a PNG image`);
+  assert.ok(bytes.length >= 24, `${relativePath} must include a complete PNG header`);
+  return [bytes.readUInt32BE(16), bytes.readUInt32BE(20)];
 }
 
 function decodeHtmlEntities(source) {
@@ -480,7 +494,8 @@ function evaluateLearningRuntime(source, storageOverride, environment = {}) {
   };
   const location = environment.location ?? { href: 'https://example.test/learn.html', search: '', hash: '' };
   const navigator = environment.navigator ?? {};
-  const window = { document, sessionStorage, location, navigator };
+  const history = environment.history;
+  const window = { document, sessionStorage, location, navigator, history };
   if (Object.hasOwn(environment, 'matchMedia')) window.matchMedia = environment.matchMedia;
   window.window = window;
   const context = vm.createContext({
@@ -490,6 +505,7 @@ function evaluateLearningRuntime(source, storageOverride, environment = {}) {
     URL,
     URLSearchParams,
     location,
+    history,
     navigator,
     console: { log() {}, warn() {}, error() {} },
     setTimeout: environment.setTimeout ?? function (callback) { callback(); return 0; },
@@ -842,6 +858,17 @@ function findCssBlock(source, pattern, label) {
   assert.fail(`${label} must close its CSS block`);
 }
 
+function hexContrast(left, right) {
+  function luminance(hex) {
+    const channels = hex.match(/[\da-f]{2}/gi).map((value) => Number.parseInt(value, 16) / 255)
+      .map((value) => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+    return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+  }
+  const first = luminance(left.replace('#', ''));
+  const second = luminance(right.replace('#', ''));
+  return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
+}
+
 function assertNoGradient(files) {
   for (const file of files) {
     const extension = path.extname(file).toLowerCase();
@@ -1089,6 +1116,14 @@ function runContract() {
     assert.equal(chapter.number, String(index + 1).padStart(2, '0'), `${chapterIds[index]} must use its canonical chapter number`);
     assert.deepEqual([chapter.image.webp, chapter.image.fallback], chapterImages[index], `${chapterIds[index]} must use the approved WebP and fallback image`);
     assert.ok(typeof chapter.image.alt === 'string' && chapter.image.alt.trim(), `${chapterIds[index]} image must have meaningful alt text`);
+    assert.deepEqual([chapter.image.width, chapter.image.height], chapterDimensions[index], `${chapterIds[index]} image metadata must match its optimized intrinsic dimensions`);
+    assert.deepEqual(readPngDimensions(chapter.image.fallback), chapterFallbackDimensions[index],
+      `${chapterIds[index]} PNG fallback dimensions must match the actual asset`);
+    assert.equal(chapter.image.width / chapter.image.height,
+      chapterFallbackDimensions[index][0] / chapterFallbackDimensions[index][1],
+      `${chapterIds[index]} optimized image and PNG fallback must keep the same aspect ratio`);
+    assert.ok(typeof chapter.image.caption === 'string' && chapter.image.caption.trim(), `${chapterIds[index]} image must have a concise visual caption`);
+    assert.notEqual(chapter.image.caption.trim(), chapter.image.alt.trim(), `${chapterIds[index]} alt and figcaption must not duplicate each other`);
     assert.ok(Array.isArray(chapter.sections) && chapter.sections.length >= 2, `${chapterIds[index]} must include complete core-content sections`);
     assert.ok(Array.isArray(chapter.quickCheck) && chapter.quickCheck.length >= 2, `${chapterIds[index]} must include at least two low-pressure review prompts`);
     const expected = expectedChapterContent[chapter.id];
@@ -1107,6 +1142,10 @@ function runContract() {
     assert.ok(typeof chapter.takeaway.template === 'string' && chapter.takeaway.template.trim(), `${chapter.id} takeaway must include a reusable template`);
   }
   const basics = api.chapters[0];
+  assert.deepEqual([basics.history.image.width, basics.history.image.height], [1200, 800],
+    'ai-basics history image metadata must match its optimized intrinsic dimensions');
+  assert.deepEqual(readPngDimensions(basics.history.image.fallback), [1536, 1024],
+    'ai-basics history PNG fallback dimensions must match the actual asset');
   assert.equal(basics.exercise.candidates.length, 3, 'ai-basics token exercise must expose three candidates');
   assert.ok(basics.exercise.candidates.every(({ label, probability }) => typeof label === 'string' && label && Number.isFinite(probability)),
     'ai-basics token candidates must have labels and numeric probabilities');
@@ -1143,6 +1182,10 @@ function runContract() {
     learningScript.indexOf('window.AIBeginner ='),
   );
   assert.ok(renderChapterSource.length > 0, 'renderChapter implementation must be inspectable');
+  assert.match(learningScript, /var\s+aliases\s*=\s*Object\.assign\s*\(\s*Object\.create\s*\(\s*null\s*\)/,
+    'learning aliases must use a null-prototype map');
+  assert.match(learningScript, /var\s+chapterById\s*=\s*Object\.create\s*\(\s*null\s*\)/,
+    'learning chapter lookup must use a null-prototype map');
   assert.ok(!/\.innerHTML\s*=\s*(?:chapter|check|sectionData|exercise|takeaway|caseStudy|[A-Za-z_$][\w$]*\.)/.test(renderChapterSource),
     'chapter metadata and questions must render without innerHTML string assembly');
   const movedNoticeSource = learningScript.slice(
@@ -1161,6 +1204,26 @@ function runContract() {
   ];
   for (const className of requiredCssClasses) {
     assert.ok(new RegExp(`\\.${className}(?![-_a-zA-Z0-9])`).test(learningCss), `learning-experience.css must define .${className}`);
+  }
+  assert.ok(!/outline\s*:\s*[^;{}]*rgba\s*\(/i.test(learningCss),
+    'learning focus rings must not use translucent outline colors');
+  const focusDeclarations = new Map();
+  for (const [, selectorList, declarations] of learningCss.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    for (const selector of selectorList.split(',').map((item) => item.trim()).filter((item) => item.includes(':focus-visible'))) {
+      focusDeclarations.set(selector, `${focusDeclarations.get(selector) || ''}\n${declarations}`);
+    }
+  }
+  assert.ok(focusDeclarations.size >= 8,
+    'learning CSS must define focus-visible treatment for every interaction family');
+  for (const [selector, declarations] of focusDeclarations) {
+    assert.match(declarations, /outline\s*:\s*(?:3|4)px\s+solid\s+#0e2144\b/i,
+      `focus-visible selector must receive an opaque >=3px navy ring: ${selector}`);
+    assert.match(declarations, /outline-offset\s*:\s*[3-9]px\b/i,
+      `focus-visible selector must keep the ring outside the complete control boundary: ${selector}`);
+  }
+  for (const background of ['#ffffff', '#f5f8fd', '#eaf2ff', '#2f68ed']) {
+    assert.ok(hexContrast('#0e2144', background) >= 3,
+      `navy focus ring must maintain at least 3:1 contrast against ${background}`);
   }
   const reducedMotion = findCssBlock(
     learningCss.replace(/\/\*[\s\S]*?\*\//g, ''),
@@ -1184,13 +1247,26 @@ function runContract() {
   const learningScriptStart = detail.indexOf('<script src="learning-experience.js"></script>');
   assert.ok(learningScriptStart >= 0 && learningScriptStart < inlineRendererStart,
     'detail.html must load learning-experience.js before the inline renderer');
-  assert.match(detail, /case\s+['"]learning['"]\s*:[\s\S]*?titleEl\.textContent\s*=\s*['"]轻量学习['"][\s\S]*?noteEl\.textContent\s*=\s*['"]LEARN · TRY · REVIEW['"][\s\S]*?AIBeginner\.renderChapter\s*\(\s*id\s*,\s*bodyEl\s*\)/,
+  assert.match(detail, /case\s+['"]learning['"]\s*:[\s\S]*?titleEl\.textContent\s*=\s*['"]轻量学习['"][\s\S]*?noteEl\.textContent\s*=\s*['"]LEARN · TRY · REVIEW['"][\s\S]*?(?:AIBeginner|beginnerRuntime)\.renderChapter\s*\(\s*id\s*,\s*bodyEl\s*\)/,
     'detail learning renderer must delegate to AIBeginner with the approved labels');
   for (const [index, id] of chapterIds.entries()) {
     const configPattern = new RegExp(`['"]${id}['"]\\s*:\\s*\\{[^}]*structure\\s*:\\s*['"]learning['"][^}]*meta\\s*:\\s*\\[[^\\]]*${chapterMinutes[index].replace(/ /g, '\\s*')}[^\\]]*\\]`, 's');
     assert.match(detail, configPattern, `${id} detail config must be a learning route with ${chapterMinutes[index]}`);
   }
-  assert.match(detail, /history\.replaceState\s*\(/, 'legacy learning aliases must canonicalize the URL with history.replaceState');
+  assert.match(detail, /(?:history\.replaceState\s*\(|replaceState\.call\s*\(\s*history\s*,)/,
+    'legacy learning aliases must canonicalize the URL through the guarded history method');
+  assert.match(detail, /function\s+safeOwnGet\s*\(/, 'detail routing must centralize guarded own-property reads');
+  assert.match(detail, /safeOwnGet\s*\(\s*CONFIG\s*,\s*type\s*\)/,
+    'detail routing must resolve CONFIG with a guarded own-property read');
+  assert.match(detail, /safeOwnGet\s*\(\s*subs\s*,\s*id\s*\)/,
+    'detail routing must resolve board.subs with a guarded own-property read');
+  assert.ok(!/\bCONFIG\s*\[\s*type\s*\]/.test(detail), 'detail routing must not read CONFIG through the prototype chain');
+  assert.ok(!/\.subs\s*\[\s*id\s*\]/.test(detail), 'detail routing must not read board.subs through the prototype chain');
+  assert.ok(!/if\s*\(\s*!sub\s*\)[^{]*\{[^}]*id\s*=\s*['"]ai-basics['"]/s.test(detail),
+    'unknown detail routes must not silently fall back to ai-basics');
+  assert.ok(detail.includes('暂未找到这一章'), 'detail integration must provide a clear unknown-route notice');
+  assert.match(detail, /detailHero['"]?\)?[^\n;]*\.hidden|hero\.hidden\s*=/,
+    'learning detail integration must hide the duplicate outer hero');
 
   for (const imageName of newImageNames) {
     for (const extension of ['png', 'webp']) {
@@ -1282,7 +1358,14 @@ function fixtureFiles(order = chapterIds) {
       <!-- <a class="learning-card"><h2>decoy 未通过</h2></a> -->
       <script>var decoy='<a class="learning-card">decoy 未通过</a>';</script>
       <main><h1>AI 新手入门</h1><p>${learnHeroDescription}</p><picture><source srcset="img/xiaoa-learn.webp" type="image/webp"><img src="img/xiaoa-learn.png" width="432" height="480" alt="小A学习插画"></picture><h2>${learnHubHeading}</h2><a href="${chapterHrefs[0]}" data-learning-continue>继续学习</a><p class="learning-session-summary" data-learning-summary>已看 <span data-learning-seen-count>0</span> / 6</p><p>章节案例可以自然提到 AI 公司、主流 AI 模型、推荐课程、精选视频或值得关注的博主，不代表这里承载资源目录。必要时可引用<a href="https://www.anthropic.com/research">单一权威来源</a>。</p><section class="learning-hub"><a class="learning-card" hidden href="detail.html?type=learn&id=hidden"><h2>隐藏占位</h2><span class="learning-status">未看</span></a>${cards}</section><section class="learning-toolkit"><h2>可复制工具</h2>${toolCards}</section></main><footer><a href="learn.html">继续学习</a></footer><script src="learning-experience.js"></script><script>window.AIBeginner.initHub();</script></body></html>`,
-    'detail.html': `<!doctype html><html><head><link rel="stylesheet" href="learning-experience.css"></head><body><main id="learningExperience"></main><script src="learning-experience.js"></script><script>var CONFIG={learn:{subs:{${detailConfigs}}}}; history.replaceState(null,'',''); /* ================= 渲染主流程 ================= */ switch(sub.structure){case 'learning':titleEl.textContent='轻量学习';noteEl.textContent='LEARN · TRY · REVIEW';window.AIBeginner.renderChapter(id,bodyEl);break;}</script></body></html>`,
+    'detail.html': `<!doctype html><html><head><link rel="stylesheet" href="learning-experience.css"></head><body><section id="detailHero"><h1 id="dhTitle"></h1></section><main id="learningExperience"></main><script src="learning-experience.js"></script><script>
+      function safeOwnGet(object,key){try{return object&&Object.prototype.hasOwnProperty.call(object,key)?object[key]:undefined;}catch(error){return undefined;}}
+      var CONFIG={learn:{subs:{${detailConfigs}}}};
+      var board=safeOwnGet(CONFIG,type),subs=board?safeOwnGet(board,'subs'):undefined,sub=safeOwnGet(subs,id);
+      if(!sub){sub={structure:'learning-unknown',name:'暂未找到这一章'};}
+      var hero=document.getElementById('detailHero');hero.hidden=sub.structure==='learning'||sub.structure==='learning-unknown';
+      var replaceState=history.replaceState;if(typeof replaceState==='function')replaceState.call(history,null,'','');
+      /* ================= 渲染主流程 ================= */ switch(sub.structure){case 'learning':titleEl.textContent='轻量学习';noteEl.textContent='LEARN · TRY · REVIEW';window.AIBeginner.renderChapter(id,bodyEl);break;}</script></body></html>`,
     'progress.html': '<!doctype html><html><head><link rel="stylesheet" href="learning-experience.css"></head><body><main><p>进度只在本次标签会话有效。</p><article class="progress-compat-card"><p>兼容说明</p><a class="progress-compat-cta" href="learn.html">进入 AI 新手入门</a></article></main><footer><a href="learn.html">继续学习</a></footer></body></html>',
     'search.js': `(function(){ var SEARCH_INDEX=[${searchEntries},{t:'本次学习进度',tag:'功能',href:'learn.html'},{t:'AI 公司介绍',tag:'资源',href:'resources.html'}]; var decoy='SEARCH_INDEX.push({tag:"入门"})'; /* SEARCH_INDEX = []; */ window.search=SEARCH_INDEX; }());`,
     'index.html': '<!doctype html><html><body><main></main><footer><a href="learn.html">继续学习</a></footer></body></html>',
@@ -1296,7 +1379,8 @@ function fixtureFiles(order = chapterIds) {
       function harmlessRegexStatement(flag){ if(flag) /localStorage/.test('documentation'); }
       var harmlessNestedTemplate=\`documentation \${\`localStorage\`}\`;
       var chapters=[${chapters}];
-      var aliases=${JSON.stringify(aliases)};
+      var aliases=Object.assign(Object.create(null),${JSON.stringify(aliases)});
+      var chapterById=Object.create(null);for(var chapterIndex=0;chapterIndex<chapters.length;chapterIndex+=1)chapterById[chapters[chapterIndex].id]=chapters[chapterIndex];
       function read(){ try { return sessionStorage.getItem('amersports-ai-beginner-session-v1'); } catch(error) { return null; } }
       function getStatus(){ return 'unseen'; }
       function markStarted(){ return 'in-progress'; }
@@ -1309,6 +1393,7 @@ function fixtureFiles(order = chapterIds) {
       window.AIBeginner={chapters:chapters,aliases:aliases,getStatus:getStatus,markStarted:markStarted,markSeen:markSeen,nextIncomplete:nextIncomplete,initHub:initHub,renderChapter:renderChapter,read:read};
     }());`,
     'learning-experience.css': `.learning-hub,.learning-card,.learning-status,.lesson-nav,.lesson-figure,.lesson-case,.lesson-exercise,.lesson-check,.lesson-takeaway,.lesson-actions,.learning-session-summary,.learning-toolkit,.learning-tool-card,.learning-tool-copy,.tool-copy-fallback,.progress-compat-cta { color: #0e2144; }
+      .learning-card:focus-visible,.lesson-actions a:focus-visible,.lesson-actions button:focus-visible,.lesson-nav a:focus-visible,.learning-tool-copy:focus-visible,.progress-compat-cta:focus-visible,.tool-copy-fallback:focus-visible,.lesson-secondary-action:focus-visible,.lesson-check summary:focus-visible,.lesson-history summary:focus-visible,.lesson-template:focus-visible { outline:3px solid #0e2144;outline-offset:4px; }
       @media (prefers-reduced-motion: reduce) {
         .learning-card,.lesson-token,.lesson-feedback,.chapter-return-highlight,.learning-tool-card,.tool-copy-feedback,.tool-copy-fallback { scroll-behavior:auto; transition:none; animation:none; }
       }`,
@@ -1319,10 +1404,22 @@ function createFixture(order = chapterIds) {
   const root = mkdtempSync(path.join(os.tmpdir(), 'learning-contract-'));
   mkdirSync(path.join(root, 'images'));
   for (const [relative, content] of Object.entries(fixtureFiles(order))) writeFileSync(path.join(root, relative), content);
-  for (const imageName of newImageNames) {
-    writeFileSync(path.join(root, 'images', `${imageName}.png`), 'png');
-    writeFileSync(path.join(root, 'images', `${imageName}.webp`), 'webp');
+  function pngHeader(width, height) {
+    const bytes = Buffer.alloc(24);
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]).copy(bytes, 0);
+    bytes.writeUInt32BE(13, 8);
+    bytes.write('IHDR', 12, 'ascii');
+    bytes.writeUInt32BE(width, 16);
+    bytes.writeUInt32BE(height, 20);
+    return bytes;
   }
+  for (const [index, [, fallback]] of chapterImages.entries()) {
+    const [width, height] = chapterFallbackDimensions[index];
+    writeFileSync(path.join(root, fallback), pngHeader(width, height));
+    writeFileSync(path.join(root, chapterImages[index][0]), 'webp');
+  }
+  writeFileSync(path.join(root, 'images/ai-history.png'), pngHeader(1536, 1024));
+  writeFileSync(path.join(root, 'images/ai-history.webp'), 'webp');
   return root;
 }
 
@@ -1574,6 +1671,13 @@ function runRuntimeUnitTest() {
   const firstRuntime = evaluateLearningRuntime(source, createStorage(), { document: firstDom.document });
   const firstTarget = firstDom.createTarget();
   assert.equal(firstRuntime.renderChapter('ai-basics', firstTarget), true, 'first chapter must render into a real DOM-like target');
+  const firstImage = firstTarget.querySelector('.lesson-figure').querySelector('img');
+  const firstCaption = firstTarget.querySelector('.lesson-figure').querySelector('figcaption');
+  assert.deepEqual([firstImage.getAttribute('width'), firstImage.getAttribute('height')], ['1200', '800'],
+    'chapter renderer must emit intrinsic width and height from image metadata');
+  assert.notEqual(firstCaption.textContent.trim(), firstImage.getAttribute('alt').trim(),
+    'rendered figcaption must not duplicate the image alt');
+  assert.equal(firstCaption.getAttribute('aria-hidden'), 'true', 'visual figcaption must be hidden from assistive technology to avoid duplicate narration');
   assert.equal(firstTarget.querySelectorAll('a').filter((anchor) => anchor.textContent === '下一章').length, 1,
     'a non-final chapter must render one next-chapter action');
   const caseSection = firstTarget.querySelector('.lesson-case');
@@ -1619,6 +1723,37 @@ function runRuntimeUnitTest() {
   assert.equal(finalRuntime.renderChapter('ai-workflow', finalTarget), true, 'final chapter must render into a real DOM-like target');
   assert.equal(finalTarget.querySelectorAll('a').filter((anchor) => anchor.textContent === '下一章').length, 0,
     'chapter six must not render a next-chapter action');
+
+  const routeDom = createMiniDom();
+  const historyCalls = [];
+  const routeRuntime = evaluateLearningRuntime(source, createStorage(), {
+    document: routeDom.document,
+    location: { href: 'https://example.test/detail.html?type=learn&id=ai-what', search: '?type=learn&id=ai-what', hash: '' },
+    history: { state: null, replaceState(...args) { historyCalls.push(args); } },
+  });
+  assert.equal(Object.getPrototypeOf(routeRuntime.aliases), null, 'learning alias map must have a null prototype');
+  const aliasTarget = routeDom.createTarget();
+  assert.equal(routeRuntime.renderChapter('ai-what', aliasTarget), true, 'approved legacy alias must render');
+  assert.equal(historyCalls.length, 1, 'approved legacy alias must canonicalize once');
+  assert.ok(String(historyCalls[0][2]).includes('id=ai-basics'), 'approved legacy alias must canonicalize to ai-basics');
+  for (const unsafeId of ['__proto__', 'constructor', 'toString', 'unknown']) {
+    const before = historyCalls.length;
+    const unknownTarget = routeDom.createTarget();
+    assert.doesNotThrow(() => routeRuntime.renderChapter(unsafeId, unknownTarget), `${unsafeId} learning id must not throw`);
+    assert.equal(historyCalls.length, before, `${unsafeId} learning id must not invoke history.replaceState`);
+    assert.ok(unknownTarget.textContent.includes('暂未找到这一章'), `${unsafeId} learning id must render the unknown notice`);
+    assert.ok(unknownTarget.querySelectorAll('a').some((anchor) => anchor.getAttribute('href') === 'learn.html'),
+      `${unsafeId} unknown notice must retain the return-to-learn link`);
+  }
+  const throwingHistory = {};
+  Object.defineProperty(throwingHistory, 'replaceState', { get() { throw new Error('history getter blocked'); } });
+  const throwingHistoryRuntime = evaluateLearningRuntime(source, createStorage(), {
+    document: routeDom.document,
+    location: { href: 'https://example.test/detail.html?type=learn&id=ai-what', search: '?type=learn&id=ai-what', hash: '' },
+    history: throwingHistory,
+  });
+  assert.doesNotThrow(() => throwingHistoryRuntime.renderChapter('ai-what', routeDom.createTarget()),
+    'throwing history getters must not interrupt approved alias rendering');
 
   const maliciousPayload = '<script>globalThis.__learningXss = true<\/script><img src=x onerror="globalThis.__learningXss=true">';
   const safeLessonNeedle = "lesson: '把关键背景放进当前任务，不把过去对话当作自动长期记忆。'";
@@ -1862,6 +1997,12 @@ function runSelfTest() {
   expectMutation('missing runtime API', (root) => {
     replaceIn(root, 'learning-experience.js', 'renderChapter:renderChapter,read:read', 'read:read');
   }, 'window.AIBeginner.renderChapter must be a function');
+  expectMutation('prototype-backed learning alias map', (root) => {
+    replaceIn(root, 'learning-experience.js', 'Object.assign(Object.create(null),', 'Object.assign({},');
+  }, 'learning aliases must use a null-prototype map');
+  expectMutation('prototype-backed chapter lookup map', (root) => {
+    replaceIn(root, 'learning-experience.js', 'var chapterById=Object.create(null)', 'var chapterById={}');
+  }, 'learning chapter lookup must use a null-prototype map');
   expectMutation('duplicate detail learning script', (root) => {
     replaceIn(root, 'detail.html', '<script src="learning-experience.js"></script>', '<script src="learning-experience.js"></script><script src="learning-experience.js"></script>');
   }, 'detail.html must load learning-experience.js exactly once');
@@ -1878,6 +2019,12 @@ function runSelfTest() {
   expectMutation('wrong approved chapter image', (root) => {
     replaceIn(root, 'learning-experience.js', 'images/ai-concept.webp', 'images/ai-history.webp');
   }, 'ai-basics must use the approved WebP and fallback image');
+  expectMutation('wrong chapter intrinsic width', (root) => {
+    replaceIn(root, 'learning-experience.js', '"width":1200', '"width":900');
+  }, 'ai-basics image metadata must match its optimized intrinsic dimensions');
+  expectMutation('duplicate chapter alt and caption', (root) => {
+    replaceIn(root, 'learning-experience.js', '"caption":"图解四个概念如何连接"', '"caption":"AI 与大模型概念关系插画"');
+  }, 'ai-basics alt and figcaption must not duplicate each other');
   expectMutation('wrong final chapter number', (root) => {
     replaceIn(root, 'learning-experience.js', '"number":"06"', '"number":"07"');
   }, 'ai-workflow must use its canonical chapter number');
@@ -1908,6 +2055,21 @@ function runSelfTest() {
   expectMutation('missing reduced motion coverage', (root) => {
     replaceIn(root, 'learning-experience.css', '.chapter-return-highlight', '.chapter-return-highlight-missing');
   }, 'reduced-motion block must cover .chapter-return-highlight');
+  expectMutation('translucent focus ring', (root) => {
+    replaceIn(root, 'learning-experience.css', 'outline:3px solid #0e2144', 'outline:3px solid rgba(47,104,237,.35)');
+  }, 'learning focus rings must not use translucent outline colors');
+  expectMutation('clipped focus boundary', (root) => {
+    replaceIn(root, 'learning-experience.css', 'outline-offset:4px', 'outline-offset:0');
+  }, 'focus-visible selector must keep the ring outside the complete control boundary');
+  expectMutation('direct CONFIG prototype-chain lookup', (root) => {
+    replaceIn(root, 'detail.html', 'safeOwnGet(CONFIG,type)', 'CONFIG[type]');
+  }, 'detail routing must resolve CONFIG with a guarded own-property read');
+  expectMutation('direct board subs prototype-chain lookup', (root) => {
+    replaceIn(root, 'detail.html', "safeOwnGet(subs,id)", 'subs[id]');
+  }, 'detail routing must resolve board.subs with a guarded own-property read');
+  expectMutation('unknown route falls back to basics', (root) => {
+    replaceIn(root, 'detail.html', "if(!sub){sub={structure:'learning-unknown',name:'暂未找到这一章'};}", "if(!sub){id='ai-basics';sub={structure:'learning',name:'认识 AI'};}");
+  }, 'unknown detail routes must not silently fall back to ai-basics');
   expectMutation('old model search entry', (root) => {
     replaceIn(root, 'search.js', chapterHrefs[0], 'detail.html?type=learn&id=ai-models');
   }, 'search beginner links must match the six approved chapter URLs');
@@ -1976,7 +2138,7 @@ function runSelfTest() {
     },
   ]);
 
-  console.log('PASS learning experience contract self-test (valid fixture + 64 mutations)');
+  console.log('PASS learning experience contract self-test (valid fixture + 73 mutations)');
 }
 
 if (process.argv.includes('--runtime-test')) runRuntimeUnitTest();

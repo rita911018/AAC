@@ -556,6 +556,14 @@ function esc(s){
   var entities = {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};
   return String(s).replace(/[&<>"']/g,function(character){ return entities[character]; });
 }
+function safeOwnGet(object, key){
+  if(!object || (typeof object !== 'object' && typeof object !== 'function') || typeof key !== 'string') return undefined;
+  try {
+    return Object.prototype.hasOwnProperty.call(object, key) ? object[key] : undefined;
+  } catch(error) {
+    return undefined;
+  }
+}
 function sanitizeInlineRichText(value){
   var template = document.createElement('template');
   template.innerHTML = String(value);
@@ -775,7 +783,7 @@ function initListFilter(){
 }
 
 function renderVideoList(id){
-  var real = VIDEO_REAL[id] || [];
+  var real = safeOwnGet(VIDEO_REAL, id) || [];
   var thumbs = ['thumb-landscape','thumb-stars','thumb-aurora'];
   if(!real.length){
     var placeholder = document.createElement('div');
@@ -834,18 +842,32 @@ function renderVideoList(id){
 /* ================= 渲染主流程 ================= */
 (function(){
   var type = qs('type'), id = qs('id');
-  if(type === 'learn' && window.AIBeginner && window.AIBeginner.aliases && window.AIBeginner.aliases[id]){
-    id = window.AIBeginner.aliases[id];
+  var beginnerRuntime = safeOwnGet(window, 'AIBeginner');
+  var aliasMap = beginnerRuntime ? safeOwnGet(beginnerRuntime, 'aliases') : undefined;
+  var canonicalId = type === 'learn' ? safeOwnGet(aliasMap, id) : undefined;
+  if(typeof canonicalId === 'string'){
+    id = canonicalId;
     try {
       var canonicalUrl = new URL(window.location.href);
       canonicalUrl.searchParams.set('type', 'learn');
       canonicalUrl.searchParams.set('id', id);
-      history.replaceState(history.state || null, '', canonicalUrl.pathname + canonicalUrl.search + canonicalUrl.hash);
+      var replaceState = history.replaceState;
+      if(typeof replaceState === 'function') replaceState.call(history, history.state || null, '', canonicalUrl.pathname + canonicalUrl.search + canonicalUrl.hash);
     } catch(aliasError) {}
   }
-  var board = CONFIG[type];
-  var sub = board ? board.subs[id] : null;
-  if(!sub){ type = 'learn'; id = 'ai-basics'; board = CONFIG.learn; sub = board.subs['ai-basics']; }
+  var board = safeOwnGet(CONFIG, type);
+  var subs = board ? safeOwnGet(board, 'subs') : undefined;
+  var sub = safeOwnGet(subs, id);
+  if(!sub){
+    if(type === 'learn'){
+      board = safeOwnGet(CONFIG, 'learn') || { nav:'learn', crumb:'AI 新手入门', num:'01 · LEARN' };
+      sub = { name:'暂未找到这一章', accent:'#2563EB', structure:'learning-unknown', desc:'返回 AI 新手入门，从六个章节中重新选择。', meta:['未找到章节'] };
+    } else {
+      type = 'learn';
+      board = safeOwnGet(CONFIG, 'learn') || { nav:'learn', crumb:'AI 新手入门', num:'404' };
+      sub = { name:'页面未找到', accent:'#2563EB', structure:'page-unknown', desc:'请返回 AI 新手入门继续浏览。', meta:['404'] };
+    }
+  }
 
   var accent = sub.accent;
 
@@ -865,6 +887,7 @@ function renderVideoList(id){
 
   // 3) Hero
   var hero = document.getElementById('detailHero');
+  hero.hidden = sub.structure === 'learning' || sub.structure === 'learning-unknown';
   hero.style.setProperty('--accent', accent);
   document.getElementById('dhTag').textContent = board.num + ' · ' + board.crumb + ' / ' + sub.name;
   document.getElementById('dhTitle').textContent = sub.name;
@@ -883,15 +906,30 @@ function renderVideoList(id){
   var phBox = document.getElementById('phNoteBox');
   var phNote = document.getElementById('phNote');
 
-  var content = CONTENT[id];
+  var content = safeOwnGet(CONTENT, id);
   switch(sub.structure){
     case 'learning':
       titleEl.textContent = '轻量学习'; noteEl.textContent = 'LEARN · TRY · REVIEW';
-      if(window.AIBeginner && typeof window.AIBeginner.renderChapter === 'function'){
-        window.AIBeginner.renderChapter(id, bodyEl);
+      if(beginnerRuntime && typeof beginnerRuntime.renderChapter === 'function'){
+        beginnerRuntime.renderChapter(id, bodyEl);
       } else {
         bodyEl.textContent = '学习内容暂时无法加载，请返回 AI 新手入门重试。';
       }
+      break;
+    case 'learning-unknown':
+      titleEl.textContent = '未找到章节'; noteEl.textContent = 'RETURN TO LEARN';
+      if(beginnerRuntime && typeof beginnerRuntime.renderChapter === 'function') beginnerRuntime.renderChapter(id, bodyEl);
+      else bodyEl.textContent = '暂未找到这一章。请返回 AI 新手入门。';
+      break;
+    case 'page-unknown':
+      titleEl.textContent = '页面未找到'; noteEl.textContent = '404';
+      var unknownMessage = document.createElement('p');
+      unknownMessage.textContent = '当前链接无法识别，请返回 AI 新手入门。';
+      var unknownReturn = document.createElement('a');
+      unknownReturn.className = 'lesson-primary-action';
+      unknownReturn.href = 'learn.html';
+      unknownReturn.textContent = '返回 AI 新手入门';
+      bodyEl.replaceChildren(unknownMessage, unknownReturn);
       break;
     case 'article':
       titleEl.textContent = '正文'; noteEl.textContent = 'ARTICLE';
@@ -909,7 +947,8 @@ function renderVideoList(id){
     case 'video-list':
       titleEl.textContent = '课程回放'; noteEl.textContent = 'VIDEO LIST';
       bodyEl.replaceChildren(renderVideoList(id));
-      if(VIDEO_REAL[id] && VIDEO_REAL[id].length){
+      var realVideos = safeOwnGet(VIDEO_REAL, id);
+      if(realVideos && realVideos.length){
         phBox.style.display = 'flex';
         phNote.innerHTML = '<b>点击卡片即可观看：</b>以下为已接入的真实录播，点击会跳转到公司 SharePoint 站点观看（需登录公司账号）。';
       } else {
