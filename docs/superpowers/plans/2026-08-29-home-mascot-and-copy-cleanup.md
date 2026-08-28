@@ -42,11 +42,27 @@
 - [ ] Replace every footer description with `由 Amersports AI Community 维护的内部学习平台，帮助每一位员工从 AI 新手成长为高效使用者。`
 - [ ] Move the mascot left while keeping the entry fixed: begin with `right:80px` on desktop, `right:76px` at `max-width:820px`, and `right:64px` at `max-width:560px`; retain the value only if all geometry acceptance checks pass.
 - [ ] Enlarge the learn Hero mascot to a main-visual scale while preserving the existing WebP/PNG/alt, and keep the complete learn Hero description on one line at `1236px` and above only.
+- [ ] Keep the learn Hero action/progress group and overview data anchored to the copy's left boundary; use a desktop row and mobile stack without overlap.
 - [ ] Run focused static and browser tests at `1440 / 1236 / 1024 / 820 / 560 / 390px`; adjust only the mascot offsets if needed to maintain the required gap and title safety.
 - [ ] Run all learning, homepage, Task 7, Task 8, verifier and browser regression suites.
 - [ ] Commit the production change.
 
-### Task 3: Deliver and verify
+### Task 3: Simplify the first chapter relationship interaction
+
+**Files:**
+- Modify: `site/knowledge-base/learning-experience.js`
+- Modify: `site/knowledge-base/learning-experience.css`
+- Modify: `scripts/test-learning-experience.mjs`
+- Modify: `scripts/test-learning-browser.cjs`
+
+- [ ] Replace the three repetitive concept matching fieldsets with a four-node clickable relationship map: AI, generative AI, large language model, Agent.
+- [ ] Each node exposes one concise relationship explanation via the existing polite feedback region; add one lightweight retryable judgment question after the map.
+- [ ] Keep the Token interaction and five-step disclosure unchanged; do not add scores, gates, drag-only behavior or persistence beyond the existing session state.
+- [ ] Preserve keyboard access, `44px` targets, reduced motion, first meaningful interaction enabling completion, safe DOM rendering and 390px no-overflow behavior.
+- [ ] Add static/runtime/browser contract and targeted mutations for the four nodes, explanation feedback, single judgment, keyboard use and removal of the old three repeated groups.
+- [ ] Run learning static/runtime/mutation/browser suites and commit the focused change.
+
+### Task 4: Deliver and verify
 
 **Files:**
 - Update: `/Users/rita/Downloads/知识库/` excluding `backups/`
