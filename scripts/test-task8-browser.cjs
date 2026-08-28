@@ -60,13 +60,16 @@ const viewports = [
           if (!node) return false;
           const style = getComputedStyle(node);
           const bounds = node.getBoundingClientRect();
-          return style.display !== 'none'
+          return (!node.checkVisibility || node.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }))
+            && style.display !== 'none'
             && style.visibility !== 'hidden'
             && Number.parseFloat(style.opacity) > 0
             && bounds.width > 0
             && bounds.height > 0;
         };
-        const normalizedPathData = (value) => value.trim().replace(/[\s,]+/g, ' ');
+        const normalizedText = (value) => String(value ?? '').replace(/\s+/g, ' ').trim();
+        const normalizedPathData = (value) => (String(value ?? '').match(/[A-Za-z]|[-+]?(?:(?:\d+\.\d*|\.\d+|\d+)(?:[eE][-+]?\d+)?)/g) ?? []).join(' ');
+        const oldStarPathPrefix = normalizedPathData(oldStarPath);
         const overlap = (a, b) => Boolean(a && b && a.right > b.left && b.right > a.left && a.bottom > b.top && b.bottom > a.top);
         const mascotRect = rect(mascot);
         const copyRect = rect(copy);
@@ -75,15 +78,22 @@ const viewports = [
         const homeImageRect = rect(document.querySelector('.home-hero .hero-mascot img'));
         const homeTitleRect = rect(document.querySelector('.home-hero .bh-left h1'));
         const homeSubtitle = document.querySelector('.home-hero .bh-subtitle');
-        const resourcesGateway = document.querySelector('section#gateway');
+        const brandIcons = [...document.querySelectorAll('.logo svg[data-brand-icon="knowledge-book"]')];
+        const resourcesGateways = [...document.querySelectorAll('body > section#gateway, main section#gateway')];
+        const resourcesGateway = resourcesGateways[0] ?? null;
+        const resourcesGatewayTitle = resourcesGateway?.querySelector('h2') ?? null;
         return {
           scrollWidth: document.documentElement.scrollWidth,
           viewportWidth: innerWidth,
           fontSize: bodyStyle.fontSize,
           lineHeight: bodyStyle.lineHeight,
-          brandIconCount: document.querySelectorAll('svg[data-brand-icon="knowledge-book"]').length,
-          oldStarPathCount: [...document.querySelectorAll('path[d]')]
-            .filter((node) => normalizedPathData(node.getAttribute('d')) === normalizedPathData(oldStarPath)).length,
+          brandIconCount: brandIcons.length,
+          visibleBrandIconCount: brandIcons.filter(isVisible).length,
+          oldStarPathCount: [...document.querySelectorAll('.logo svg path[d]')]
+            .filter((node) => {
+              const pathData = normalizedPathData(node.getAttribute('d'));
+              return pathData === oldStarPathPrefix || pathData.startsWith(`${oldStarPathPrefix} `);
+            }).length,
           mascotCount: document.querySelectorAll('.hero-mascot').length,
           mascotCopyOverlap: overlap(mascotRect, copyRect),
           brandHeight: document.querySelector('.brand')?.getBoundingClientRect().height || 0,
@@ -99,21 +109,25 @@ const viewports = [
           homeImageCurrentSrc: document.querySelector('.home-hero .hero-mascot img')?.currentSrc || '',
           homeImageCopyOverlap: overlap(homeImageRect, copyRect),
           homeTitleMascotOverlap: overlap(homeTitleRect, mascotRect),
-          homeTitleText: document.querySelector('.home-hero .bh-left h1')?.textContent ?? null,
-          homeSubtitleText: homeSubtitle?.textContent ?? null,
-          homeDescriptionText: document.querySelector('.home-hero .bh-subtitle + p')?.textContent ?? null,
+          homeTitleText: normalizedText(document.querySelector('.home-hero .bh-left h1')?.textContent),
+          homeSubtitleText: normalizedText(homeSubtitle?.textContent),
+          homeDescriptionText: normalizedText(document.querySelector('.home-hero .bh-subtitle + p')?.textContent),
           homeTagCount: document.querySelectorAll('.home-hero .bh-tag').length,
           homeStatusCount: document.querySelectorAll('.home-hero .mascot-status').length,
-          homeGatewayCount: document.querySelectorAll('section#gateway').length,
+          homeGatewayCount: document.querySelectorAll('body > #gateway, main #gateway').length,
           homeSubtitleRect: rect(homeSubtitle),
           homeSubtitleVisible: isVisible(homeSubtitle),
-          resourcesGatewayCount: document.querySelectorAll('section#gateway').length,
-          resourcesGatewayText: resourcesGateway?.textContent ?? '',
-          resourcesGatewayLinks: resourcesGateway
-            ? [...resourcesGateway.querySelectorAll('a[href]')].map((node) => ({
+          resourcesGatewayCount: resourcesGateways.length,
+          resourcesGatewayVisible: isVisible(resourcesGateway),
+          resourcesGatewayTitleText: normalizedText(resourcesGatewayTitle?.textContent),
+          resourcesGatewayTitleVisible: isVisible(resourcesGatewayTitle),
+          resourcesGatewayCards: resourcesGateway
+            ? [...resourcesGateway.querySelectorAll('a.gate-home-card[href]')].map((node) => ({
+              text: normalizedText(node.textContent),
               href: node.href,
               target: node.target,
               rel: node.rel,
+              visible: isVisible(node),
             }))
             : [],
         };
@@ -122,6 +136,7 @@ const viewports = [
       expect(metrics.fontSize === (width <= 560 ? '16px' : '17px'), `${name} ${width}px: unexpected body font ${metrics.fontSize}`);
       expect(Number.parseFloat(metrics.lineHeight) >= (width <= 560 ? 28 : 30.6) - 0.1, `${name} ${width}px: line-height too small (${metrics.lineHeight})`);
       expect(metrics.brandIconCount === 2, `${name} ${width}px: expected exactly two rendered knowledge-book brand icons (${metrics.brandIconCount})`);
+      expect(metrics.visibleBrandIconCount === 2, `${name} ${width}px: expected both knowledge-book brand icons to be visible (${metrics.visibleBrandIconCount}/2)`);
       expect(metrics.oldStarPathCount === 0, `${name} ${width}px: old star brand path is still rendered (${metrics.oldStarPathCount})`);
       expect(metrics.mascotCount <= 1, `${name} ${width}px: more than one hero mascot`);
       expect(!metrics.mascotCopyOverlap, `${name} ${width}px: mascot overlaps hero copy`);
@@ -159,14 +174,20 @@ const viewports = [
         });
       }
       if (name === 'resources') {
-        const gatewayCopy = metrics.resourcesGatewayText;
         expect(metrics.resourcesGatewayCount === 1, `resources ${width}px: expected one real section#gateway (${metrics.resourcesGatewayCount})`);
-        expect(gatewayCopy.includes('外部精选 AI 资源'), `resources ${width}px: gateway title is not rendered`);
-        expect(gatewayCopy.includes('AI 日报'), `resources ${width}px: AI 日报 card is not rendered`);
-        expect(gatewayCopy.includes('WaytoAGI · AI 知识库'), `resources ${width}px: WaytoAGI card is not rendered`);
-        for (const href of ['https://aihot.virxact.com/daily', 'https://www.waytoagi.com/zh']) {
-          const links = metrics.resourcesGatewayLinks.filter((link) => link.href === href);
+        expect(metrics.resourcesGatewayVisible, `resources ${width}px: section#gateway is not visibly rendered`);
+        expect(metrics.resourcesGatewayTitleText === '外部精选 AI 资源', `resources ${width}px: gateway title copy changed (${metrics.resourcesGatewayTitleText})`);
+        expect(metrics.resourcesGatewayTitleVisible, `resources ${width}px: gateway title is not visibly rendered`);
+        for (const [name, href] of [
+          ['AI 日报', 'https://aihot.virxact.com/daily'],
+          ['WaytoAGI · AI 知识库', 'https://www.waytoagi.com/zh'],
+        ]) {
+          const cards = metrics.resourcesGatewayCards.filter((card) => card.text.includes(name));
+          expect(cards.length === 1, `resources ${width}px: expected one ${name} gateway card (${cards.length})`);
+          expect(cards.length === 1 && cards[0].visible, `resources ${width}px: ${name} gateway card is not visibly rendered`);
+          const links = metrics.resourcesGatewayCards.filter((link) => link.href === href);
           expect(links.length === 1, `resources ${width}px: gateway external link is missing or duplicated (${href})`);
+          expect(links.length === 1 && links[0].visible, `resources ${width}px: gateway external link is not visibly rendered (${href})`);
           expect(links.length === 1 && links[0].target === '_blank' && links[0].rel.split(/\s+/).includes('noopener'), `resources ${width}px: gateway external link is not a safe new-tab target (${href})`);
         }
       }
