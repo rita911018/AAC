@@ -941,28 +941,35 @@
 }
 
 .lesson-concept-nodes {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 22px;
   margin: 18px 0;
-  padding: 0;
-  list-style: none;
 }
 
-.lesson-concept-nodes li {
-  position: relative;
+.lesson-concept-scope {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, .8fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+  align-items: stretch;
+  gap: 10px;
+}
+
+.lesson-concept-node-item {
+  display: grid;
   min-width: 0;
 }
 
-.lesson-concept-nodes li:not(:last-child)::after {
-  position: absolute;
-  top: 50%;
-  right: -17px;
+.lesson-concept-link {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  padding: 8px;
   color: var(--learning-blue);
-  font-size: 22px;
-  line-height: 1;
-  content: "→";
-  transform: translateY(-50%);
+  font-size: 13px;
+  line-height: 1.5;
+  font-weight: 750;
+  text-align: center;
+  overflow-wrap: anywhere;
+  background: var(--learning-blue-soft);
+  border: 1px solid #b8cdf4;
+  border-radius: 10px;
 }
 
 .lesson-concept-node {
@@ -971,6 +978,48 @@
   min-height: 58px;
   justify-content: center;
   text-align: center;
+}
+
+.lesson-agent-branch {
+  display: grid;
+  grid-template-areas:
+    "connector connector"
+    "node relation";
+  grid-template-columns: minmax(0, .65fr) minmax(0, 1.35fr);
+  gap: 10px 14px;
+  margin-top: 20px;
+  padding: 16px 12px 4px;
+  border-top: 2px dashed #7ea4dc;
+}
+
+.lesson-agent-branch .lesson-concept-node-item {
+  grid-area: node;
+}
+
+.lesson-agent-connector {
+  grid-area: connector;
+  color: var(--learning-blue) !important;
+  font-size: 13px !important;
+  line-height: 1.4 !important;
+  font-weight: 800;
+  letter-spacing: .06em;
+}
+
+.lesson-agent-relation {
+  display: flex;
+  grid-area: relation;
+  align-items: center;
+  min-width: 0;
+  margin: 0 !important;
+  padding: 12px 14px;
+  color: var(--learning-navy) !important;
+  font-size: 15px !important;
+  line-height: 1.55 !important;
+  font-weight: 750;
+  overflow-wrap: anywhere;
+  background: #f5f8fd;
+  border-left: 3px solid var(--learning-blue);
+  border-radius: 9px;
 }
 
 .lesson-concept-judgment {
@@ -1421,12 +1470,21 @@
     grid-template-columns: 1fr;
   }
 
-  .lesson-concept-nodes {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .lesson-concept-scope {
+    grid-template-columns: minmax(0, 1fr);
   }
 
-  .lesson-concept-nodes li::after {
-    display: none;
+  .lesson-concept-link {
+    place-items: start;
+    text-align: left;
+  }
+
+  .lesson-agent-branch {
+    grid-template-areas:
+      "connector"
+      "node"
+      "relation";
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .lesson-choice-row,

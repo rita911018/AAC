@@ -27,8 +27,8 @@
         },
         {
           title: '先把四个概念放对位置',
-          paragraphs: ['AI 是让机器完成智能任务的大范围；生成式 AI 专门生成文字、图像等新内容；大模型是它的一类核心能力；Agent 则在模型外加上目标拆解、工具调用与执行循环。'],
-          bullets: ['AI：最大的能力范围', '生成式 AI：创造新内容', '大模型：从海量数据中学会模式', 'Agent：模型 + 工具 + 执行循环'],
+          paragraphs: ['AI 是让机器完成智能任务的大范围；生成式 AI 专门生成文字、图像等新内容；大模型是它的一类核心能力；Agent = 模型 + 目标 + 工具 + 执行与检查循环。'],
+          bullets: ['AI：最大的能力范围', '生成式 AI：创造新内容', '大模型：从海量数据中学会模式', 'Agent：模型 + 目标 + 工具 + 执行与检查循环'],
         },
         {
           title: '大模型在做什么',
@@ -57,6 +57,11 @@
           { label: '大模型', explanation: '大模型从大量数据中学习模式，可为生成式 AI 提供核心能力。' },
           { label: 'Agent', explanation: 'Agent = 模型 + 目标 + 工具 + 执行与检查循环。它不是简单变大的模型。' },
         ],
+        relationshipLabels: {
+          scope: '范围：生成式 AI 是 AI 的一部分',
+          foundation: '常用能力底座：大模型常为生成式 AI 提供核心能力',
+          agent: '外接：模型 + 目标 + 工具 + 执行与检查循环',
+        },
         relationshipJudgment: {
           statement: 'Agent 只是会写更长文本的大模型',
           options: ['对', '不对'],
@@ -73,7 +78,7 @@
       takeaway: {
         title: 'AI 概念关系图与 8 个工作必懂词',
         items: ['Token', '上下文', '多模态', '幻觉', 'RAG', 'Prompt', '工作流', 'Agent'],
-        template: 'AI 概念关系\nAI → 生成式 AI → 大模型\nAgent = 大模型 + 目标拆解 + 工具 + 执行循环\n必懂词：Token、上下文、多模态、幻觉、RAG、Prompt、工作流、Agent',
+        template: 'AI 概念关系\nAI ⊃ 生成式 AI；大模型常为生成式 AI 提供能力底座\nAgent = 模型 + 目标 + 工具 + 执行与检查循环\n必懂词：Token、上下文、多模态、幻觉、RAG、Prompt、工作流、Agent',
       },
     },
     {
@@ -231,7 +236,7 @@
       description: '拆任务、定义输入输出、设置检查点，把一次成功对话沉淀为可复用方法。',
       image: { webp: 'images/ai-workflow.webp', fallback: 'images/ai-workflow.png', width: 1200, height: 800, alt: '对话、模板、工作流与 Agent 四阶段插画', caption: '把一次对话沉淀为可复用流程' },
       sections: [
-        { title: '从一次成功，到稳定复用', paragraphs: ['一次对话解决临时问题；Prompt 模板让同类任务可以重复使用；工作流则固定输入、步骤、检查点与输出。'], bullets: ['对话：一次临时解决', '模板：复用任务说明', '工作流：固定过程与检查点', 'Agent：在明确边界内调用工具、循环执行'] },
+        { title: '从一次成功，到稳定复用', paragraphs: ['一次对话解决临时问题；Prompt 模板让同类任务可以重复使用；工作流则固定输入、步骤、检查点与输出。'], bullets: ['对话：一次临时解决', '模板：复用任务说明', '工作流：固定过程与检查点', 'Agent：模型 + 目标 + 工具 + 执行与检查循环'] },
         { title: '沉淀一条工作流的五步', paragraphs: ['先拆任务，再定义每步的输入输出，明确 AI、人机协作和人负责的边界，在关键节点加人工检查，最后保存为模板。'], bullets: ['拆任务', '定义输入输出', '明确分工', '设置检查点', '保存模板'] },
       ],
       caseStudy: {
@@ -786,10 +791,16 @@
     var conceptMap = element(ownerDocument, 'div', 'lesson-concept-map');
     conceptMap.appendChild(element(ownerDocument, 'h3', '', '四个概念怎么连接'));
     conceptMap.appendChild(element(ownerDocument, 'p', '', '依次点开节点：前三个表示范围与能力关系，Agent 则是在模型外加入行动机制。'));
-    var nodeList = element(ownerDocument, 'ol', 'lesson-concept-nodes');
+    var nodeList = element(ownerDocument, 'div', 'lesson-concept-nodes');
+    nodeList.setAttribute('role', 'group');
+    nodeList.setAttribute('aria-label', 'AI、生成式 AI、大模型与 Agent 的关系');
+    var scopeTrack = element(ownerDocument, 'div', 'lesson-concept-scope');
+    scopeTrack.setAttribute('data-concept-scope', '');
+    var agentBranch = element(ownerDocument, 'div', 'lesson-agent-branch');
+    agentBranch.setAttribute('data-agent-branch', '');
     for (var nodeIndex = 0; nodeIndex < exercise.relationshipNodes.length; nodeIndex += 1) {
-      (function (relationshipNode) {
-        var nodeItem = element(ownerDocument, 'li', '');
+      (function (relationshipNode, currentNodeIndex) {
+        var nodeItem = element(ownerDocument, 'div', 'lesson-concept-node-item');
         var nodeButton = interactionButton(ownerDocument, relationshipNode.label, 'data-concept-node', relationshipNode.label);
         nodeButton.className += ' lesson-concept-node';
         nodeButton.setAttribute('aria-pressed', 'false');
@@ -798,9 +809,26 @@
           dispatchExerciseAttempt(root, relationshipNode.label + '：' + relationshipNode.explanation);
         });
         nodeItem.appendChild(nodeButton);
-        nodeList.appendChild(nodeItem);
-      }(exercise.relationshipNodes[nodeIndex]));
+        if (currentNodeIndex < 3) {
+          if (currentNodeIndex > 0) {
+            var linkText = currentNodeIndex === 1 ? exercise.relationshipLabels.scope : exercise.relationshipLabels.foundation;
+            var scopeLink = element(ownerDocument, 'span', 'lesson-concept-link', linkText);
+            scopeLink.setAttribute('data-concept-link', currentNodeIndex === 1 ? 'scope' : 'foundation');
+            scopeTrack.appendChild(scopeLink);
+          }
+          scopeTrack.appendChild(nodeItem);
+        } else {
+          agentBranch.appendChild(element(ownerDocument, 'p', 'lesson-agent-connector', '外接机制'));
+          agentBranch.appendChild(nodeItem);
+          var agentRelation = element(ownerDocument, 'p', 'lesson-agent-relation');
+          agentRelation.setAttribute('data-agent-relation', '');
+          agentRelation.textContent = exercise.relationshipLabels.agent;
+          agentBranch.appendChild(agentRelation);
+        }
+      }(exercise.relationshipNodes[nodeIndex], nodeIndex));
     }
+    nodeList.appendChild(scopeTrack);
+    nodeList.appendChild(agentBranch);
     conceptMap.appendChild(nodeList);
 
     var judgment = exercise.relationshipJudgment;

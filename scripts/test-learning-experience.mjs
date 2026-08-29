@@ -61,7 +61,7 @@ const expectedChapterContent = {
     caseTitle: '为什么新对话不记得上次说过的事？',
     caseTerms: ['新对话', '上下文', '临时工作记忆'],
     exerciseType: 'token-and-concepts',
-    exerciseKeys: ['candidates', 'relationshipNodes', 'relationshipJudgment', 'steps', 'stepExplanations'],
+    exerciseKeys: ['candidates', 'relationshipNodes', 'relationshipLabels', 'relationshipJudgment', 'steps', 'stepExplanations'],
     takeawayTitle: 'AI 概念关系图与 8 个工作必懂词',
     takeawayTerms: ['Token', '上下文', '多模态', '幻觉', 'RAG', 'Prompt', '工作流', 'Agent'],
   },
@@ -1255,6 +1255,11 @@ function runContract() {
     'ai-basics exercise must retain the approved five-step model flow');
   assert.deepEqual(basics.exercise.relationshipNodes.map(({ label }) => label), ['AI', '生成式 AI', '大模型', 'Agent'],
     'ai-basics relationship map must keep the approved four-node order');
+  assert.deepEqual(basics.exercise.relationshipLabels, {
+    scope: '范围：生成式 AI 是 AI 的一部分',
+    foundation: '常用能力底座：大模型常为生成式 AI 提供核心能力',
+    agent: '外接：模型 + 目标 + 工具 + 执行与检查循环',
+  }, 'ai-basics relationship map must expose visible scope, foundation, and Agent external-mechanism labels');
   assert.ok(basics.exercise.relationshipNodes.every(({ label, explanation }) => label && explanation),
     'every relationship-map node must have a dedicated short explanation');
   assert.match(basics.exercise.relationshipNodes[3].explanation, /模型.*目标.*工具.*(?:执行|检查)/,
@@ -1268,11 +1273,13 @@ function runContract() {
   assert.equal(basics.exercise.relationshipJudgment.answer, '不对', 'the Agent judgment correct answer must be 不对');
   assert.match(basics.exercise.relationshipJudgment.explanation, /模型.*目标.*工具.*(?:执行|检查)/,
     'the Agent judgment explanation must teach model + goal + tools + execution/check');
+  assert.ok(basics.sections[1].bullets.includes('Agent：模型 + 目标 + 工具 + 执行与检查循环'),
+    'ai-basics relationship summary must describe Agent as model + goal + tools + execution/check loop');
   assert.equal(basics.exercise.stepExplanations.length, 5, 'ai-basics exercise must explain all five model-flow steps');
-  assert.ok(basics.takeaway.template.includes('AI → 生成式 AI → 大模型'),
-    'ai-basics takeaway must make the AI / generative AI / model relationship explicit');
-  assert.ok(basics.takeaway.template.includes('Agent = 大模型 + 目标拆解 + 工具 + 执行循环'),
-    'ai-basics takeaway must explain Agent as model plus goal, tools, and execution loop');
+  assert.ok(basics.takeaway.template.includes('AI ⊃ 生成式 AI') && basics.takeaway.template.includes('能力底座'),
+    'ai-basics takeaway must express the AI scope and model capability-base relationship without a linear chain');
+  assert.ok(basics.takeaway.template.includes('Agent = 模型 + 目标 + 工具 + 执行与检查循环'),
+    'ai-basics takeaway must explain Agent as model plus goal, tools, and execution/check loop');
   const boundaryComparison = api.chapters[1].sections[1];
   assert.deepEqual(boundaryComparison.compare.map(({ role }) => role), ['搜索', 'AI', '两者配合'],
     'ai-boundaries comparison must keep Search / AI / Both in a stable order');
@@ -1311,6 +1318,8 @@ function runContract() {
     'ai-workflow exercise must begin from the approved deterministic shuffled order');
   assert.notDeepEqual(api.chapters[5].exercise.shuffleOrder, [0, 1, 2, 3, 4],
     'ai-workflow initial order must not leak the recommended sequence');
+  assert.ok(api.chapters[5].sections[0].bullets.includes('Agent：模型 + 目标 + 工具 + 执行与检查循环'),
+    'ai-workflow summary must describe Agent as model + goal + tools + execution/check loop');
   assert.deepEqual(api.aliases, aliases, 'legacy learning URL aliases must map to the approved new chapters');
   const renderChapterSource = learningScript.slice(
     learningScript.indexOf('function renderChapter('),
@@ -1343,6 +1352,8 @@ function runContract() {
   }
   assert.ok(!/outline\s*:\s*[^;{}]*rgba\s*\(/i.test(learningCss),
     'learning focus rings must not use translucent outline colors');
+  assert.ok(!/\.lesson-concept-nodes\s+li[^{}]*::after/.test(learningCss),
+    'concept relationships must not fall back to a single pseudo-element arrow chain');
   const focusDeclarations = new Map();
   for (const [, selectorList, declarations] of learningCss.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
     for (const selector of selectorList.split(',').map((item) => item.trim()).filter((item) => item.includes(':focus-visible'))) {
@@ -2481,6 +2492,14 @@ function runSelfTest() {
   expectMutation('external resource-directory link', (root) => {
     replaceIn(root, 'learn.html', '<main>', '<main><a href="https://www.coursera.org/learn/ai-for-everyone">延伸阅读</a>');
   }, 'learn main must not contain external resource-directory links');
+  expectMutation('incomplete basics Agent summary', (root) => {
+    replaceIn(root, 'learning-experience.js', '"大模型：从海量数据中学会模式","Agent：模型 + 目标 + 工具 + 执行与检查循环"',
+      '"大模型：从海量数据中学会模式","Agent：模型 + 工具 + 执行循环"');
+  }, 'ai-basics relationship summary must describe Agent as model + goal + tools + execution/check loop');
+  expectMutation('incomplete workflow Agent summary', (root) => {
+    replaceIn(root, 'learning-experience.js', '"工作流：固定过程与检查点","Agent：模型 + 目标 + 工具 + 执行与检查循环"',
+      '"工作流：固定过程与检查点","Agent：在明确边界内调用工具、循环执行"');
+  }, 'ai-workflow summary must describe Agent as model + goal + tools + execution/check loop');
 
   for (const id of chapterIds) {
     const expected = expectedChapterContent[id];
@@ -2531,7 +2550,7 @@ function runSelfTest() {
     },
   ]);
 
-  console.log('PASS learning experience contract self-test (valid fixture + top-level backup fixture + 81 mutations)');
+  console.log('PASS learning experience contract self-test (valid fixture + top-level backup fixture + 83 mutations)');
 }
 
 if (process.argv.includes('--runtime-test')) runRuntimeUnitTest();

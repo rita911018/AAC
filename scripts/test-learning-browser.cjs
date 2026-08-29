@@ -156,9 +156,19 @@ function startServer() {
       } else if (mutation === 'beginner-node-too-few' && relative.endsWith('.js')) {
         changed = source.replace('for (var nodeIndex = 0; nodeIndex < exercise.relationshipNodes.length; nodeIndex += 1)', 'for (var nodeIndex = 0; nodeIndex < exercise.relationshipNodes.length - 1; nodeIndex += 1)');
       } else if (mutation === 'beginner-node-wrong-order' && relative.endsWith('.js')) {
-        changed = source.replace('}(exercise.relationshipNodes[nodeIndex]));', '}(exercise.relationshipNodes[nodeIndex === 0 ? 1 : nodeIndex === 1 ? 0 : nodeIndex]));');
+        changed = source.replace(
+          '}(exercise.relationshipNodes[nodeIndex], nodeIndex));',
+          '}(exercise.relationshipNodes[nodeIndex === 0 ? 1 : nodeIndex === 1 ? 0 : nodeIndex], nodeIndex));',
+        );
       } else if (mutation === 'beginner-agent-explanation-wrong' && relative.endsWith('.js')) {
-        changed = source.replace('Agent = 模型 + 目标 + 工具 + 执行与检查循环。', 'Agent 只是一个更大的模型。');
+        changed = source.replace(
+          "{ label: 'Agent', explanation: 'Agent = 模型 + 目标 + 工具 + 执行与检查循环。它不是简单变大的模型。' }",
+          "{ label: 'Agent', explanation: 'Agent 只是一个更大的模型。' }",
+        );
+      } else if (mutation === 'beginner-agent-relation-label-missing' && relative.endsWith('.js')) {
+        changed = source.replace('agentRelation.textContent = exercise.relationshipLabels.agent;', "agentRelation.textContent = '';");
+      } else if (mutation === 'beginner-linear-concept-map' && relative.endsWith('.css')) {
+        changed = source + '\n.lesson-concept-scope,.lesson-agent-branch{display:contents!important}.lesson-concept-nodes{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important}.lesson-concept-link,.lesson-agent-connector,.lesson-agent-relation{display:none!important}\n';
       } else if (mutation === 'beginner-duplicate-judgment' && relative.endsWith('.js')) {
         changed = source.replace('conceptMap.appendChild(judgmentFieldset);', 'conceptMap.appendChild(judgmentFieldset); conceptMap.appendChild(judgmentFieldset.cloneNode(true));');
       } else if (mutation === 'beginner-punitive-feedback' && relative.endsWith('.js')) {
@@ -672,7 +682,17 @@ async function runBeginnerInteractionContract(browser, base) {
   for (const width of [1440, 1024, 560, 390]) {
     await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 });
     await page.goto(`${base}/detail.html?type=learn&id=ai-basics`, { waitUntil: 'domcontentloaded' });
-    const basicsStructure = await page.evaluate(() => ({
+    const basicsStructure = await page.evaluate(() => {
+      const isVisible = (node) => {
+        if (!node) return false;
+        const style = getComputedStyle(node);
+        const rect = node.getBoundingClientRect();
+        return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+      };
+      const scopeNodes = [...document.querySelectorAll('[data-concept-node]')].slice(0, 3);
+      const agentNode = document.querySelector('[data-concept-node][data-choice-value="Agent"]');
+      const agentBranch = document.querySelector('[data-agent-branch]');
+      return {
       sceneCount: document.querySelectorAll('[data-scene-toggle]').length,
       sceneTags: [...document.querySelectorAll('[data-scene-toggle]')].map((node) => node.tagName),
       sceneTitles: [...document.querySelectorAll('[data-scene-toggle] .lesson-scene-title')].map((node) => node.textContent.trim()),
@@ -684,13 +704,22 @@ async function runBeginnerInteractionContract(browser, base) {
         confirm: card.querySelectorAll('dd')[2]?.textContent.trim() || '',
       })),
       conceptLabels: [...document.querySelectorAll('[data-concept-node]')].map((node) => node.textContent.trim()),
+      scopeTrackCount: document.querySelectorAll('[data-concept-scope]').length,
+      agentBranchCount: document.querySelectorAll('[data-agent-branch]').length,
+      scopeLinkTexts: [...document.querySelectorAll('[data-concept-link]')].map((node) => node.textContent.trim()),
+      agentRelationText: document.querySelector('[data-agent-relation]')?.textContent.trim() || '',
+      visibleRelationshipLabels: [...document.querySelectorAll('[data-concept-link],[data-agent-relation]')].filter(isVisible).length,
+      scopeBottom: Math.max(0, ...scopeNodes.map((node) => node.getBoundingClientRect().bottom)),
+      agentTop: agentNode?.getBoundingClientRect().top || 0,
+      agentBorderStyle: agentBranch ? getComputedStyle(agentBranch).borderTopStyle : '',
       oldConceptChoices: document.querySelectorAll('[data-concept-choice]').length,
       judgmentGroups: document.querySelectorAll('[data-concept-judgment-group]').length,
       judgmentChoices: document.querySelectorAll('[data-concept-judgment]').length,
       overflow: document.documentElement.scrollWidth - innerWidth,
       bodyCopySize: Number.parseFloat(getComputedStyle(document.querySelector('.lesson-core-section p')).fontSize),
       injectedSceneHtml: document.querySelectorAll('[data-scene-xss]').length,
-    }));
+      };
+    });
     expect(basicsStructure.sceneCount === 4, `basics ${width}px: capability section must expose exactly four scenes (${basicsStructure.sceneCount})`);
     expect(basicsStructure.sceneTags.every((tag) => tag === 'BUTTON'), `basics ${width}px: every scene disclosure must be a real button`);
     expect(basicsStructure.sceneTitles.join('|') === '会议内容变清晰|同一材料讲重点|一个主题写成稿|重复工作先打底',
@@ -701,6 +730,16 @@ async function runBeginnerInteractionContract(browser, base) {
     expect(basicsStructure.sceneTargets.every((height) => height >= 44), `basics ${width}px: every scene target must be at least 44px`);
     expect(basicsStructure.conceptLabels.join('|') === 'AI|生成式 AI|大模型|Agent',
       `basics ${width}px: relationship nodes must be exactly AI → 生成式 AI → 大模型 → Agent (${basicsStructure.conceptLabels.join('|')})`);
+    expect(basicsStructure.scopeTrackCount === 1 && basicsStructure.agentBranchCount === 1,
+      `basics ${width}px: concept map must separate the three-node scope track from one Agent external branch`);
+    expect(basicsStructure.scopeLinkTexts.join('|') === '范围：生成式 AI 是 AI 的一部分|常用能力底座：大模型常为生成式 AI 提供核心能力',
+      `basics ${width}px: scope and foundation relationships must remain visible text (${basicsStructure.scopeLinkTexts.join('|')})`);
+    expect(basicsStructure.agentRelationText === '外接：模型 + 目标 + 工具 + 执行与检查循环',
+      `basics ${width}px: Agent must expose the complete external-mechanism label (${basicsStructure.agentRelationText})`);
+    expect(basicsStructure.visibleRelationshipLabels === 3,
+      `basics ${width}px: all three relationship labels must remain visible, including on mobile (${basicsStructure.visibleRelationshipLabels})`);
+    expect(basicsStructure.agentTop > basicsStructure.scopeBottom && basicsStructure.agentBorderStyle === 'dashed',
+      `basics ${width}px: Agent must sit on a dashed external branch below the scope track (${basicsStructure.agentTop}/${basicsStructure.scopeBottom}/${basicsStructure.agentBorderStyle})`);
     expect(basicsStructure.oldConceptChoices === 0, `basics ${width}px: old repeated concept groups must be absent (${basicsStructure.oldConceptChoices})`);
     expect(basicsStructure.judgmentGroups === 1 && basicsStructure.judgmentChoices === 2,
       `basics ${width}px: relationship map must contain exactly one two-choice judgment`);
@@ -1050,6 +1089,8 @@ const beginnerSelfTestMutations = [
   ['beginner-node-too-few', 'relationship nodes must be exactly AI → 生成式 AI → 大模型 → Agent'],
   ['beginner-node-wrong-order', 'relationship nodes must be exactly AI → 生成式 AI → 大模型 → Agent'],
   ['beginner-agent-explanation-wrong', 'Agent node must explain model + goal + tools + execution/check loop'],
+  ['beginner-agent-relation-label-missing', 'Agent must expose the complete external-mechanism label'],
+  ['beginner-linear-concept-map', 'all three relationship labels must remain visible, including on mobile'],
   ['beginner-duplicate-judgment', 'relationship map must contain exactly one two-choice judgment'],
   ['done-score-gate', 'first relationship-node attempt must enable 我看完了 without a score gate'],
   ['beginner-punitive-feedback', 'wrong Agent judgment feedback must stay non-punitive'],
@@ -1106,7 +1147,9 @@ async function runBrowserSelfTest() {
       KB_LEARNING_SELF_TEST_HANG: '',
     };
 
-    const baseline = await runSelfTestChild(sharedEnvironment, 25000);
+    const pathChildTimeoutMs = 35000;
+    const beginnerChildTimeoutMs = 45000;
+    const baseline = await runSelfTestChild(sharedEnvironment, pathChildTimeoutMs);
     if (baseline.error || baseline.timedOut || baseline.code !== 0) {
       throw new Error(`path browser baseline must be GREEN\n${baseline.stdout}\n${baseline.stderr}`);
     }
@@ -1128,7 +1171,7 @@ async function runBrowserSelfTest() {
     console.log('DETECTED path browser child timeout and SIGKILL');
 
     for (const [name, diagnostic] of pathSelfTestMutations) {
-      const result = await runSelfTestChild({ ...sharedEnvironment, KB_LEARNING_MUTATION: name }, 25000);
+      const result = await runSelfTestChild({ ...sharedEnvironment, KB_LEARNING_MUTATION: name }, pathChildTimeoutMs);
       const output = `${result.stdout}\n${result.stderr}`;
       if (result.error || result.timedOut || result.code === 0 || !output.includes(diagnostic)) {
         throw new Error(`${name} mutation was not detected for “${diagnostic}”\n${output}`);
@@ -1141,13 +1184,13 @@ async function runBrowserSelfTest() {
       KB_LEARNING_PATH_ONLY: '0',
       KB_LEARNING_BEGINNER_ONLY: '1',
     };
-    const beginnerBaseline = await runSelfTestChild(beginnerEnvironment, 30000);
+    const beginnerBaseline = await runSelfTestChild(beginnerEnvironment, beginnerChildTimeoutMs);
     if (beginnerBaseline.error || beginnerBaseline.timedOut || beginnerBaseline.code !== 0) {
       throw new Error(`beginner browser baseline must be GREEN\n${beginnerBaseline.stdout}\n${beginnerBaseline.stderr}`);
     }
     console.log('GREEN beginner browser baseline: capability, relationship, and boundary interactions');
     for (const [name, diagnostic] of beginnerSelfTestMutations) {
-      const result = await runSelfTestChild({ ...beginnerEnvironment, KB_LEARNING_MUTATION: name }, 30000);
+      const result = await runSelfTestChild({ ...beginnerEnvironment, KB_LEARNING_MUTATION: name }, beginnerChildTimeoutMs);
       const output = `${result.stdout}\n${result.stderr}`;
       if (result.error || result.timedOut || result.code === 0 || !output.includes(diagnostic)) {
         throw new Error(`${name} mutation was not detected for “${diagnostic}”\n${output}`);
