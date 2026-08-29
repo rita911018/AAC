@@ -37,6 +37,7 @@ const rendererNames = [
 ];
 const viewports = [
   [1440, 1000],
+  [1024, 1000],
   [820, 1000],
   [560, 900],
   [390, 844],
@@ -82,6 +83,38 @@ function startServer() {
       var changed = source;
       if (mutation === 'renderer-dispatch' && relative.endsWith('.js')) {
         changed = source.replace("    'token-and-concepts': renderTokenPrediction,\n", '');
+      } else if (mutation === 'path-missing-chapter' && relative.endsWith('.js')) {
+        changed = source.replace(
+          "    for (var index = 0; index < chapters.length; index += 1) {\n      var chapter = chapters[index];\n      var item = element(ownerDocument, 'li', 'learning-path-item');",
+          "    for (var index = 0; index < chapters.length - 1; index += 1) {\n      var chapter = chapters[index];\n      var item = element(ownerDocument, 'li', 'learning-path-item');",
+        );
+      } else if (mutation === 'path-order-swap' && relative.endsWith('.js')) {
+        changed = source.replace(
+          "      var chapter = chapters[index];\n      var item = element(ownerDocument, 'li', 'learning-path-item');",
+          "      var chapter = chapters[index === 0 ? 1 : index === 1 ? 0 : index];\n      var item = element(ownerDocument, 'li', 'learning-path-item');",
+        );
+      } else if (mutation === 'path-current-removed' && relative.endsWith('.js')) {
+        changed = source.replace('      if (chapter.id === resolvedId) {', '      if (false && chapter.id === resolvedId) {');
+      } else if (mutation === 'path-count-hardcoded' && relative.endsWith('.js')) {
+        changed = source.replaceAll('String(seenCount())', "'0'");
+      } else if (mutation === 'path-mark-seen-no-refresh' && relative.endsWith('.js')) {
+        changed = source.replace('      refreshLearningPaths(layout);', '      // mutation: path refresh removed');
+      } else if (mutation === 'path-leaks-routes' && relative.endsWith('.js')) {
+        changed = source
+          .replace('      renderMovedNotice(container);\n      return true;', "      renderMovedNotice(container);\n      container.appendChild(renderLearningPath(container.ownerDocument, 'ai-basics', false));\n      return true;")
+          .replace('    if (!chapter) return renderUnknownNotice(container);', "    if (!chapter) { renderUnknownNotice(container); container.appendChild(renderLearningPath(container.ownerDocument, 'ai-basics', false)); return true; }");
+      } else if (mutation === 'path-mobile-not-details' && relative.endsWith('.js')) {
+        changed = source.replace("mobile ? 'details' : 'aside'", "mobile ? 'div' : 'aside'");
+      } else if (mutation === 'path-desktop-not-sticky' && relative.endsWith('.css')) {
+        changed = source.replace('  position: sticky;\n  top: 84px;', '  position: static;\n  top: 84px;');
+      } else if (mutation === 'path-sticky-overlaps-topbar' && relative.endsWith('.css')) {
+        changed = source.replace('  top: 84px;', '  top: 0;');
+      } else if (mutation === 'path-1024-shows-aside' && relative.endsWith('.css')) {
+        changed = source + '\n@media (width:1024px){.learning-path-rail{display:block!important}.learning-path-disclosure{display:none!important}}\n';
+      } else if (mutation === 'path-summary-below-44' && relative.endsWith('.css')) {
+        changed = source + '\n.learning-path-summary{min-height:10px!important;height:10px!important;padding:0!important;line-height:10px!important}\n';
+      } else if (mutation === 'path-focus-clipped' && relative.endsWith('.css')) {
+        changed = source + '\n.learning-path-disclosure{overflow:hidden!important}.learning-path-disclosure summary:focus-visible,.learning-path-disclosure a:focus-visible{outline-offset:0!important}\n';
       } else if (mutation === 'drag-only' && relative.endsWith('.css')) {
         changed = source + '\n.lesson-exercise button{display:none!important}\n';
       } else if (mutation === 'prompt-innerhtml' && relative.endsWith('.js')) {
@@ -228,6 +261,32 @@ async function lessonSnapshot(page) {
         ? document.activeElement.getBoundingClientRect().toJSON() : null,
       activeOutlineWidth: document.activeElement && document.activeElement !== document.body
         ? Number.parseFloat(getComputedStyle(document.activeElement).outlineWidth) : 0,
+      path: (() => {
+        const rail = document.querySelector('.learning-path-rail');
+        const disclosure = document.querySelector('.learning-path-disclosure');
+        const visiblePath = visible(rail) ? rail : disclosure;
+        const links = [...(visiblePath?.querySelectorAll('.learning-path-link') || [])];
+        const current = links.filter((link) => link.getAttribute('aria-current') === 'page');
+        const railRect = rail?.getBoundingClientRect();
+        const topbarRect = document.querySelector('.topbar')?.getBoundingClientRect();
+        return {
+          railVisible: visible(rail),
+          disclosureVisible: visible(disclosure),
+          disclosureTag: disclosure?.tagName || '',
+          summaryText: disclosure?.querySelector('summary')?.textContent.trim() || '',
+          summaryHeight: disclosure?.querySelector('summary')?.getBoundingClientRect().height || 0,
+          linkCount: links.length,
+          hrefs: links.map((link) => link.getAttribute('href')),
+          statuses: links.map((link) => link.querySelector('.learning-path-status')?.textContent.trim() || ''),
+          currentCount: current.length,
+          currentText: current[0]?.textContent.trim() || '',
+          asideLabel: rail?.getAttribute('aria-label') || '',
+          railPosition: rail ? getComputedStyle(rail).position : '',
+          railTop: railRect?.top || 0,
+          topbarBottom: topbarRect?.bottom || 0,
+          railWidth: railRect?.width || 0,
+        };
+      })(),
     };
   }, rendererNames);
 }
@@ -268,6 +327,26 @@ async function runPrimaryContract(browser, base) {
       expect(snapshot.overflow <= 1, `${chapter.id} ${width}px: horizontal overflow ${snapshot.overflow}px`);
       expect(snapshot.badLinks === 0 && snapshot.linkCount >= 2, `${chapter.id} ${width}px: chapter links must remain usable`);
       expect(snapshot.nextVisible || chapter.id === 'ai-workflow', `${chapter.id} ${width}px: next chapter must be visible without a score gate`);
+      expect(snapshot.path.linkCount === 6, `${chapter.id} ${width}px: visible path must contain exactly six chapter links`);
+      expect(snapshot.path.hrefs.join('|') === chapters.map(({ id }) => `detail.html?type=learn&id=${id}`).join('|'),
+        `${chapter.id} ${width}px: path href order must remain canonical`);
+      expect(snapshot.path.currentCount === 1 && snapshot.path.currentText.includes('当前'),
+        `${chapter.id} ${width}px: current path item must expose aria-current and visible 当前`);
+      expect(snapshot.path.statuses.every((status) => ['未看', '进行中', '已看'].includes(status)),
+        `${chapter.id} ${width}px: path statuses must use visible approved copy`);
+      if (width > 1024) {
+        expect(snapshot.path.railVisible && !snapshot.path.disclosureVisible, `${chapter.id} ${width}px: desktop must show only the aside path`);
+        expect(snapshot.path.asideLabel === 'AI 新手入门学习路径', `${chapter.id} ${width}px: aside must expose its accessible label`);
+        expect(snapshot.path.railPosition === 'sticky', `${chapter.id} ${width}px: desktop path must be sticky`);
+        expect(snapshot.path.railWidth >= 240 && snapshot.path.railWidth <= 280, `${chapter.id} ${width}px: desktop rail width must stay 240–280px (${snapshot.path.railWidth})`);
+        expect(snapshot.path.railTop >= snapshot.path.topbarBottom - 1, `${chapter.id} ${width}px: sticky rail must start below the topbar`);
+      } else {
+        expect(!snapshot.path.railVisible && snapshot.path.disclosureVisible, `${chapter.id} ${width}px: mobile/tablet must show only the disclosure path`);
+        expect(snapshot.path.disclosureTag === 'DETAILS', `${chapter.id} ${width}px: mobile path must be native details`);
+        expect(snapshot.path.summaryText === `六章目录 · 本次浏览已看 ${snapshot.path.statuses.filter((status) => status === '已看').length} / 6`,
+          `${chapter.id} ${width}px: disclosure summary must expose exact session count`);
+        expect(snapshot.path.summaryHeight >= 44, `${chapter.id} ${width}px: disclosure summary must be at least 44px (${snapshot.path.summaryHeight})`);
+      }
 
       await exerciseWithKeyboard(page, chapter);
       snapshot = await lessonSnapshot(page);
@@ -296,6 +375,10 @@ async function runPrimaryContract(browser, base) {
     await done.click();
     expect(await done.getAttribute('aria-pressed') === 'true', 'mark-seen button must expose pressed state');
     expect((await page.locator('[data-lesson-status]').textContent()).includes('已记为看过'), 'mark-seen must announce the new status');
+    expect(await page.locator('.learning-path-disclosure [data-learning-path-count]').textContent() === '1',
+      'mark-seen must immediately refresh the mobile path count');
+    expect(await page.locator('.learning-path-disclosure .learning-path-link[aria-current="page"] .learning-path-status').textContent() === '已看',
+      'mark-seen must immediately refresh the mobile current status');
   } else {
     expect(false, 'mark-seen button must be enabled after a meaningful attempt');
   }
@@ -313,6 +396,88 @@ async function runPrimaryContract(browser, base) {
   expect(returned.hash === '#chapter-ai-boundaries', 'return navigation must preserve the chapter hash');
   expect(returned.activeId === 'chapter-ai-boundaries', `return navigation must focus the source card (${returned.activeId})`);
   expect(returned.status === '看过', `return navigation must update source-card status (${returned.status})`);
+  await context.close();
+}
+
+async function runPathRouteAndStateContract(browser, base) {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await page.setViewportSize({ width: 1024, height: 900 });
+  await page.goto(`${base}/detail.html?type=learn&id=ai-basics`, { waitUntil: 'domcontentloaded' });
+  const summary = page.locator('.learning-path-disclosure > summary');
+  await summary.focus();
+  expect(await summary.evaluate((node) => Number.parseFloat(getComputedStyle(node).outlineWidth) >= 3 && Number.parseFloat(getComputedStyle(node).outlineOffset) >= 3),
+    'mobile summary focus ring must be at least 3px and remain outside the control boundary');
+  await page.keyboard.press('Enter');
+  expect(await page.locator('.learning-path-disclosure').getAttribute('open') !== null,
+    'mobile summary must open the native details with Enter');
+  expect(await page.evaluate(() => document.activeElement?.matches('.learning-path-disclosure > summary')),
+    'opening mobile disclosure must retain keyboard focus on summary');
+  expect(await page.locator('.learning-path-disclosure .learning-path-link').evaluateAll((links) => links.every((link) => link.getBoundingClientRect().height >= 44)),
+    'every mobile path link must be at least 44px high');
+  const firstPathLink = page.locator('.learning-path-disclosure .learning-path-link').first();
+  await firstPathLink.focus();
+  expect(await firstPathLink.evaluate((node) => {
+    const style = getComputedStyle(node);
+    const rect = node.getBoundingClientRect();
+    return Number.parseFloat(style.outlineWidth) >= 3 && Number.parseFloat(style.outlineOffset) >= 3 && rect.left >= 3 && rect.right <= innerWidth - 3;
+  }), 'mobile path link focus ring must be high contrast and not clipped horizontally');
+
+  for (const route of [
+    'detail.html?type=learn&id=ai-models',
+    'detail.html?type=learn&id=unknown',
+    'detail.html?type=learn&id=%E0%A4%A',
+    'detail.html?type=resources&id=tools',
+  ]) {
+    await page.goto(`${base}/${route}`, { waitUntil: 'domcontentloaded' });
+    expect(await page.locator('.learning-path-rail,.learning-path-disclosure').count() === 0,
+      `${route}: non-canonical learning route must not expose the learning path`);
+  }
+
+  for (const [name, state, count] of [
+    ['fresh', null, 0],
+    ['partial', { 'ai-basics': 'seen', 'ai-boundaries': 'seen', 'ai-workflow': 'in-progress' }, 2],
+    ['complete', Object.fromEntries(chapters.map(({ id }) => [id, 'seen'])), 6],
+  ]) {
+    await context.clearCookies();
+    await page.goto(`${base}/learn.html`, { waitUntil: 'domcontentloaded' });
+    await page.evaluate(({ key, value }) => {
+      sessionStorage.clear();
+      if (value) sessionStorage.setItem(key, JSON.stringify(value));
+    }, { key: storageKey, value: state });
+    await page.goto(`${base}/detail.html?type=learn&id=ai-workflow`, { waitUntil: 'domcontentloaded' });
+    expect((await page.locator('.learning-path-disclosure > summary').textContent()).trim() === `六章目录 · 本次浏览已看 ${count} / 6`,
+      `${name}: learning path must render exact ${count} / 6 count`);
+  }
+  await context.close();
+}
+
+async function runDesktopPathGeometryContract(browser, base) {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  for (const width of [1440, 1236, 1025]) {
+    await page.setViewportSize({ width, height: 820 });
+    await page.goto(`${base}/detail.html?type=learn&id=ai-basics`, { waitUntil: 'domcontentloaded' });
+    await page.evaluate(() => scrollTo(0, 700));
+    await page.waitForTimeout(30);
+    const geometry = await page.evaluate(() => {
+      const rail = document.querySelector('.learning-path-rail');
+      const topbar = document.querySelector('.topbar');
+      const railRect = rail.getBoundingClientRect();
+      return {
+        visible: getComputedStyle(rail).display !== 'none',
+        position: getComputedStyle(rail).position,
+        width: railRect.width,
+        top: railRect.top,
+        topbarBottom: topbar.getBoundingClientRect().bottom,
+        overflow: document.documentElement.scrollWidth - innerWidth,
+      };
+    });
+    expect(geometry.visible && geometry.position === 'sticky', `${width}px: desktop rail must stay visible and sticky after scrolling`);
+    expect(geometry.width >= 240 && geometry.width <= 280, `${width}px: desktop rail must stay 240–280px after scrolling (${geometry.width})`);
+    expect(geometry.top >= geometry.topbarBottom - 1, `${width}px: sticky rail must not sit beneath the topbar (${geometry.top} < ${geometry.topbarBottom})`);
+    expect(geometry.overflow <= 1, `${width}px: desktop path layout must not overflow horizontally (${geometry.overflow})`);
+  }
   await context.close();
 }
 
@@ -510,6 +675,7 @@ async function runStorageFaultContract(browser, base, mode) {
     };
   }, { key: storageKey, fault: mode });
   const page = await context.newPage();
+  await page.setViewportSize({ width: 1024, height: 900 });
   const errors = [];
   const consoleErrors = [];
   page.on('pageerror', (error) => errors.push(error.message));
@@ -518,6 +684,8 @@ async function runStorageFaultContract(browser, base, mode) {
   });
   await page.goto(`${base}/detail.html?type=learn&id=ai-delegation`, { waitUntil: 'domcontentloaded' });
   await page.locator('[data-sort-choice]').first().waitFor({ state: 'visible', timeout: 3000 });
+  expect(await page.locator('.learning-path-disclosure').isVisible(), `${mode}: storage failure must not hide the mobile path`);
+  expect((await page.locator('.learning-path-disclosure > summary').textContent()).includes('/ 6'), `${mode}: storage failure must preserve a valid path count`);
   await page.locator('[data-sort-choice]').first().focus();
   await page.keyboard.press('Enter');
   expect(await page.locator('[data-mark-seen]').isEnabled(), `${mode}: storage failure must not block meaningful interaction`);
@@ -562,6 +730,8 @@ async function runCopyContract(browser, base) {
     }
     browser = await chromium.launch({ headless: true });
     await runPrimaryContract(browser, base);
+    await runPathRouteAndStateContract(browser, base);
+    await runDesktopPathGeometryContract(browser, base);
     await runDeepInteractionContract(browser, base);
     await runFreshContextContract(browser, base);
     for (const mode of ['get', 'set', 'invalid-json']) await runStorageFaultContract(browser, base, mode);

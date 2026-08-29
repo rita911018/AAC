@@ -38,6 +38,7 @@ const aliases = {
 const newImageNames = ['ai-boundaries', 'ai-delegation', 'ai-verification', 'ai-workflow'];
 const requiredApiMethods = [
   'getStatus', 'markStarted', 'markSeen', 'nextIncomplete', 'initHub', 'renderChapter',
+  'renderLearningPath',
   'renderTokenPrediction', 'renderEvidenceSpotter', 'renderDelegationSorter', 'renderPromptBuilder',
   'renderClaimClassifier', 'renderWorkflowSorter',
 ];
@@ -1299,6 +1300,7 @@ function runContract() {
     'learning-hub', 'learning-card', 'learning-status', 'lesson-nav', 'lesson-figure',
     'lesson-case', 'lesson-exercise', 'lesson-check', 'lesson-takeaway', 'lesson-actions',
     'learning-session-summary', 'learning-toolkit', 'learning-tool-card', 'learning-tool-copy', 'tool-copy-fallback', 'progress-compat-cta',
+    'learning-detail-layout', 'learning-path-rail', 'learning-path-disclosure', 'learning-path-link', 'learning-path-status',
   ];
   for (const className of requiredCssClasses) {
     assert.ok(new RegExp(`\\.${className}(?![-_a-zA-Z0-9])`).test(learningCss), `learning-experience.css must define .${className}`);
@@ -1384,6 +1386,13 @@ function runContract() {
   assert.ok(detail.includes('暂未找到这一章'), 'detail integration must provide a clear unknown-route notice');
   assert.match(detail, /detailHero['"]?\)?[^\n;]*\.hidden|hero\.hidden\s*=/,
     'learning detail integration must hide the duplicate outer hero');
+  assert.ok(!/\blocalStorage\b/.test(maskJavaScript(learningScript)), 'learning detail path must not add localStorage');
+  const pathRendererSource = learningScript.slice(
+    learningScript.indexOf('function renderLearningPath('),
+    learningScript.indexOf('function createLessonNav('),
+  );
+  assert.ok(pathRendererSource.length > 0, 'learning path renderer must be inspectable');
+  assert.ok(!/\.innerHTML\s*=/.test(pathRendererSource), 'learning path dynamic copy must render through text nodes, never innerHTML');
 
   for (const imageName of newImageNames) {
     for (const extension of ['png', 'webp']) {
@@ -1513,10 +1522,12 @@ function fixtureFiles(order = chapterIds) {
       function renderPromptBuilder(){ return true; }
       function renderClaimClassifier(){ return true; }
       function renderWorkflowSorter(){ return true; }
+      function renderLearningPath(){ var ownerDocument={createTextNode:function(){}}; ownerDocument.createTextNode('路径'); return true; }
+      function createLessonNav(){ return true; }
       function renderChapter(){ var nextId=''; var chapter={caseStudy:{lesson:''}}; var ownerDocument={createTextNode:function(){}}; function element(){} element(ownerDocument,'fieldset'); element(ownerDocument,'legend'); ownerDocument.createTextNode(chapter.caseStudy.lesson); if(nextId){ return 'detail.html?type=learn&id='; } return true; }
-      window.AIBeginner={chapters:chapters,aliases:aliases,getStatus:getStatus,markStarted:markStarted,markSeen:markSeen,nextIncomplete:nextIncomplete,initHub:initHub,renderChapter:renderChapter,renderTokenPrediction:renderTokenPrediction,renderEvidenceSpotter:renderEvidenceSpotter,renderDelegationSorter:renderDelegationSorter,renderPromptBuilder:renderPromptBuilder,renderClaimClassifier:renderClaimClassifier,renderWorkflowSorter:renderWorkflowSorter,read:read};
+      window.AIBeginner={chapters:chapters,aliases:aliases,getStatus:getStatus,markStarted:markStarted,markSeen:markSeen,nextIncomplete:nextIncomplete,initHub:initHub,renderChapter:renderChapter,renderLearningPath:renderLearningPath,renderTokenPrediction:renderTokenPrediction,renderEvidenceSpotter:renderEvidenceSpotter,renderDelegationSorter:renderDelegationSorter,renderPromptBuilder:renderPromptBuilder,renderClaimClassifier:renderClaimClassifier,renderWorkflowSorter:renderWorkflowSorter,read:read};
     }());`,
-    'learning-experience.css': `.learning-hub,.learning-card,.learning-status,.lesson-nav,.lesson-figure,.lesson-case,.lesson-exercise,.lesson-check,.lesson-takeaway,.lesson-actions,.learning-session-summary,.learning-toolkit,.learning-tool-card,.learning-tool-copy,.tool-copy-fallback,.progress-compat-cta { color: #0e2144; }
+    'learning-experience.css': `.learning-hub,.learning-card,.learning-status,.lesson-nav,.lesson-figure,.lesson-case,.lesson-exercise,.lesson-check,.lesson-takeaway,.lesson-actions,.learning-session-summary,.learning-toolkit,.learning-tool-card,.learning-tool-copy,.tool-copy-fallback,.progress-compat-cta,.learning-detail-layout,.learning-path-rail,.learning-path-disclosure,.learning-path-link,.learning-path-status { color: #0e2144; }
       .learning-card:focus-visible,.lesson-actions a:focus-visible,.lesson-actions button:focus-visible,.lesson-nav a:focus-visible,.learning-tool-copy:focus-visible,.progress-compat-cta:focus-visible,.tool-copy-fallback:focus-visible,.lesson-secondary-action:focus-visible,.lesson-check summary:focus-visible,.lesson-history summary:focus-visible,.lesson-template:focus-visible { outline:3px solid #0e2144;outline-offset:4px; }
       @media (prefers-reduced-motion: reduce) {
         .learning-card,.lesson-token,.lesson-feedback,.chapter-return-highlight,.learning-tool-card,.tool-copy-feedback,.tool-copy-fallback { scroll-behavior:auto; transition:none; animation:none; }
@@ -1806,6 +1817,26 @@ function runRuntimeUnitTest() {
   const firstRuntime = evaluateLearningRuntime(source, createStorage(), { document: firstDom.document });
   const firstTarget = firstDom.createTarget();
   assert.equal(firstRuntime.renderChapter('ai-basics', firstTarget), true, 'first chapter must render into a real DOM-like target');
+  const learningLayout = firstTarget.querySelector('.learning-detail-layout');
+  const desktopPath = firstTarget.querySelector('.learning-path-rail');
+  const mobilePath = firstTarget.querySelector('.learning-path-disclosure');
+  assert.ok(learningLayout && desktopPath && mobilePath, 'valid learning chapters must render desktop and mobile path navigation');
+  assert.equal(desktopPath.tagName, 'ASIDE', 'desktop learning path must use an aside landmark');
+  assert.equal(desktopPath.getAttribute('aria-label'), 'AI 新手入门学习路径', 'desktop learning path must have the approved accessible name');
+  assert.equal(mobilePath.tagName, 'DETAILS', 'mobile learning path must use a native details disclosure');
+  assert.equal(mobilePath.querySelector('summary').textContent, '六章目录 · 本次浏览已看 0 / 6', 'fresh mobile summary must expose the exact 0 / 6 count');
+  const pathLinks = firstTarget.querySelectorAll('.learning-path-link');
+  assert.equal(pathLinks.length, 12, 'desktop and mobile paths must each contain all six chapter links');
+  assert.deepEqual(pathLinks.map((link) => link.getAttribute('href')), [...chapterHrefs, ...chapterHrefs],
+    'both learning paths must preserve the approved chapter URL order');
+  assert.equal(pathLinks.filter((link) => link.getAttribute('aria-current') === 'page').length, 2,
+    'the current chapter must expose aria-current in desktop and mobile paths');
+  assert.ok(pathLinks.filter((link) => link.getAttribute('aria-current') === 'page').every((link) => link.textContent.includes('当前')),
+    'the current chapter must include visible 当前 copy');
+  assert.ok(pathLinks.filter((link) => link.getAttribute('aria-current') === 'page').every((link) => link.textContent.includes('进行中')),
+    'entering a fresh chapter must show 进行中 in both paths');
+  assert.deepEqual(firstTarget.querySelectorAll('.learning-path-return').map((link) => link.getAttribute('href')),
+    ['learn.html#chapter-ai-basics', 'learn.html#chapter-ai-basics'], 'both paths must return to the safe current-chapter anchor');
   const firstImage = firstTarget.querySelector('.lesson-figure').querySelector('img');
   const firstCaption = firstTarget.querySelector('.lesson-figure').querySelector('figcaption');
   assert.deepEqual([firstImage.getAttribute('width'), firstImage.getAttribute('height')], ['1200', '800'],
@@ -1845,6 +1876,20 @@ function runRuntimeUnitTest() {
     'activating exercise guidance must move focus to the newly enabled completion button');
   assert.ok(exerciseFeedback.textContent.includes('已查看参考思路'),
     'moving focus after exercise guidance must preserve polite live feedback');
+  seenButton.dispatchEvent({ type: 'click' });
+  assert.equal(firstTarget.querySelectorAll('[data-learning-path-count]').map((node) => node.textContent).join('|'), '1|1',
+    'markSeen must immediately refresh both path counts on the same page');
+  assert.ok(firstTarget.querySelectorAll('.learning-path-link')
+    .filter((link) => link.getAttribute('aria-current') === 'page')
+    .every((link) => link.querySelector('.learning-path-status').textContent === '已看'),
+    'markSeen must immediately refresh both current-chapter statuses to 已看');
+
+  for (const routeId of ['ai-models', 'unknown', '__proto__']) {
+    const routeTarget = firstDom.createTarget();
+    assert.equal(firstRuntime.renderChapter(routeId, routeTarget), true, `${routeId} route must remain renderable`);
+    assert.equal(routeTarget.querySelectorAll('.learning-path-rail').length, 0, `${routeId} route must not leak desktop learning path`);
+    assert.equal(routeTarget.querySelectorAll('.learning-path-disclosure').length, 0, `${routeId} route must not leak mobile learning path`);
+  }
 
   const throwingFocusDom = createMiniDom();
   const throwingFocusRuntime = evaluateLearningRuntime(source, createStorage(), { document: throwingFocusDom.document });
@@ -2128,7 +2173,65 @@ function runRuntimeMutationTest() {
     "    var template = element(ownerDocument, 'pre', 'lesson-template');\n" +
     "    template.innerHTML = '<code>' + chapter.takeaway.template + '</code>';"));
 
-  console.log('PASS beginner learning runtime mutations (state + copy + completion focus + generalized dynamic innerHTML)');
+  function renderPathMutation(name, needle, replacement, rawState) {
+    const mutatedSource = mutateProduction(name, needle, replacement);
+    const dom = createMiniDom();
+    const runtime = evaluateLearningRuntime(mutatedSource, createStorage(rawState), { document: dom.document });
+    const target = dom.createTarget();
+    assert.equal(runtime.renderChapter('ai-basics', target), true, `${name} fixture must render`);
+    return { dom, runtime, target };
+  }
+
+  const pathLoopNeedle = "    for (var index = 0; index < chapters.length; index += 1) {\n" +
+    "      var chapter = chapters[index];\n" +
+    "      var item = element(ownerDocument, 'li', 'learning-path-item');";
+  const missingPath = renderPathMutation('missing path chapter', pathLoopNeedle,
+    pathLoopNeedle.replace('index < chapters.length', 'index < chapters.length - 1'));
+  assert.throws(() => assert.equal(missingPath.target.querySelectorAll('.learning-path-link').length, 12,
+    'desktop and mobile paths must each keep six chapters'), assert.AssertionError,
+  'runtime path assertion must catch a missing chapter');
+
+  const swappedPath = renderPathMutation('swapped path order', "      var chapter = chapters[index];\n      var item = element(ownerDocument, 'li', 'learning-path-item');",
+    "      var chapter = chapters[index === 0 ? 1 : index === 1 ? 0 : index];\n      var item = element(ownerDocument, 'li', 'learning-path-item');");
+  assert.throws(() => assert.deepEqual(swappedPath.target.querySelectorAll('.learning-path-link').slice(0, 6).map((link) => link.getAttribute('href')), chapterHrefs,
+    'path order must remain canonical'), assert.AssertionError, 'runtime path assertion must catch swapped chapters');
+
+  const noCurrentPath = renderPathMutation('removed path aria-current', '      if (chapter.id === resolvedId) {', '      if (false && chapter.id === resolvedId) {');
+  assert.throws(() => assert.equal(noCurrentPath.target.querySelectorAll('.learning-path-link').filter((link) => link.getAttribute('aria-current') === 'page').length, 2,
+    'both paths must mark the current chapter'), assert.AssertionError, 'runtime path assertion must catch missing aria-current');
+
+  const hardcodedCount = renderPathMutation('hardcoded path count', 'String(seenCount())', "'0'", JSON.stringify({ 'ai-boundaries': 'seen' }));
+  assert.throws(() => assert.ok(hardcodedCount.target.querySelectorAll('[data-learning-path-count]').every((node) => node.textContent === '1'),
+    'path count must derive from state'), assert.AssertionError, 'runtime path assertion must catch a hardcoded count');
+
+  const noRefreshPath = renderPathMutation('removed markSeen path refresh', '      refreshLearningPaths(layout);', '      // mutation: path refresh removed');
+  const noRefreshButton = noRefreshPath.target.querySelector('[data-mark-seen]');
+  noRefreshButton.disabled = false;
+  noRefreshButton.dispatchEvent({ type: 'click' });
+  assert.throws(() => assert.ok(noRefreshPath.target.querySelectorAll('[data-learning-path-count]').every((node) => node.textContent === '1'),
+    'markSeen must refresh both path counts'), assert.AssertionError, 'runtime path assertion must catch missing markSeen refresh');
+
+  const nonNativePath = renderPathMutation('non-native mobile disclosure', "mobile ? 'details' : 'aside'", "mobile ? 'div' : 'aside'");
+  assert.throws(() => assert.equal(nonNativePath.target.querySelector('.learning-path-disclosure').tagName, 'DETAILS',
+    'mobile disclosure must use details'), assert.AssertionError, 'runtime path assertion must catch a non-native disclosure');
+
+  const leakedSource = mutateProduction('path leaked into invalid routes', '    if (!chapter) return renderUnknownNotice(container);',
+    "    if (!chapter) { renderUnknownNotice(container); container.appendChild(renderLearningPath(container.ownerDocument, 'ai-basics', false)); return true; }");
+  const leakedDom = createMiniDom();
+  const leakedRuntime = evaluateLearningRuntime(leakedSource, createStorage(), { document: leakedDom.document });
+  const leakedTarget = leakedDom.createTarget();
+  leakedRuntime.renderChapter('unknown', leakedTarget);
+  assert.throws(() => assert.equal(leakedTarget.querySelectorAll('.learning-path-rail').length, 0,
+    'unknown routes must not expose a path'), assert.AssertionError, 'runtime path assertion must catch route leakage');
+
+  const unsafePathHtml = renderPathMutation('dynamic path innerHTML',
+    '      var status = element(ownerDocument, \'span\', \'learning-path-status\', pathStatusCopy(getStatus(chapter.id)));',
+    "      var status = element(ownerDocument, 'span', 'learning-path-status');\n      status.innerHTML = pathStatusCopy(getStatus(chapter.id));");
+  assert.throws(() => assert.deepEqual(collectInnerHtmlWrites(unsafePathHtml.target), [],
+    'learning path must not write dynamic copy through innerHTML'), assert.AssertionError,
+  'runtime path assertion must catch dynamic innerHTML');
+
+  console.log('PASS beginner learning runtime mutations (state + copy + completion focus + generalized dynamic innerHTML + learning path)');
 }
 
 function runSelfTest() {
@@ -2189,7 +2292,7 @@ function runSelfTest() {
     replaceIn(root, 'learning-experience.js', 'window.AIBeginner=', 'localStorage.getItem("bad"); window.AIBeginner=');
   }, 'learning-experience.js must not use localStorage');
   expectMutation('missing runtime API', (root) => {
-    replaceIn(root, 'learning-experience.js', 'renderChapter:renderChapter,renderTokenPrediction', 'renderTokenPrediction');
+    replaceIn(root, 'learning-experience.js', 'renderChapter:renderChapter,renderLearningPath:renderLearningPath,renderTokenPrediction', 'renderLearningPath:renderLearningPath,renderTokenPrediction');
   }, 'window.AIBeginner.renderChapter must be a function');
   expectMutation('prototype-backed learning alias map', (root) => {
     replaceIn(root, 'learning-experience.js', 'Object.assign(Object.create(null),', 'Object.assign({},');

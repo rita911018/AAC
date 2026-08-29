@@ -328,6 +328,20 @@
     return '未看';
   }
 
+  function pathStatusCopy(status) {
+    if (status === STATUS_SEEN) return '已看';
+    if (status === STATUS_STARTED) return '进行中';
+    return '未看';
+  }
+
+  function seenCount() {
+    var count = 0;
+    for (var index = 0; index < chapters.length; index += 1) {
+      if (getStatus(chapters[index].id) === STATUS_SEEN) count += 1;
+    }
+    return count;
+  }
+
   function actionCopy(status) {
     if (status === STATUS_SEEN) return '重新查看';
     if (status === STATUS_STARTED) return '继续学习';
@@ -360,17 +374,14 @@
 
   function updateSessionSummary(scope) {
     if (!scope || typeof scope.querySelector !== 'function') return;
-    var seenCount = 0;
-    for (var index = 0; index < chapters.length; index += 1) {
-      if (getStatus(chapters[index].id) === STATUS_SEEN) seenCount += 1;
-    }
+    var currentSeenCount = seenCount();
     var countNode = scope.querySelector('[data-learning-seen-count]');
     if (countNode) {
-      countNode.textContent = String(seenCount);
+      countNode.textContent = String(currentSeenCount);
       return;
     }
     var summaryNode = scope.querySelector('[data-learning-summary]');
-    if (summaryNode) summaryNode.textContent = '已看 ' + seenCount + ' / ' + chapters.length;
+    if (summaryNode) summaryNode.textContent = '已看 ' + currentSeenCount + ' / ' + chapters.length;
   }
 
   function copyToolTemplate(button) {
@@ -1011,6 +1022,78 @@
     return list;
   }
 
+  function appendPathProgress(ownerDocument, target, mobile) {
+    if (mobile) target.appendChild(ownerDocument.createTextNode('六章目录 · '));
+    target.appendChild(ownerDocument.createTextNode('本次浏览已看 '));
+    var count = element(ownerDocument, 'span', '', String(seenCount()));
+    count.setAttribute('data-learning-path-count', '');
+    target.appendChild(count);
+    target.appendChild(ownerDocument.createTextNode(' / ' + chapters.length));
+  }
+
+  function renderLearningPath(ownerDocument, resolvedId, mobile) {
+    if (!ownerDocument || typeof ownerDocument.createElement !== 'function' || !isKnownChapter(resolvedId)) return null;
+    var path = element(ownerDocument, mobile ? 'details' : 'aside', mobile ? 'learning-path-disclosure' : 'learning-path-rail');
+    path.setAttribute('data-learning-path', mobile ? 'mobile' : 'desktop');
+    if (mobile) {
+      var summary = element(ownerDocument, 'summary', 'learning-path-summary');
+      appendPathProgress(ownerDocument, summary, true);
+      path.appendChild(summary);
+    } else {
+      path.setAttribute('aria-label', 'AI 新手入门学习路径');
+      path.appendChild(element(ownerDocument, 'h2', 'learning-path-title', 'AI 新手入门'));
+      var progress = element(ownerDocument, 'p', 'learning-path-progress');
+      appendPathProgress(ownerDocument, progress, false);
+      path.appendChild(progress);
+    }
+
+    var back = element(ownerDocument, 'a', 'learning-path-return', '返回学习目录');
+    back.setAttribute('href', 'learn.html#chapter-' + encodeURIComponent(resolvedId));
+    path.appendChild(back);
+
+    var list = element(ownerDocument, 'ol', 'learning-path-list');
+    for (var index = 0; index < chapters.length; index += 1) {
+      var chapter = chapters[index];
+      var item = element(ownerDocument, 'li', 'learning-path-item');
+      item.setAttribute('data-learning-path-item', chapter.id);
+      var link = element(ownerDocument, 'a', 'learning-path-link');
+      link.setAttribute('href', 'detail.html?type=learn&id=' + encodeURIComponent(chapter.id));
+      var identity = element(ownerDocument, 'span', 'learning-path-identity');
+      identity.appendChild(element(ownerDocument, 'span', 'learning-path-number', chapter.number));
+      identity.appendChild(element(ownerDocument, 'span', 'learning-path-name', chapter.title));
+      if (chapter.id === resolvedId) {
+        link.setAttribute('aria-current', 'page');
+        identity.appendChild(element(ownerDocument, 'span', 'learning-path-current', '当前'));
+      }
+      link.appendChild(identity);
+      var status = element(ownerDocument, 'span', 'learning-path-status', pathStatusCopy(getStatus(chapter.id)));
+      status.setAttribute('aria-label', chapter.title + '：' + status.textContent);
+      link.appendChild(status);
+      item.appendChild(link);
+      list.appendChild(item);
+    }
+    path.appendChild(list);
+    return path;
+  }
+
+  function refreshLearningPaths(scope) {
+    if (!scope || typeof scope.querySelectorAll !== 'function') return;
+    var countNodes = scope.querySelectorAll('[data-learning-path-count]');
+    var currentSeenCount = String(seenCount());
+    for (var countIndex = 0; countIndex < countNodes.length; countIndex += 1) {
+      countNodes[countIndex].textContent = currentSeenCount;
+    }
+    var items = scope.querySelectorAll('[data-learning-path-item]');
+    for (var itemIndex = 0; itemIndex < items.length; itemIndex += 1) {
+      var chapterId = items[itemIndex].getAttribute('data-learning-path-item');
+      var status = items[itemIndex].querySelector('.learning-path-status');
+      var chapter = safeOwnGet(chapterById, chapterId);
+      if (!status || !chapter) continue;
+      status.textContent = pathStatusCopy(getStatus(chapterId));
+      status.setAttribute('aria-label', chapter.title + '：' + status.textContent);
+    }
+  }
+
   function createLessonNav(ownerDocument, chapter, resolvedId, bottom) {
     var nav = element(ownerDocument, 'nav', bottom ? 'lesson-nav lesson-nav-bottom' : 'lesson-nav');
     nav.setAttribute('aria-label', bottom ? '本章底部导航' : '学习导航');
@@ -1052,6 +1135,10 @@
     if (!chapter) return renderUnknownNotice(container);
     canonicalizeLearningUrl(id, resolvedId);
     markStarted(resolvedId);
+    var hostCard = container.parentNode;
+    if (hostCard && typeof hostCard.className === 'string' && hostCard.className.split(/\s+/).indexOf('learning-detail-card') < 0) {
+      hostCard.className += ' learning-detail-card';
+    }
     var ownerDocument = container.ownerDocument || (typeof document !== 'undefined' ? document : null);
     if (!ownerDocument || typeof ownerDocument.createElement !== 'function') return false;
     clearNode(container);
@@ -1061,6 +1148,9 @@
       if (chapters[index].id === resolvedId && chapters[index + 1]) nextId = chapters[index + 1].id;
     }
 
+    var layout = element(ownerDocument, 'div', 'learning-detail-layout');
+    layout.appendChild(renderLearningPath(ownerDocument, resolvedId, true));
+    layout.appendChild(renderLearningPath(ownerDocument, resolvedId, false));
     var article = element(ownerDocument, 'article', 'lesson');
     article.setAttribute('data-chapter-id', resolvedId);
     article.appendChild(createLessonNav(ownerDocument, chapter, resolvedId, false));
@@ -1212,7 +1302,8 @@
     actions.appendChild(returnAction);
     article.appendChild(actions);
     article.appendChild(createLessonNav(ownerDocument, chapter, resolvedId, true));
-    container.appendChild(article);
+    layout.appendChild(article);
+    container.appendChild(layout);
     bindCopyTools(article);
 
     function enableCompletion(message) {
@@ -1255,6 +1346,7 @@
       seenButton.textContent = '已看过';
       seenButton.setAttribute('aria-pressed', 'true');
       liveStatus.textContent = '本章已记为看过。你可以继续下一章，也可以随时返回学习路径。';
+      refreshLearningPaths(layout);
     });
     return true;
   }
@@ -1268,6 +1360,7 @@
     nextIncomplete: nextIncomplete,
     initHub: initHub,
     renderChapter: renderChapter,
+    renderLearningPath: renderLearningPath,
     renderTokenPrediction: renderTokenPrediction,
     renderEvidenceSpotter: renderEvidenceSpotter,
     renderDelegationSorter: renderDelegationSorter,
