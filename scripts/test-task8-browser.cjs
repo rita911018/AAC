@@ -1,8 +1,17 @@
-const { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } = require('node:fs');
+const { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } = require('node:fs');
 const { execFileSync, spawn } = require('node:child_process');
 const { createServer } = require('node:http');
 const { tmpdir } = require('node:os');
 const { extname, join, resolve, sep } = require('node:path');
+
+const cliArguments = process.argv.slice(2);
+const supportedFlags = new Set(['--self-test']);
+const unknownFlags = cliArguments.filter((argument) => argument.startsWith('--') && !supportedFlags.has(argument));
+if (unknownFlags.length) throw new Error(`Unknown option: ${unknownFlags.join(', ')}`);
+const positionalArguments = cliArguments.filter((argument) => !argument.startsWith('--'));
+if (positionalArguments.length > 2) throw new Error(`Expected at most base URL and output directory, received ${positionalArguments.length} positional arguments`);
+const cliSelfTestMode = cliArguments.includes('--self-test');
+
 let playwright;
 try {
   playwright = require('playwright');
@@ -12,12 +21,14 @@ try {
 }
 const { chromium } = playwright;
 
-const base = process.argv[2] || 'http://127.0.0.1:4173';
-const output = resolve(process.argv[3] || '/private/tmp/knowledge-base-qa');
+const base = positionalArguments[0] || 'http://127.0.0.1:4173';
+const output = resolve(positionalArguments[1] || '/private/tmp/knowledge-base-qa');
 const mutation = process.env.KB_QA_MUTATION || '';
 const mutationMode = mutation.length > 0;
-const browserSelfTestMode = process.env.KB_QA_SELF_TEST === '1'
+const browserSelfTestMode = (cliSelfTestMode || process.env.KB_QA_SELF_TEST === '1')
   && process.env.KB_QA_SELF_TEST_CHILD !== '1';
+const browserChildHangMode = process.env.KB_QA_CHILD_HANG === '1'
+  && process.env.KB_QA_SELF_TEST_CHILD === '1';
 const cleanupTrace = process.env.KB_QA_CLEANUP_TRACE === '1';
 mkdirSync(output, { recursive: true });
 
@@ -32,16 +43,32 @@ function expect(condition, message) {
   if (!condition) failures.push(message);
 }
 
-async function readFocusedOutlineMetrics(page, expectedClass, clipSelector) {
-  return page.evaluate(({ expectedClass, clipSelector }) => {
+async function readFocusedOutlineMetrics(page, expectedClass) {
+  return page.evaluate((expectedClass) => {
     const node = document.activeElement;
     if (!node?.classList.contains(expectedClass)) return null;
     const style = getComputedStyle(node);
     const bounds = node.getBoundingClientRect();
-    const clip = node.closest(clipSelector)?.getBoundingClientRect();
     const parseColor = (value) => {
-      const channels = value.match(/[\d.]+/g)?.map(Number) ?? [];
-      return { red: channels[0] ?? 0, green: channels[1] ?? 0, blue: channels[2] ?? 0, alpha: channels[3] ?? 1 };
+      if (!value || value === 'transparent') return { red: 0, green: 0, blue: 0, alpha: 0 };
+      const channels = value.match(/[-\d.]+/g)?.map(Number) ?? [];
+      return { red: channels[0] ?? 0, green: channels[1] ?? 0, blue: channels[2] ?? 0, alpha: channels.length >= 4 ? channels[3] : 1 };
+    };
+    const compositeColor = (foreground, background) => ({
+      red: foreground.red * foreground.alpha + background.red * (1 - foreground.alpha),
+      green: foreground.green * foreground.alpha + background.green * (1 - foreground.alpha),
+      blue: foreground.blue * foreground.alpha + background.blue * (1 - foreground.alpha),
+      alpha: 1,
+    });
+    const effectiveBackground = (startNode) => {
+      const layers = [];
+      for (let current = startNode; current; current = current.parentElement) {
+        layers.push(parseColor(getComputedStyle(current).backgroundColor));
+      }
+      return layers.reverse().reduce(
+        (background, layer) => compositeColor(layer, background),
+        { red: 255, green: 255, blue: 255, alpha: 1 },
+      );
     };
     const luminance = ({ red, green, blue }) => {
       const channels = [red, green, blue].map((channel) => {
@@ -50,59 +77,71 @@ async function readFocusedOutlineMetrics(page, expectedClass, clipSelector) {
       });
       return .2126 * channels[0] + .7152 * channels[1] + .0722 * channels[2];
     };
-    const contrast = (left, right) => {
-      const leftLuminance = luminance(left);
-      const rightLuminance = luminance(right);
+    const contrast = (foreground, background) => {
+      const compositedForeground = compositeColor(foreground, background);
+      const leftLuminance = luminance(compositedForeground);
+      const rightLuminance = luminance(background);
       return (Math.max(leftLuminance, rightLuminance) + .05) / (Math.min(leftLuminance, rightLuminance) + .05);
     };
     const outlineWidth = Number.parseFloat(style.outlineWidth) || 0;
     const outlineOffset = Number.parseFloat(style.outlineOffset) || 0;
     const outlineColor = parseColor(style.outlineColor);
-    const backgroundColor = parseColor(style.backgroundColor);
+    const insetOutline = outlineOffset < 0 || style.outlineStyle === 'inset';
+    const contrastBackground = effectiveBackground(insetOutline ? node : node.parentElement);
     const externalExtent = Math.max(0, outlineWidth + outlineOffset);
     const clippingOverflow = /^(?:hidden|clip|auto|scroll)$/;
-    const clippingAncestors = [];
-    for (let ancestor = node.parentElement; ancestor; ancestor = ancestor.parentElement) {
-      const ancestorStyle = getComputedStyle(ancestor);
-      const clipsX = clippingOverflow.test(ancestorStyle.overflowX);
-      const clipsY = clippingOverflow.test(ancestorStyle.overflowY);
-      if (!clipsX && !clipsY) continue;
-      const ancestorBounds = ancestor.getBoundingClientRect();
-      const rootScroller = ancestor === document.body || ancestor === document.documentElement;
-      const left = rootScroller ? 0 : ancestorBounds.left + ancestor.clientLeft;
-      const top = rootScroller ? 0 : ancestorBounds.top + ancestor.clientTop;
-      clippingAncestors.push({
-        label: `${ancestor.tagName.toLowerCase()}${ancestor.id ? `#${ancestor.id}` : ''}${[...ancestor.classList].map((name) => `.${name}`).join('')}`,
-        overflowX: ancestorStyle.overflowX,
-        overflowY: ancestorStyle.overflowY,
-        clipsX,
-        clipsY,
-        visibleRect: {
-          left,
-          top,
-          right: rootScroller ? innerWidth : left + ancestor.clientWidth,
-          bottom: rootScroller ? innerHeight : top + ancestor.clientHeight,
-        },
-      });
-    }
+    const clippingAncestorsFor = (target) => {
+      const ancestors = [];
+      for (let ancestor = target?.parentElement; ancestor; ancestor = ancestor.parentElement) {
+        const ancestorStyle = getComputedStyle(ancestor);
+        const clipsX = clippingOverflow.test(ancestorStyle.overflowX);
+        const clipsY = clippingOverflow.test(ancestorStyle.overflowY);
+        if (!clipsX && !clipsY) continue;
+        const ancestorBounds = ancestor.getBoundingClientRect();
+        const rootScroller = ancestor === document.body || ancestor === document.documentElement;
+        const left = rootScroller ? 0 : ancestorBounds.left + ancestor.clientLeft;
+        const top = rootScroller ? 0 : ancestorBounds.top + ancestor.clientTop;
+        ancestors.push({
+          label: `${ancestor.tagName.toLowerCase()}${ancestor.id ? `#${ancestor.id}` : ''}${[...ancestor.classList].map((name) => `.${name}`).join('')}`,
+          overflowX: ancestorStyle.overflowX,
+          overflowY: ancestorStyle.overflowY,
+          clipsX,
+          clipsY,
+          visibleRect: {
+            left,
+            top,
+            right: rootScroller ? innerWidth : left + ancestor.clientWidth,
+            bottom: rootScroller ? innerHeight : top + ancestor.clientHeight,
+          },
+        });
+      }
+      return ancestors;
+    };
+    const focusedIcon = node.querySelector('.ec-icon');
     return {
       href: node.getAttribute('href'),
+      target: node.getAttribute('target') ?? '',
+      relTokens: (node.getAttribute('rel') ?? '').split(/\s+/).filter(Boolean).map((token) => token.toLowerCase()),
+      classMatchCount: document.querySelectorAll(`.${expectedClass}`).length,
       focusVisible: node.matches(':focus-visible'),
       outlineStyle: style.outlineStyle,
       outlineWidth,
       outlineAlpha: outlineColor.alpha,
-      contrastRatio: contrast(outlineColor, backgroundColor),
+      contrastRatio: contrast(outlineColor, contrastBackground),
+      contrastBackground,
+      insetOutline,
       ring: {
         left: bounds.left - externalExtent,
         right: bounds.right + externalExtent,
         top: bounds.top - externalExtent,
         bottom: bounds.bottom + externalExtent,
       },
-      clip: clip?.toJSON() ?? null,
-      clippingAncestors,
+      clippingAncestors: clippingAncestorsFor(node),
+      focusedIconRect: focusedIcon?.getBoundingClientRect().toJSON() ?? null,
+      focusedIconClippingAncestors: clippingAncestorsFor(focusedIcon),
       viewport: { left: 0, top: 0, right: innerWidth, bottom: innerHeight },
     };
-  }, { expectedClass, clipSelector });
+  }, expectedClass);
 }
 
 async function waitForScrollPositionToSettle(page, {
@@ -152,12 +191,16 @@ const mutationDefinitions = {
   '1': { pages: ['index', 'resources'], viewport: [390, 844], css: '' },
   'fixture-index-1440': { page: 'index', viewport: [1440, 1100], css: '' },
   'fixture-index-390': { page: 'index', viewport: [390, 844], css: '' },
+  'fixture-index-ring-over-section': { page: 'index', viewport: [1440, 1100], css: 'section.section:has(.entry-row){position:relative;left:120px;width:calc(100% - 120px);overflow:visible!important}section.section:has(.entry-row)>.container{transform:translateX(-120px)}' },
   'fixture-learn-1440': { page: 'learn', viewport: [1440, 1100], css: '' },
   'fixture-learn-1236': { page: 'learn', viewport: [1236, 1050], css: '' },
   'fixture-learn-390': { page: 'learn', viewport: [390, 844], css: '' },
   'entry-icon-hidden': { page: 'index', viewport: [1440, 1100], css: '.entry-card .ec-icon{visibility:hidden!important}', expectedFailure: 'every entry icon must be visible' },
+  'entry-icon-offscreen': { page: 'index', viewport: [1440, 1100], css: '.entry-card:first-child .ec-icon{transform:translateX(-2000px)!important}', expectedFailure: 'entry icons must be fully visible' },
   'entry-focus-none': { page: 'index', viewport: [1440, 1100], css: '.entry-card:focus,.entry-card:focus-visible{outline:none!important;box-shadow:none!important}', expectedFailure: 'focus outline must be opaque and at least 3px' },
   'entry-focus-clipped': { page: 'index', viewport: [1440, 1100], css: '.entry-row{overflow:hidden!important;padding:0!important}.entry-card:first-child{margin-left:0!important}', expectedFailure: 'focus ring is clipped by ancestor' },
+  'shortcut-focus-white-external': { page: 'index', viewport: [1440, 1100], css: '.hero-xiaoa-entry{background:#fff!important}.hero-xiaoa-cta:focus-visible{outline:3px solid #fff!important;outline-offset:3px!important}', expectedFailure: 'Xiao A CTA focus ring contrast is too low' },
+  'shortcut-focus-duplicate': { page: 'index', viewport: [1440, 1100], css: '', domMutation: 'duplicate-shortcut', expectedFailure: 'expected exactly one runtime Xiao A CTA' },
   'entry-title-weak': { page: 'index', viewport: [1440, 1100], css: '.entry-card h3{font-size:20px!important}', expectedFailure: 'entry titles must be at least 26px' },
   'entry-description-large': { page: 'index', viewport: [1440, 1100], css: '.entry-card p{font-size:22px!important;font-weight:800!important;color:rgb(15,23,42)!important}', expectedFailure: 'entry title weight must remain stronger' },
   'entry-description-red': { page: 'index', viewport: [1440, 1100], css: '.entry-card p{color:#3b0000!important}', expectedFailure: 'descriptions need 4.5:1 contrast' },
@@ -245,22 +288,42 @@ function startFixtureServer(root) {
   });
 }
 
-function runBrowserSelfTestChild(mode, childBase, childOutput) {
+function runBrowserSelfTestChild(mode, childBase, childOutput, options = {}) {
+  const { timeoutMs = 45000, env: extraEnv = {}, args = [childBase, childOutput] } = options;
   return new Promise((resolveChild) => {
-    const child = spawn(process.execPath, [__filename, childBase, childOutput], {
+    const child = spawn(process.execPath, [__filename, ...args], {
       env: {
         ...process.env,
         KB_QA_MUTATION: mode,
         KB_QA_SELF_TEST: '0',
         KB_QA_SELF_TEST_CHILD: '1',
+        ...extraEnv,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     let stdout = '';
     let stderr = '';
+    let settled = false;
+    let timedOut = false;
+    let timeoutTimer = null;
+    let forceSettleTimer = null;
+    const settle = (result) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutTimer);
+      if (forceSettleTimer) clearTimeout(forceSettleTimer);
+      resolveChild({ status: null, signal: null, stdout, stderr, timedOut, ...result });
+    };
     child.stdout.on('data', (chunk) => { stdout += chunk; });
     child.stderr.on('data', (chunk) => { stderr += chunk; });
-    child.on('close', (status) => resolveChild({ status, stdout, stderr }));
+    child.once('error', (error) => settle({ error }));
+    child.once('close', (status, signal) => settle({ status, signal }));
+    timeoutTimer = setTimeout(() => {
+      timedOut = true;
+      const killSent = child.kill('SIGKILL');
+      if (!killSent) settle({ error: new Error(`child timeout after ${timeoutMs}ms and could not be killed`) });
+      else forceSettleTimer = setTimeout(() => settle({ error: new Error(`child timeout after ${timeoutMs}ms; close event missing after SIGKILL`) }), 1000);
+    }, timeoutMs);
   });
 }
 
@@ -274,7 +337,25 @@ async function runBrowserSelfTest() {
     const address = server.address();
     const childBase = `http://127.0.0.1:${address.port}`;
 
-    const greenModes = ['fixture-index-1440', 'fixture-index-390', 'fixture-learn-1440', 'fixture-learn-1236', 'fixture-learn-390'];
+    const hangProbe = await runBrowserSelfTestChild(
+      'fixture-index-1440',
+      childBase,
+      join(temporaryRoot, 'hang-probe'),
+      { timeoutMs: 200, env: { KB_QA_CHILD_HANG: '1' } },
+    );
+    if (!hangProbe.timedOut) throw new Error('browser self-test child hang probe must time out');
+    console.log('DETECTED browser child timeout and recovered');
+
+    const unknownFlagProbe = await runBrowserSelfTestChild('', childBase, join(temporaryRoot, 'unknown-flag-probe'), {
+      timeoutMs: 2000,
+      args: ['--definitely-unknown'],
+    });
+    if (unknownFlagProbe.status === 0 || !unknownFlagProbe.stderr.includes('Unknown option: --definitely-unknown')) {
+      throw new Error(`unknown CLI flag must be rejected before browser QA:\n${unknownFlagProbe.stdout}\n${unknownFlagProbe.stderr}`);
+    }
+    console.log('DETECTED unknown browser QA CLI flag');
+
+    const greenModes = ['fixture-index-1440', 'fixture-index-390', 'fixture-index-ring-over-section', 'fixture-learn-1440', 'fixture-learn-1236', 'fixture-learn-390'];
     const greenResults = new Map();
     for (const mode of greenModes) {
       const result = await runBrowserSelfTestChild(mode, childBase, join(temporaryRoot, `green-${mode}`));
@@ -284,7 +365,7 @@ async function runBrowserSelfTest() {
     }
 
     const mutationModes = [
-      'learn-ancestor-clip', 'entry-icon-hidden', 'entry-focus-none', 'entry-focus-clipped', 'entry-title-weak', 'entry-description-large',
+      'shortcut-focus-duplicate', 'shortcut-focus-white-external', 'entry-icon-offscreen', 'learn-ancestor-clip', 'entry-icon-hidden', 'entry-focus-none', 'entry-focus-clipped', 'entry-title-weak', 'entry-description-large',
       'entry-description-red', 'face-safe-overlap', 'learn-240', 'learn-wrap', 'learn-cover',
       'learn-mobile-horizontal',
     ];
@@ -309,6 +390,8 @@ async function runBrowserSelfTest() {
     if (server) await new Promise((resolveClose) => server.close(resolveClose));
     rmSync(temporaryRoot, { recursive: true, force: true });
   }
+  if (existsSync(temporaryRoot)) throw new Error(`browser self-test temporary root was not cleaned: ${temporaryRoot}`);
+  console.log('CLEANED browser self-test server and temporary site');
 }
 
 async function runQa() {
@@ -333,6 +416,12 @@ async function runQa() {
       await page.setViewportSize({ width, height });
       await page.goto(`${base}/${path}`, { waitUntil: 'domcontentloaded' });
       if (activeMutation?.css) await page.addStyleTag({ content: activeMutation.css });
+      if (activeMutation?.domMutation === 'duplicate-shortcut') {
+        await page.evaluate(() => {
+          const shortcut = document.querySelector('.hero-xiaoa-cta');
+          shortcut?.after(shortcut.cloneNode(true));
+        });
+      }
       await page.waitForTimeout(500);
       let homeShortcutReachedByTab = false;
       let homeShortcutKeyboardFocus = null;
@@ -348,13 +437,13 @@ async function runQa() {
           }));
           if (activeClass.shortcut) {
             homeShortcutReachedByTab = true;
-            homeShortcutKeyboardFocus = await readFocusedOutlineMetrics(page, 'hero-xiaoa-cta', '.home-hero');
+            homeShortcutKeyboardFocus = await readFocusedOutlineMetrics(page, 'hero-xiaoa-cta');
           }
           if (activeClass.entry && !focusedEntryHrefs.has(activeClass.href)) {
             focusedEntryHrefs.add(activeClass.href);
             await page.evaluate(() => document.activeElement.scrollIntoView({ block: 'center', inline: 'nearest' }));
             await waitForScrollPositionToSettle(page);
-            homeEntryKeyboardFocus.push(await readFocusedOutlineMetrics(page, 'entry-card', 'section'));
+            homeEntryKeyboardFocus.push(await readFocusedOutlineMetrics(page, 'entry-card'));
           }
           if (homeShortcutReachedByTab && homeEntryKeyboardFocus.length === 3) break;
         }
@@ -402,8 +491,9 @@ async function runQa() {
             const clipsY = clippingOverflow.test(style.overflowY);
             if (clipsX || clipsY) {
               const bounds = ancestor.getBoundingClientRect();
-              const left = bounds.left + ancestor.clientLeft;
-              const top = bounds.top + ancestor.clientTop;
+              const rootScroller = ancestor === document.body || ancestor === document.documentElement;
+              const left = rootScroller ? 0 : bounds.left + ancestor.clientLeft;
+              const top = rootScroller ? 0 : bounds.top + ancestor.clientTop;
               ancestors.push({
                 label: `${ancestor.tagName.toLowerCase()}${ancestor.id ? `#${ancestor.id}` : ''}${[...ancestor.classList].map((name) => `.${name}`).join('')}`,
                 overflowX: style.overflowX,
@@ -413,8 +503,8 @@ async function runQa() {
                 visibleRect: {
                   left,
                   top,
-                  right: left + ancestor.clientWidth,
-                  bottom: top + ancestor.clientHeight,
+                  right: rootScroller ? innerWidth : left + ancestor.clientWidth,
+                  bottom: rootScroller ? innerHeight : top + ancestor.clientHeight,
                 },
               });
             }
@@ -456,38 +546,6 @@ async function runQa() {
           const backgroundLuminance = relativeLuminance(background);
           return (Math.max(foregroundLuminance, backgroundLuminance) + .05)
             / (Math.min(foregroundLuminance, backgroundLuminance) + .05);
-        };
-        const focusRingMetrics = (node, clipNode) => {
-          if (!node || !clipNode) return null;
-          const style = getComputedStyle(node);
-          const bounds = node.getBoundingClientRect();
-          const clip = clipNode.getBoundingClientRect();
-          const outlineWidth = Number.parseFloat(style.outlineWidth) || 0;
-          const outlineOffset = Number.parseFloat(style.outlineOffset) || 0;
-          const parseRgb = (value) => (value.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
-          const luminance = (value) => {
-            const channels = parseRgb(value).map((channel) => {
-              const normalized = channel / 255;
-              return normalized <= .03928 ? normalized / 12.92 : ((normalized + .055) / 1.055) ** 2.4;
-            });
-            return .2126 * channels[0] + .7152 * channels[1] + .0722 * channels[2];
-          };
-          const foreground = luminance(style.outlineColor);
-          const background = luminance(style.backgroundColor);
-          const externalExtent = Math.max(0, outlineWidth + outlineOffset);
-          return {
-            focusVisible: node.matches(':focus-visible'),
-            outlineStyle: style.outlineStyle,
-            outlineWidth,
-            contrastRatio: (Math.max(foreground, background) + .05) / (Math.min(foreground, background) + .05),
-            ring: {
-              left: bounds.left - externalExtent,
-              right: bounds.right + externalExtent,
-              top: bounds.top - externalExtent,
-              bottom: bounds.bottom + externalExtent,
-            },
-            clip: clip.toJSON(),
-          };
         };
         const safeLink = (node) => node ? {
           text: normalizedText(node.textContent),
@@ -650,7 +708,6 @@ async function runQa() {
           homeShortcutCopyOverlap: overlap(homeShortcutRect, homeCopyRect),
           homeShortcutTitleOverlap: overlap(homeShortcutRect, homeTitleRect),
           homeShortcutSubtitleOverlap: overlap(homeShortcutRect, rect(homeSubtitle)),
-          homeShortcutFocus: focusRingMetrics(homeShortcutCta, document.querySelector('.home-hero')),
           homeEntryCards,
           learnHeroRect: rect(learnHero),
           learnCopyRect: rect(learnCopy),
@@ -778,15 +835,26 @@ async function runQa() {
         expect(homeShortcutKeyboardFocus?.outlineStyle !== 'none' && homeShortcutKeyboardFocus?.outlineWidth >= 3 && homeShortcutKeyboardFocus?.outlineAlpha > 0,
           `index ${width}px: Xiao A CTA focus ring must be opaque and at least 3px (${homeShortcutKeyboardFocus?.outlineWidth || 0})`);
         expect(homeShortcutKeyboardFocus?.contrastRatio >= 3, `index ${width}px: Xiao A CTA focus ring contrast is too low (${homeShortcutKeyboardFocus?.contrastRatio?.toFixed(2) || 0}:1)`);
+        expect(homeShortcutKeyboardFocus?.classMatchCount === 1, `index ${width}px: expected exactly one runtime Xiao A CTA (${homeShortcutKeyboardFocus?.classMatchCount || 0})`);
+        expect(homeShortcutKeyboardFocus?.href === portalUrl
+          && homeShortcutKeyboardFocus?.target === '_blank'
+          && homeShortcutKeyboardFocus?.relTokens.includes('noopener')
+          && !homeShortcutKeyboardFocus?.relTokens.includes('opener'),
+        `index ${width}px: focused Xiao A CTA must retain exact safe href/target/rel semantics`);
         expect(homeShortcutKeyboardFocus && homeShortcutKeyboardFocus.ring.left >= -.5 && homeShortcutKeyboardFocus.ring.right <= metrics.viewportRect.right + .5 && homeShortcutKeyboardFocus.ring.top >= -.5 && homeShortcutKeyboardFocus.ring.bottom <= metrics.viewportRect.bottom + .5,
           `index ${width}px: Xiao A CTA focus ring is clipped by the viewport`);
-        expect(homeShortcutKeyboardFocus && homeShortcutKeyboardFocus.clip && homeShortcutKeyboardFocus.ring.left >= homeShortcutKeyboardFocus.clip.left - .5 && homeShortcutKeyboardFocus.ring.right <= homeShortcutKeyboardFocus.clip.right + .5 && homeShortcutKeyboardFocus.ring.top >= homeShortcutKeyboardFocus.clip.top - .5 && homeShortcutKeyboardFocus.ring.bottom <= homeShortcutKeyboardFocus.clip.bottom + .5,
-          `index ${width}px: Xiao A CTA focus ring is clipped by the Hero`);
+        expect(homeShortcutKeyboardFocus && homeShortcutKeyboardFocus.clippingAncestors.every(({ clipsX, clipsY, visibleRect }) => (
+          (!clipsX || (homeShortcutKeyboardFocus.ring.left >= visibleRect.left - .5 && homeShortcutKeyboardFocus.ring.right <= visibleRect.right + .5))
+          && (!clipsY || (homeShortcutKeyboardFocus.ring.top >= visibleRect.top - .5 && homeShortcutKeyboardFocus.ring.bottom <= visibleRect.bottom + .5))
+        )), `index ${width}px: Xiao A CTA focus ring is clipped by ancestor (${JSON.stringify(homeShortcutKeyboardFocus?.clippingAncestors)})`);
         expect(metrics.homeEntryCards.length === 3 && metrics.homeEntryCards.every((card) => card.visible), `index ${width}px: expected three visible entry-card links`);
         expect(JSON.stringify(metrics.homeEntryCards.map(({ href }) => href)) === JSON.stringify(['learn.html', 'video.html', 'resources.html']), `index ${width}px: entry-card link order changed`);
         expect(JSON.stringify(homeEntryKeyboardFocus.map(({ href }) => href)) === JSON.stringify(['learn.html', 'video.html', 'resources.html']),
           `index ${width}px: each whole entry card must receive real keyboard focus in approved order (${homeEntryKeyboardFocus.map(({ href }) => href).join('/')})`);
-        for (const cardFocus of homeEntryKeyboardFocus) {
+        for (const [cardIndex, cardFocus] of homeEntryKeyboardFocus.entries()) {
+          const expectedHref = ['learn.html', 'video.html', 'resources.html'][cardIndex];
+          expect(cardFocus.href === expectedHref && cardFocus.classMatchCount === 3,
+            `index ${width}px: focused entry card must bind to ${expectedHref} with exactly three runtime cards (${cardFocus.href}/${cardFocus.classMatchCount})`);
           expect(cardFocus.focusVisible, `index ${width}px ${cardFocus.href}: entry card does not enter :focus-visible`);
           expect(cardFocus.outlineStyle !== 'none' && cardFocus.outlineWidth >= 3 && cardFocus.outlineAlpha > 0,
             `index ${width}px ${cardFocus.href}: focus outline must be opaque and at least 3px`);
@@ -797,8 +865,16 @@ async function runQa() {
             (!clipsX || (cardFocus.ring.left >= visibleRect.left - .5 && cardFocus.ring.right <= visibleRect.right + .5))
             && (!clipsY || (cardFocus.ring.top >= visibleRect.top - .5 && cardFocus.ring.bottom <= visibleRect.bottom + .5))
           )), `index ${width}px ${cardFocus.href}: focus ring is clipped by ancestor (${JSON.stringify(cardFocus.clippingAncestors)})`);
-          expect(cardFocus.clip && cardFocus.ring.left >= cardFocus.clip.left - .5 && cardFocus.ring.right <= cardFocus.clip.right + .5 && cardFocus.ring.top >= cardFocus.clip.top - .5 && cardFocus.ring.bottom <= cardFocus.clip.bottom + .5,
-            `index ${width}px ${cardFocus.href}: focus ring is clipped by the entry section`);
+          const focusedIconRect = cardFocus.focusedIconRect;
+          expect(Boolean(focusedIconRect
+            && focusedIconRect.right > cardFocus.viewport.left
+            && focusedIconRect.left < cardFocus.viewport.right
+            && focusedIconRect.bottom > cardFocus.viewport.top
+            && focusedIconRect.top < cardFocus.viewport.bottom
+            && cardFocus.focusedIconClippingAncestors.every(({ clipsX, clipsY, visibleRect }) => (
+              (!clipsX || (focusedIconRect.left >= visibleRect.left - .5 && focusedIconRect.right <= visibleRect.right + .5))
+              && (!clipsY || (focusedIconRect.top >= visibleRect.top - .5 && focusedIconRect.bottom <= visibleRect.bottom + .5))
+            ))), `index ${width}px ${cardFocus.href}: entry icons must be fully visible inside clipping ancestors and intersect viewport`);
         }
         expect(metrics.homeEntryCards.every(({ iconVisible, iconRect }) => iconVisible && iconRect?.width >= 64 && iconRect?.height >= 64),
           `index ${width}px: every entry icon must be visible and at least 64x64 (${metrics.homeEntryCards.map(({ iconRect }) => `${iconRect?.width || 0}x${iconRect?.height || 0}`).join(', ')})`);
@@ -1171,7 +1247,11 @@ async function runQa() {
   console.log(`PASS: Task 8 browser QA (${checks} checks, ${screenshotCount} screenshots at ${output})`);
 }
 
-(browserSelfTestMode ? runBrowserSelfTest() : runQa()).catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+if (browserChildHangMode) {
+  setInterval(() => {}, 1000);
+} else {
+  (browserSelfTestMode ? runBrowserSelfTest() : runQa()).catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}

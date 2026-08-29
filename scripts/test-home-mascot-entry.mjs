@@ -87,32 +87,38 @@ function runStaticSelfTest() {
     assert.equal(green.status, 0, `valid static fixture must pass:\n${green.stdout}\n${green.stderr}`);
 
     const mutations = [
-      ['retired-hero-visible', (html) => html.replace('</main>', `<p>${retiredHomeCopy[0]}</p></main>`)],
-      ['retired-section-visible', (html) => html.replace('</main>', `<p>${retiredHomeCopy[1]}</p></main>`)],
-      ['retired-aria-hidden-visible', (html) => html.replace('</main>', `<p aria-hidden="true">${retiredHomeCopy[0]}</p></main>`)],
-      ['footer-old-owner', null, (html) => html.replace(approvedFooterDescription, retiredFooterDescription)],
-      ['footer-description-hidden', null, (html) => html.replace('class="f-desc"', 'class="f-desc" hidden')],
-      ['footer-ancestor-hidden', null, (html) => html.replace('class="footer-grid"', 'class="footer-grid" hidden')],
-      ['footer-description-missing', null, (html) => html.replace(approvedFooterDescription, '')],
-      ['entry-icon-missing', (html) => mutateFirstEntryCard(html, (card) => card.replace(/<svg data-entry-icon="learn"[\s\S]*?<\/svg>/, ''))],
-      ['entry-icon-duplicate-marker', (html) => html.replace('data-entry-icon="watch"', 'data-entry-icon="learn"')],
-      ['entry-icon-hidden', (html) => html.replace('data-entry-icon="learn"', 'data-entry-icon="learn" style="display:none"')],
-      ['entry-icon-aria', (html) => html.replace('data-entry-icon="learn" aria-hidden="true"', 'data-entry-icon="learn" aria-hidden="false"')],
-      ['entry-third-svg', (html) => mutateFirstEntryCard(html, (card) => `${card}<svg aria-hidden="true"><path d="M0 0h1"/></svg>`) ],
-      ['entry-extra-data-icon', (html) => mutateFirstEntryCard(html, (card) => card.replace('<svg aria-hidden="true" viewBox=', '<svg aria-hidden="true" data-entry-icon="rogue" viewBox='))],
-      ['entry-external-image', (html) => mutateFirstEntryCard(html, (card) => card.replace('</span></span>', '<img src="external.svg" alt=""/></span></span>'))],
-      ['entry-arrow-missing', (html) => mutateFirstEntryCard(html, (card) => card.replace(/<svg aria-hidden="true" viewBox="0 0 24 24"[\s\S]*?<path d="M5 12h14M12 5l7 7-7 7"\/><\/svg>/, ''))],
-      ['entry-arrow-aria', (html) => mutateFirstEntryCard(html, (card) => card.replace('<svg aria-hidden="true" viewBox="0 0 24 24"', '<svg aria-hidden="false" viewBox="0 0 24 24"'))],
-      ['entry-arrow-path', (html) => mutateFirstEntryCard(html, (card) => card.replace('M5 12h14M12 5l7 7-7 7', 'M5 12h10'))],
+      ['footer-description-opacity-zero', null, (html) => html.replace('class="f-desc"', 'class="f-desc" style="opacity:0"'), 'index.html footer description must be visibly rendered'],
+      ['footer-description-opacity-decimal', null, (html) => html.replace('class="f-desc"', 'class="f-desc" style="opacity:0.0"'), 'index.html footer description must be visibly rendered'],
+      ['footer-ancestor-opacity-percent', null, (html) => html.replace('class="footer-grid"', 'class="footer-grid" style="opacity:0%"'), 'index.html footer description must be visibly rendered'],
+      ['footer-description-opacity-low', null, (html) => html.replace('class="f-desc"', 'class="f-desc" style="opacity:0.01"'), 'index.html footer description must be visibly rendered'],
+      ['retired-hero-visible', (html) => html.replace('</main>', `<p>${retiredHomeCopy[0]}</p></main>`), null, 'home must not visibly render retired copy'],
+      ['retired-section-visible', (html) => html.replace('</main>', `<p>${retiredHomeCopy[1]}</p></main>`), null, 'home must not visibly render retired copy'],
+      ['retired-aria-hidden-visible', (html) => html.replace('</main>', `<p aria-hidden="true">${retiredHomeCopy[0]}</p></main>`), null, 'home must not visibly render retired copy'],
+      ['footer-old-owner', null, (html) => html.replace(approvedFooterDescription, retiredFooterDescription), 'index.html footer must use the exact visible Amersports AI Community description'],
+      ['footer-description-hidden', null, (html) => html.replace('class="f-desc"', 'class="f-desc" hidden'), 'index.html footer description must be visibly rendered'],
+      ['footer-ancestor-hidden', null, (html) => html.replace('class="footer-grid"', 'class="footer-grid" hidden'), 'index.html footer description must be visibly rendered'],
+      ['footer-description-missing', null, (html) => html.replace(approvedFooterDescription, ''), 'index.html footer must use the exact visible Amersports AI Community description'],
+      ['entry-icon-missing', (html) => mutateFirstEntryCard(html, (card) => card.replace(/<svg data-entry-icon="learn"[\s\S]*?<\/svg>/, '')), null, '.ec-icon must contain only its inline SVG'],
+      ['entry-icon-duplicate-marker', (html) => html.replace('data-entry-icon="watch"', 'data-entry-icon="learn"'), null, 'SVG icon must use its stable data-entry-icon marker'],
+      ['entry-icon-hidden', (html) => html.replace('data-entry-icon="learn"', 'data-entry-icon="learn" style="display:none"'), null, 'SVG icon must be visually rendered'],
+      ['entry-icon-aria', (html) => html.replace('data-entry-icon="learn" aria-hidden="true"', 'data-entry-icon="learn" aria-hidden="false"'), null, 'SVG icon must use aria-hidden=true'],
+      ['entry-third-svg', (html) => mutateFirstEntryCard(html, (card) => `${card}<svg aria-hidden="true"><path d="M0 0h1"/></svg>`), null, 'must contain exactly its entry icon and arrow SVG'],
+      ['entry-extra-data-icon', (html) => mutateFirstEntryCard(html, (card) => card.replace('<svg aria-hidden="true" viewBox=', '<svg aria-hidden="true" data-entry-icon="rogue" viewBox=')), null, 'must contain exactly one data-entry-icon SVG'],
+      ['entry-external-image', (html) => mutateFirstEntryCard(html, (card) => card.replace('</span></span>', '<img src="external.svg" alt=""/></span></span>')), null, '.ec-icon must contain only its inline SVG'],
+      ['entry-arrow-missing', (html) => mutateFirstEntryCard(html, (card) => card.replace(/<svg aria-hidden="true" viewBox="0 0 24 24"[\s\S]*?<path d="M5 12h14M12 5l7 7-7 7"\/><\/svg>/, '')), null, 'must contain exactly its entry icon and arrow SVG'],
+      ['entry-arrow-aria', (html) => mutateFirstEntryCard(html, (card) => card.replace('<svg aria-hidden="true" viewBox="0 0 24 24"', '<svg aria-hidden="false" viewBox="0 0 24 24"')), null, 'arrow SVG must use aria-hidden=true'],
+      ['entry-arrow-path', (html) => mutateFirstEntryCard(html, (card) => card.replace('M5 12h14M12 5l7 7-7 7', 'M5 12h10')), null, 'must retain the approved arrow path'],
     ];
 
-    for (const [name, indexEditor, footerEditor] of mutations) {
+    for (const [name, indexEditor, footerEditor, expectedFailure] of mutations) {
+      assert.ok(!`${green.stdout}\n${green.stderr}`.includes(expectedFailure), `${name} target error must not exist in valid baseline`);
       const mutationRoot = join(temporaryRoot, name);
       cpSync(goodRoot, mutationRoot, { recursive: true });
       if (indexEditor) editFixtureFile(mutationRoot, 'index.html', indexEditor);
       if (footerEditor) editFixtureFile(mutationRoot, 'index.html', footerEditor);
       const result = runStaticVerifier(mutationRoot);
       assert.notEqual(result.status, 0, `${name} mutation must be detected`);
+      assert.ok(`${result.stdout}\n${result.stderr}`.includes(expectedFailure), `${name} must hit its targeted assertion “${expectedFailure}”:\n${result.stdout}\n${result.stderr}`);
       console.log(`DETECTED static mutation: ${name}`);
     }
     console.log(`PASS static homepage contract self-test (valid fixture + ${mutations.length} mutations)`);
@@ -649,18 +655,24 @@ function assertSafeExternalLink(element, expectedHref, label) {
   assert.ok(!relTokens.has('opener'), `${label} must reject the opener rel token`);
 }
 
+function hasVisuallyHiddenInlineStyle(style) {
+  if (/(?:display\s*:\s*none|visibility\s*:\s*hidden)/i.test(style)) return true;
+  const opacity = style.match(/(?:^|;)\s*opacity\s*:\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+))\s*(%)?/i);
+  if (!opacity) return false;
+  const numericOpacity = Number.parseFloat(opacity[1]);
+  const normalizedOpacity = opacity[2] === '%' ? numericOpacity / 100 : numericOpacity;
+  return Number.isFinite(normalizedOpacity) && normalizedOpacity <= .01;
+}
+
 function isLocallyHidden(element) {
   const classTokens = new Set((element.attributes.get('class') ?? '').split(/\s+/).filter(Boolean));
   return element.attributes.has('hidden')
-    || /(?:display\s*:\s*none|visibility\s*:\s*hidden)/i.test(element.attributes.get('style') ?? '')
+    || hasVisuallyHiddenInlineStyle(element.attributes.get('style') ?? '')
     || ['hidden', 'sr-only', 'visually-hidden'].some((className) => classTokens.has(className));
 }
 
 function isLocallyVisuallyHidden(element) {
-  const classTokens = new Set((element.attributes.get('class') ?? '').split(/\s+/).filter(Boolean));
-  return element.attributes.has('hidden')
-    || /(?:display\s*:\s*none|visibility\s*:\s*hidden)/i.test(element.attributes.get('style') ?? '')
-    || ['hidden', 'sr-only', 'visually-hidden'].some((className) => classTokens.has(className));
+  return isLocallyHidden(element);
 }
 
 function assertVisiblyRendered(element, label) {
