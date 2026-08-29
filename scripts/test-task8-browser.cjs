@@ -49,10 +49,25 @@ async function readFocusedOutlineMetrics(page, expectedClass) {
     if (!node?.classList.contains(expectedClass)) return null;
     const style = getComputedStyle(node);
     const bounds = node.getBoundingClientRect();
-    const parseColor = (value) => {
-      if (!value || value === 'transparent') return { red: 0, green: 0, blue: 0, alpha: 0 };
-      const channels = value.match(/[-\d.]+/g)?.map(Number) ?? [];
-      return { red: channels[0] ?? 0, green: channels[1] ?? 0, blue: channels[2] ?? 0, alpha: channels.length >= 4 ? channels[3] : 1 };
+    const colorCanvas = document.createElement('canvas');
+    colorCanvas.width = 1;
+    colorCanvas.height = 1;
+    const colorContext = colorCanvas.getContext('2d', { willReadFrequently: true });
+    const browserSrgbColor = (value) => {
+      if (!colorContext || !value || !CSS.supports('color', value)) return null;
+      try {
+        colorContext.clearRect(0, 0, 1, 1);
+        colorContext.globalCompositeOperation = 'copy';
+        colorContext.fillStyle = 'rgba(1, 2, 3, 0.498)';
+        const sentinel = colorContext.fillStyle;
+        colorContext.fillStyle = value;
+        if (colorContext.fillStyle === sentinel && value.replace(/\s+/g, '').toLowerCase() !== sentinel.replace(/\s+/g, '').toLowerCase()) return null;
+        colorContext.fillRect(0, 0, 1, 1);
+        const [red, green, blue, alpha] = colorContext.getImageData(0, 0, 1, 1).data;
+        return { red, green, blue, alpha: alpha / 255 };
+      } catch {
+        return null;
+      }
     };
     const compositeColor = (foreground, background) => ({
       red: foreground.red * foreground.alpha + background.red * (1 - foreground.alpha),
@@ -63,7 +78,9 @@ async function readFocusedOutlineMetrics(page, expectedClass) {
     const effectiveBackground = (startNode) => {
       const layers = [];
       for (let current = startNode; current; current = current.parentElement) {
-        layers.push(parseColor(getComputedStyle(current).backgroundColor));
+        const layer = browserSrgbColor(getComputedStyle(current).backgroundColor);
+        if (!layer) return null;
+        layers.push(layer);
       }
       return layers.reverse().reduce(
         (background, layer) => compositeColor(layer, background),
@@ -78,6 +95,7 @@ async function readFocusedOutlineMetrics(page, expectedClass) {
       return .2126 * channels[0] + .7152 * channels[1] + .0722 * channels[2];
     };
     const contrast = (foreground, background) => {
+      if (!foreground || !background || foreground.alpha <= 0) return 0;
       const compositedForeground = compositeColor(foreground, background);
       const leftLuminance = luminance(compositedForeground);
       const rightLuminance = luminance(background);
@@ -85,7 +103,7 @@ async function readFocusedOutlineMetrics(page, expectedClass) {
     };
     const outlineWidth = Number.parseFloat(style.outlineWidth) || 0;
     const outlineOffset = Number.parseFloat(style.outlineOffset) || 0;
-    const outlineColor = parseColor(style.outlineColor);
+    const outlineColor = browserSrgbColor(style.outlineColor);
     const insetOutline = outlineOffset < 0 || style.outlineStyle === 'inset';
     const contrastBackground = effectiveBackground(insetOutline ? node : node.parentElement);
     const externalExtent = Math.max(0, outlineWidth + outlineOffset);
@@ -118,6 +136,16 @@ async function readFocusedOutlineMetrics(page, expectedClass) {
       return ancestors;
     };
     const focusedIcon = node.querySelector('.ec-icon');
+    const focusedIconSvg = focusedIcon?.querySelector('svg') ?? null;
+    const focusedIconSvgStyle = focusedIconSvg ? getComputedStyle(focusedIconSvg) : null;
+    const focusedIconSvgRect = focusedIconSvg?.getBoundingClientRect().toJSON() ?? null;
+    const focusedIconSvgVisible = Boolean(focusedIconSvg && focusedIconSvgRect
+      && (!focusedIconSvg.checkVisibility || focusedIconSvg.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }))
+      && focusedIconSvgStyle.display !== 'none'
+      && focusedIconSvgStyle.visibility !== 'hidden'
+      && Number.parseFloat(focusedIconSvgStyle.opacity) > .01
+      && focusedIconSvgRect.width > 0
+      && focusedIconSvgRect.height > 0);
     return {
       href: node.getAttribute('href'),
       target: node.getAttribute('target') ?? '',
@@ -126,7 +154,7 @@ async function readFocusedOutlineMetrics(page, expectedClass) {
       focusVisible: node.matches(':focus-visible'),
       outlineStyle: style.outlineStyle,
       outlineWidth,
-      outlineAlpha: outlineColor.alpha,
+      outlineAlpha: outlineColor?.alpha ?? 0,
       contrastRatio: contrast(outlineColor, contrastBackground),
       contrastBackground,
       insetOutline,
@@ -139,6 +167,9 @@ async function readFocusedOutlineMetrics(page, expectedClass) {
       clippingAncestors: clippingAncestorsFor(node),
       focusedIconRect: focusedIcon?.getBoundingClientRect().toJSON() ?? null,
       focusedIconClippingAncestors: clippingAncestorsFor(focusedIcon),
+      focusedIconSvgRect,
+      focusedIconSvgVisible,
+      focusedIconSvgClippingAncestors: clippingAncestorsFor(focusedIconSvg),
       viewport: { left: 0, top: 0, right: innerWidth, bottom: innerHeight },
     };
   }, expectedClass);
@@ -192,14 +223,17 @@ const mutationDefinitions = {
   'fixture-index-1440': { page: 'index', viewport: [1440, 1100], css: '' },
   'fixture-index-390': { page: 'index', viewport: [390, 844], css: '' },
   'fixture-index-ring-over-section': { page: 'index', viewport: [1440, 1100], css: 'section.section:has(.entry-row){position:relative;left:120px;width:calc(100% - 120px);overflow:visible!important}section.section:has(.entry-row)>.container{transform:translateX(-120px)}' },
+  'fixture-index-modern-focus': { page: 'index', viewport: [1440, 1100], css: '.hero-xiaoa-entry{background:#fff!important}.hero-xiaoa-cta:focus-visible{outline:3px solid color(srgb .02 .12 .38)!important;outline-offset:3px!important}' },
   'fixture-learn-1440': { page: 'learn', viewport: [1440, 1100], css: '' },
   'fixture-learn-1236': { page: 'learn', viewport: [1236, 1050], css: '' },
   'fixture-learn-390': { page: 'learn', viewport: [390, 844], css: '' },
   'entry-icon-hidden': { page: 'index', viewport: [1440, 1100], css: '.entry-card .ec-icon{visibility:hidden!important}', expectedFailure: 'every entry icon must be visible' },
   'entry-icon-offscreen': { page: 'index', viewport: [1440, 1100], css: '.entry-card:first-child .ec-icon{transform:translateX(-2000px)!important}', expectedFailure: 'entry icons must be fully visible' },
+  'entry-icon-svg-clipped': { page: 'index', viewport: [1440, 1100], css: '.entry-card:first-child .ec-icon{overflow:hidden!important}.entry-card:first-child .ec-icon svg{transform:translateX(-200px)!important}', expectedFailure: 'entry icon SVG must be fully visible' },
   'entry-focus-none': { page: 'index', viewport: [1440, 1100], css: '.entry-card:focus,.entry-card:focus-visible{outline:none!important;box-shadow:none!important}', expectedFailure: 'focus outline must be opaque and at least 3px' },
   'entry-focus-clipped': { page: 'index', viewport: [1440, 1100], css: '.entry-row{overflow:hidden!important;padding:0!important}.entry-card:first-child{margin-left:0!important}', expectedFailure: 'focus ring is clipped by ancestor' },
   'shortcut-focus-white-external': { page: 'index', viewport: [1440, 1100], css: '.hero-xiaoa-entry{background:#fff!important}.hero-xiaoa-cta:focus-visible{outline:3px solid #fff!important;outline-offset:3px!important}', expectedFailure: 'Xiao A CTA focus ring contrast is too low' },
+  'shortcut-focus-white-modern': { page: 'index', viewport: [1440, 1100], css: '.hero-xiaoa-entry{background:#fff!important}.hero-xiaoa-cta:focus-visible{outline:3px solid color(srgb 1 1 1)!important;outline-offset:3px!important}', expectedFailure: 'Xiao A CTA focus ring contrast is too low' },
   'shortcut-focus-duplicate': { page: 'index', viewport: [1440, 1100], css: '', domMutation: 'duplicate-shortcut', expectedFailure: 'expected exactly one runtime Xiao A CTA' },
   'entry-title-weak': { page: 'index', viewport: [1440, 1100], css: '.entry-card h3{font-size:20px!important}', expectedFailure: 'entry titles must be at least 26px' },
   'entry-description-large': { page: 'index', viewport: [1440, 1100], css: '.entry-card p{font-size:22px!important;font-weight:800!important;color:rgb(15,23,42)!important}', expectedFailure: 'entry title weight must remain stronger' },
@@ -355,7 +389,7 @@ async function runBrowserSelfTest() {
     }
     console.log('DETECTED unknown browser QA CLI flag');
 
-    const greenModes = ['fixture-index-1440', 'fixture-index-390', 'fixture-index-ring-over-section', 'fixture-learn-1440', 'fixture-learn-1236', 'fixture-learn-390'];
+    const greenModes = ['fixture-index-1440', 'fixture-index-390', 'fixture-index-ring-over-section', 'fixture-index-modern-focus', 'fixture-learn-1440', 'fixture-learn-1236', 'fixture-learn-390'];
     const greenResults = new Map();
     for (const mode of greenModes) {
       const result = await runBrowserSelfTestChild(mode, childBase, join(temporaryRoot, `green-${mode}`));
@@ -365,7 +399,7 @@ async function runBrowserSelfTest() {
     }
 
     const mutationModes = [
-      'shortcut-focus-duplicate', 'shortcut-focus-white-external', 'entry-icon-offscreen', 'learn-ancestor-clip', 'entry-icon-hidden', 'entry-focus-none', 'entry-focus-clipped', 'entry-title-weak', 'entry-description-large',
+      'entry-icon-svg-clipped', 'shortcut-focus-white-modern', 'shortcut-focus-duplicate', 'shortcut-focus-white-external', 'entry-icon-offscreen', 'learn-ancestor-clip', 'entry-icon-hidden', 'entry-focus-none', 'entry-focus-clipped', 'entry-title-weak', 'entry-description-large',
       'entry-description-red', 'face-safe-overlap', 'learn-240', 'learn-wrap', 'learn-cover',
       'learn-mobile-horizontal',
     ];
@@ -875,6 +909,17 @@ async function runQa() {
               (!clipsX || (focusedIconRect.left >= visibleRect.left - .5 && focusedIconRect.right <= visibleRect.right + .5))
               && (!clipsY || (focusedIconRect.top >= visibleRect.top - .5 && focusedIconRect.bottom <= visibleRect.bottom + .5))
             ))), `index ${width}px ${cardFocus.href}: entry icons must be fully visible inside clipping ancestors and intersect viewport`);
+          const focusedIconSvgRect = cardFocus.focusedIconSvgRect;
+          expect(Boolean(cardFocus.focusedIconSvgVisible
+            && focusedIconSvgRect
+            && focusedIconSvgRect.left >= cardFocus.viewport.left - .5
+            && focusedIconSvgRect.right <= cardFocus.viewport.right + .5
+            && focusedIconSvgRect.top >= cardFocus.viewport.top - .5
+            && focusedIconSvgRect.bottom <= cardFocus.viewport.bottom + .5
+            && cardFocus.focusedIconSvgClippingAncestors.every(({ clipsX, clipsY, visibleRect }) => (
+              (!clipsX || (focusedIconSvgRect.left >= visibleRect.left - .5 && focusedIconSvgRect.right <= visibleRect.right + .5))
+              && (!clipsY || (focusedIconSvgRect.top >= visibleRect.top - .5 && focusedIconSvgRect.bottom <= visibleRect.bottom + .5))
+            ))), `index ${width}px ${cardFocus.href}: entry icon SVG must be fully visible inside viewport and clipping ancestors`);
         }
         expect(metrics.homeEntryCards.every(({ iconVisible, iconRect }) => iconVisible && iconRect?.width >= 64 && iconRect?.height >= 64),
           `index ${width}px: every entry icon must be visible and at least 64x64 (${metrics.homeEntryCards.map(({ iconRect }) => `${iconRect?.width || 0}x${iconRect?.height || 0}`).join(', ')})`);

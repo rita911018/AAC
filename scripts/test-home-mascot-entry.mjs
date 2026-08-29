@@ -86,7 +86,23 @@ function runStaticSelfTest() {
     const green = runStaticVerifier(goodRoot);
     assert.equal(green.status, 0, `valid static fixture must pass:\n${green.stdout}\n${green.stderr}`);
 
+    const cascadeVisibleRoot = join(temporaryRoot, 'opacity-cascade-visible');
+    cpSync(goodRoot, cascadeVisibleRoot, { recursive: true });
+    editFixtureFile(cascadeVisibleRoot, 'index.html', (html) => html.replace('class="f-desc"', 'class="f-desc" style="opacity:0;opacity:1"'));
+    const cascadeVisible = runStaticVerifier(cascadeVisibleRoot);
+    assert.equal(cascadeVisible.status, 0, `last valid same-importance opacity declaration must keep footer visible:\n${cascadeVisible.stdout}\n${cascadeVisible.stderr}`);
+
+    const invalidOpacityRoot = join(temporaryRoot, 'opacity-invalid-ignored');
+    cpSync(goodRoot, invalidOpacityRoot, { recursive: true });
+    editFixtureFile(invalidOpacityRoot, 'index.html', (html) => html.replace('class="f-desc"', 'class="f-desc" style="opacity:0;opacity:1;opacity:not-a-value"'));
+    const invalidOpacity = runStaticVerifier(invalidOpacityRoot);
+    assert.equal(invalidOpacity.status, 0, `invalid trailing opacity must be ignored after the last valid declaration:\n${invalidOpacity.stdout}\n${invalidOpacity.stderr}`);
+
     const mutations = [
+      ['footer-opacity-last-wins-hidden', null, (html) => html.replace('class="f-desc"', 'class="f-desc" style="opacity:1;opacity:0"'), 'index.html footer description must be visibly rendered'],
+      ['footer-opacity-important-wins-hidden', null, (html) => html.replace('class="f-desc"', 'class="f-desc" style="opacity:0!important;opacity:1"'), 'index.html footer description must be visibly rendered'],
+      ['footer-opacity-last-important-hidden', null, (html) => html.replace('class="f-desc"', 'class="f-desc" style="opacity:1!important;opacity:0!important"'), 'index.html footer description must be visibly rendered'],
+      ['footer-opacity-invalid-case-percent-hidden', null, (html) => html.replace('class="f-desc"', 'class="f-desc" style="opacity:bogus; OpAcItY : 100%; opacity: 0%"'), 'index.html footer description must be visibly rendered'],
       ['footer-description-opacity-zero', null, (html) => html.replace('class="f-desc"', 'class="f-desc" style="opacity:0"'), 'index.html footer description must be visibly rendered'],
       ['footer-description-opacity-decimal', null, (html) => html.replace('class="f-desc"', 'class="f-desc" style="opacity:0.0"'), 'index.html footer description must be visibly rendered'],
       ['footer-ancestor-opacity-percent', null, (html) => html.replace('class="footer-grid"', 'class="footer-grid" style="opacity:0%"'), 'index.html footer description must be visibly rendered'],
@@ -655,13 +671,30 @@ function assertSafeExternalLink(element, expectedHref, label) {
   assert.ok(!relTokens.has('opener'), `${label} must reject the opener rel token`);
 }
 
+function resolveInlineOpacity(style) {
+  let winningDeclaration = null;
+  for (const declaration of style.split(';')) {
+    const colon = declaration.indexOf(':');
+    if (colon < 0 || declaration.slice(0, colon).trim().toLowerCase() !== 'opacity') continue;
+    let value = declaration.slice(colon + 1).trim();
+    const important = /!\s*important\s*$/i.test(value);
+    if (important) value = value.replace(/!\s*important\s*$/i, '').trim();
+    const numeric = value.match(/^([+-]?(?:(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?))\s*(%)?$/i);
+    if (!numeric) continue;
+    const rawOpacity = Number.parseFloat(numeric[1]);
+    if (!Number.isFinite(rawOpacity)) continue;
+    const normalizedOpacity = Math.min(1, Math.max(0, numeric[2] === '%' ? rawOpacity / 100 : rawOpacity));
+    if (!winningDeclaration
+      || (important && !winningDeclaration.important)
+      || important === winningDeclaration.important) winningDeclaration = { important, value: normalizedOpacity };
+  }
+  return winningDeclaration?.value ?? null;
+}
+
 function hasVisuallyHiddenInlineStyle(style) {
   if (/(?:display\s*:\s*none|visibility\s*:\s*hidden)/i.test(style)) return true;
-  const opacity = style.match(/(?:^|;)\s*opacity\s*:\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+))\s*(%)?/i);
-  if (!opacity) return false;
-  const numericOpacity = Number.parseFloat(opacity[1]);
-  const normalizedOpacity = opacity[2] === '%' ? numericOpacity / 100 : numericOpacity;
-  return Number.isFinite(normalizedOpacity) && normalizedOpacity <= .01;
+  const opacity = resolveInlineOpacity(style);
+  return opacity !== null && opacity <= .01;
 }
 
 function isLocallyHidden(element) {
