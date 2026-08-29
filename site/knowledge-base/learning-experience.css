@@ -12,18 +12,79 @@
 
 .learning-hub {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 20px;
+  gap: 0;
   margin: 28px 0 64px;
 }
 
+.learning-stage {
+  position: relative;
+  padding: 0 0 34px 0;
+}
+
+/* 组与组之间的连接线，最后一组不画 */
+.learning-stage:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  top: 44px;
+  bottom: 0;
+  left: 19px;
+  width: 2px;
+  background: var(--learning-line);
+}
+
+.learning-stage-head {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.learning-stage-num {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  color: #ffffff;
+  font: 800 17px/1 var(--font-mono, ui-monospace, "JetBrains Mono", monospace);
+  background: var(--learning-navy);
+  border: 4px solid var(--learning-page);
+  border-radius: 50%;
+}
+
+.learning-stage-title {
+  margin: 0;
+  color: var(--learning-navy);
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.learning-stage-desc {
+  margin: 3px 0 0;
+  color: var(--learning-muted);
+  font-size: 14.5px;
+  line-height: 1.6;
+}
+
+.learning-stage-track {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-left: 56px;
+}
+
+/* 单列纵向流：编号 → 标题 → 描述 → 页脚。
+   原来的 `auto 1fr` 会把 h3 和描述并排挤成两列，是卡片显脏的主因。 */
 .learning-card {
   position: relative;
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 8px 18px;
-  min-height: 210px;
-  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-height: 236px;
+  padding: 26px 26px 22px;
   overflow: hidden;
   color: var(--learning-navy);
   text-decoration: none;
@@ -32,6 +93,103 @@
   border-radius: var(--learning-radius);
   box-shadow: 0 8px 24px rgba(11, 35, 66, 0.05);
   transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+/* 这三条原本只写在 `.entry-card` 下，学习卡从没匹配上，
+   导致 kicker 是 17px 正文、标题是浏览器默认 h3，三级文字几乎同号。 */
+.learning-card .ec-num {
+  color: var(--learning-blue);
+  font: 700 12px/1.5 var(--font-mono, ui-monospace, "JetBrains Mono", monospace);
+  letter-spacing: 0.08em;
+}
+
+.learning-card h3 {
+  margin: 12px 0 8px;
+  padding-right: 72px;
+  font-size: 27px;
+  font-weight: 800;
+  letter-spacing: -0.022em;
+  line-height: 1.25;
+}
+
+.learning-card p {
+  margin: 0;
+  color: var(--learning-muted);
+  font-size: 15px;
+  line-height: 1.72;
+}
+
+.learning-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: auto;
+  padding-top: 18px;
+}
+
+/* 细进度条：--card-progress 由 initHub 按已读小节比例写入。 */
+.learning-card-progress {
+  position: relative;
+  padding-top: 9px;
+  color: var(--learning-muted);
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.learning-card-progress::before,
+.learning-card-progress::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 3px;
+  border-radius: 999px;
+}
+
+.learning-card-progress::before {
+  width: 56px;
+  background: var(--learning-line);
+}
+
+.learning-card-progress::after {
+  width: calc(56px * var(--card-progress, 0));
+  background: var(--learning-blue);
+}
+
+.learning-card-action {
+  color: var(--learning-blue);
+  font-size: 15px;
+  font-weight: 750;
+}
+
+.learning-card-action::after {
+  content: " →";
+}
+
+/* 放在卡片最顶部（order:-1），而不是左下角——
+   压在角上会盖住进度文字，也会顶破圆角。 */
+.learning-card-suggest {
+  order: -1;
+  align-self: flex-start;
+  margin-bottom: 12px;
+  padding: 5px 12px;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: 0.02em;
+  background: var(--learning-navy);
+  border-radius: 999px;
+}
+
+.learning-card-suggested {
+  border-color: var(--learning-blue);
+}
+
+.learning-card[data-status="seen"] .learning-card-action::before {
+  content: "✓ ";
+  font-weight: 800;
 }
 
 .learning-card:hover,
@@ -50,8 +208,9 @@
 }
 
 .learning-status {
-  align-self: start;
-  justify-self: end;
+  position: absolute;
+  top: 24px;
+  right: 24px;
   padding: 6px 10px;
   color: var(--learning-muted);
   font-size: 13px;
@@ -244,11 +403,28 @@
   line-height: 1.75;
 }
 
+/* reading-shell 的 860px 上限是单栏阅读时代留下的。加上 260px 侧栏后，
+   正文只剩 ~530px，配 clamp(38px,6vw,68px) 的大标题完全失衡。
+   这里让学习详情页对齐全站 --content(1180px)，正文因此拿回 ~860px。 */
+.reading-shell.learning-reading-shell {
+  max-width: var(--content, 1180px);
+}
+
+/* 大标题同步收敛：68px 是给单栏超宽版面的，双栏下压到 52px 才和正文成比例。 */
+.learning-detail-layout .lesson-header h1 {
+  font-size: clamp(32px, 3.6vw, 52px);
+  letter-spacing: -0.035em;
+}
+
+.learning-detail-layout .lesson-header > p:last-child {
+  font-size: clamp(17px, 1.5vw, 20px);
+}
+
 .learning-detail-layout {
   display: grid;
-  grid-template-columns: minmax(240px, 260px) minmax(0, 1fr);
+  grid-template-columns: minmax(240px, 268px) minmax(0, 1fr);
   align-items: start;
-  gap: 32px;
+  gap: 44px;
   width: 100%;
   min-width: 0;
 }
@@ -548,7 +724,7 @@
 
 .lesson-scene-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
   margin-top: 20px;
 }
@@ -1594,4 +1770,1360 @@
     transition: none;
     animation: none;
   }
+}
+
+/* ============================================================
+   小节路径（侧栏 x/n）、续读横幅、小白三千问
+   2026-08-29 起：目录页与详情页统一用「已读小节 / 总小节」口径，
+   不再用无法量化的「进行中」。
+   ============================================================ */
+
+.learning-path-item[data-status="seen"] .learning-path-status {
+  color: var(--learning-blue);
+  background: var(--learning-blue-soft);
+  border-radius: 999px;
+}
+
+.learning-path-sublist {
+  margin: 4px 0 10px;
+  padding: 0 0 0 14px;
+  border-left: 1px solid var(--learning-line);
+  list-style: none;
+}
+
+.learning-path-subitem + .learning-path-subitem {
+  margin-top: 1px;
+}
+
+.learning-path-sublink {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 32px;
+  padding: 3px 8px;
+  color: var(--learning-muted);
+  font-size: 13.5px;
+  line-height: 1.45;
+  text-decoration: none;
+  border-radius: 8px;
+}
+
+.learning-path-sublink:hover {
+  color: var(--learning-navy);
+  background: var(--learning-page);
+}
+
+.learning-path-tick {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid var(--learning-line);
+  border-radius: 50%;
+}
+
+.learning-path-subitem[data-read="true"] .learning-path-tick {
+  background: var(--learning-blue);
+  border-color: var(--learning-blue);
+}
+
+.learning-path-subitem[data-read="true"] .learning-path-sublink {
+  color: var(--learning-navy);
+}
+
+.learning-path-subname {
+  min-width: 0;
+}
+
+/* 续读横幅：给出入口，但不自动滚动——自动跳转会让人失去位置感。 */
+.lesson-resume {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+  margin: 0 0 34px;
+  padding: 16px 20px;
+  background: var(--learning-blue-soft);
+  border: 1px solid #bdd1fa;
+  border-radius: 14px;
+}
+
+.lesson-resume-text {
+  margin: 0;
+  color: var(--learning-navy);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.lesson-resume-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 18px;
+}
+
+.lesson-resume-link,
+.lesson-resume-dismiss {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0;
+  color: var(--learning-blue);
+  font-size: 14px;
+  font-weight: 750;
+  text-decoration: none;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.lesson-resume-dismiss {
+  color: var(--learning-muted);
+}
+
+.lesson-resume-link:focus-visible,
+.lesson-resume-dismiss:focus-visible,
+.learning-path-sublink:focus-visible,
+.faq-tab:focus-visible,
+.faq-question:focus-visible {
+  outline: 3px solid #0E2144;
+  outline-offset: 3px;
+}
+
+/* 锚点跳转后标题不被吸顶导航盖住 */
+[data-lesson-section] {
+  scroll-margin-top: 96px;
+}
+
+[data-lesson-section]:focus {
+  outline: none;
+}
+
+/* ---------- 目录页 hero 双视图文案 ---------- */
+
+.learning-session-hint,
+.learning-resume-note {
+  margin: 14px 0 0;
+  color: #cfe0f7;
+  font-size: 14.5px;
+  line-height: 1.6;
+}
+
+.learning-resume-note {
+  margin-top: 10px;
+  font-weight: 700;
+}
+
+.learning-storage-note {
+  margin: -34px 0 0;
+  color: var(--learning-muted);
+  font-size: 13.5px;
+  line-height: 1.7;
+}
+
+/* ---------- 小白三千问 ---------- */
+
+.learning-faq {
+  background: var(--learning-page);
+  border-top: 1px solid var(--learning-line);
+}
+
+.faq-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+
+.faq-tab {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 18px;
+  color: var(--learning-navy);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 750;
+  background: var(--learning-surface);
+  border: 1px solid var(--learning-line);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color 160ms ease, background 160ms ease, border-color 160ms ease;
+}
+
+.faq-tab:hover {
+  border-color: var(--learning-blue);
+}
+
+.faq-tab[aria-selected="true"] {
+  color: #ffffff;
+  background: var(--learning-navy);
+  border-color: var(--learning-navy);
+}
+
+.faq-tab-count {
+  color: var(--learning-muted);
+  font-size: 12.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.faq-tab[aria-selected="true"] .faq-tab-count {
+  color: #9fc0f0;
+}
+
+.faq-panel-intro {
+  margin: 0 0 14px;
+  color: var(--learning-muted);
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+/* align-items:start 必须有：默认 stretch 会让展开一项时，
+   同行另一项被撑到等高，中间留出大片空白。 */
+.faq-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 20px;
+  align-content: start;
+  align-items: start;
+}
+
+.faq-item {
+  padding: 4px 20px;
+  background: var(--learning-surface);
+  border: 1px solid var(--learning-line);
+  border-radius: 14px;
+}
+
+.faq-item[open] {
+  border-color: #bdd1fa;
+}
+
+.faq-question {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  color: var(--learning-navy);
+  font-size: 16px;
+  font-weight: 750;
+  line-height: 1.5;
+  cursor: pointer;
+  list-style: none;
+}
+
+.faq-question::-webkit-details-marker {
+  display: none;
+}
+
+.faq-question::before {
+  content: "+";
+  flex: 0 0 auto;
+  width: 20px;
+  color: var(--learning-blue);
+  font-size: 19px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.faq-item[open] .faq-question::before {
+  content: "−";
+}
+
+.faq-answer {
+  margin: 0 0 14px;
+  padding-left: 30px;
+  color: var(--learning-navy);
+  font-size: 15px;
+  line-height: 1.78;
+}
+
+.faq-tip {
+  display: flex;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 10px 14px 10px 30px;
+  color: var(--learning-muted);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.faq-tip-label {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  padding: 2px 8px;
+  color: var(--learning-blue);
+  font-size: 12px;
+  font-weight: 800;
+  background: var(--learning-blue-soft);
+  border-radius: 999px;
+}
+
+@media (max-width: 1024px) {
+  .faq-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .learning-stage-track {
+    grid-template-columns: minmax(0, 1fr);
+    margin-left: 0;
+  }
+
+  .learning-stage:not(:last-child)::before { display: none; }
+
+  .learning-card h3 {
+    padding-right: 0;
+    font-size: 24px;
+  }
+
+  .learning-status {
+    position: static;
+    align-self: flex-start;
+    order: -1;
+    margin-bottom: 10px;
+  }
+
+  .learning-storage-note {
+    margin-top: -22px;
+  }
+
+  .lesson-resume {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+/* 展开式要点：术语单独成行加重，解释另起一行降级。
+   原来每条只有一句短语，读者拿到结论却拿不到理由。 */
+.lesson-bullets li.lesson-bullet-rich {
+  margin-bottom: 6px;
+  color: var(--learning-navy);
+}
+
+.lesson-bullet-term {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--learning-navy);
+  font-size: 17.5px;
+  font-weight: 780;
+  line-height: 1.5;
+}
+
+.lesson-bullet-explain {
+  display: block;
+  color: var(--learning-muted);
+  font-size: 16px;
+  line-height: 1.8;
+}
+
+/* ---------- 信任四象限（哪些活能交给它） ---------- */
+
+.lesson-quadrant {
+  margin: 22px 0 6px;
+}
+
+.lesson-quadrant-axes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  margin: 0 0 14px;
+}
+
+.lesson-quadrant-axis {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  color: var(--learning-navy);
+  font-size: 14px;
+  font-weight: 750;
+  background: var(--learning-page);
+  border: 1px solid var(--learning-line);
+  border-radius: 999px;
+}
+
+.lesson-quadrant-axis::before {
+  content: "?";
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 800;
+  background: var(--learning-blue);
+  border-radius: 50%;
+}
+
+.lesson-quadrant-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.lesson-quadrant-cell {
+  padding: 20px;
+  background: var(--learning-surface);
+  border: 1px solid var(--learning-line);
+  border-left-width: 4px;
+  border-radius: 14px;
+}
+
+/* 绿/黄/红三档只用边框色区分，保持全站无渐变基线 */
+.lesson-quadrant-cell[data-tone="go"] { border-left-color: #1f9463; }
+.lesson-quadrant-cell[data-tone="warn"] { border-left-color: #c98a12; }
+.lesson-quadrant-cell[data-tone="stop"] { border-left-color: #c0392f; }
+
+.lesson-quadrant-axislabel {
+  margin: 0 0 8px;
+  color: var(--learning-muted);
+  font-size: 12.5px;
+  font-weight: 750;
+  letter-spacing: 0.02em;
+}
+
+.lesson-quadrant-title {
+  margin: 0 0 8px;
+  color: var(--learning-navy);
+  font-size: 19px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.lesson-quadrant-desc {
+  margin: 0;
+  color: var(--learning-muted);
+  font-size: 15px;
+  line-height: 1.75;
+}
+
+@media (max-width: 720px) {
+  .lesson-quadrant-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ============================================================
+   小节级演示组件
+   全部手写 SVG/HTML，不引外部图片：可点可动、改文案不用重新导图、
+   移动端不糊，也自动契合蓝白无渐变基线。
+   ============================================================ */
+
+.lesson-demo {
+  margin: 24px 0 8px;
+  padding: 22px;
+  background: var(--learning-page);
+  border: 1px solid var(--learning-line);
+  border-radius: 16px;
+}
+
+.lesson-demo-title {
+  margin: 0 0 6px;
+  color: var(--learning-navy);
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.lesson-demo-hint {
+  margin: 0 0 18px;
+  color: var(--learning-muted);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.lesson-demo-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.lesson-demo-chip,
+.lesson-demo-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 18px;
+  color: var(--learning-navy);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 750;
+  background: var(--learning-surface);
+  border: 1px solid var(--learning-line);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.lesson-demo-action {
+  color: #ffffff;
+  background: var(--learning-blue);
+  border-color: var(--learning-blue);
+}
+
+.lesson-demo-action:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.lesson-demo-chip[aria-pressed="true"] {
+  color: #ffffff;
+  background: var(--learning-navy);
+  border-color: var(--learning-navy);
+}
+
+.lesson-demo-chip:focus-visible,
+.lesson-demo-action:focus-visible,
+.lesson-type-candidate:focus-visible,
+.lesson-timeline-button:focus-visible,
+.lesson-ring:focus-visible {
+  outline: 3px solid #0E2144;
+  outline-offset: 3px;
+}
+
+/* ---------- 同心圆 ---------- */
+
+.lesson-concentric-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 300px) minmax(0, 1fr);
+  align-items: center;
+  gap: 24px;
+}
+
+.lesson-concentric-stage svg {
+  width: 100%;
+  height: auto;
+}
+
+.lesson-ring {
+  fill: #ffffff;
+  stroke: var(--learning-line);
+  stroke-width: 1.5;
+  cursor: pointer;
+  transition: fill 160ms ease, stroke 160ms ease;
+}
+
+.lesson-ring[data-active="true"] {
+  fill: var(--learning-blue-soft);
+  stroke: var(--learning-blue);
+  stroke-width: 2.5;
+}
+
+.lesson-ring-agent {
+  fill: var(--learning-page);
+}
+
+.lesson-ring-link {
+  stroke: var(--learning-line);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
+  fill: none;
+}
+
+.lesson-ring-label {
+  font-size: 13px;
+  font-weight: 700;
+  fill: var(--learning-muted);
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+.lesson-ring-label[data-active="true"] {
+  fill: var(--learning-blue);
+}
+
+.lesson-concentric-panel {
+  min-width: 0;
+}
+
+.lesson-concentric-title {
+  margin: 0 0 8px;
+  color: var(--learning-navy);
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.lesson-concentric-body {
+  margin: 0 0 12px;
+  color: var(--learning-navy);
+  font-size: 15px;
+  line-height: 1.75;
+}
+
+.lesson-concentric-example {
+  margin: 0;
+  padding: 10px 14px;
+  color: var(--learning-muted);
+  font-size: 14px;
+  line-height: 1.7;
+  background: var(--learning-surface);
+  border-left: 3px solid var(--learning-blue);
+  border-radius: 0 8px 8px 0;
+}
+
+/* ---------- 时间轴 ---------- */
+
+.lesson-timeline-track {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 18px;
+  padding: 0;
+  list-style: none;
+}
+
+.lesson-timeline-node {
+  flex: 1 1 118px;
+  min-width: 0;
+}
+
+.lesson-timeline-button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 8px;
+  color: var(--learning-muted);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 750;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-top: 3px solid var(--learning-line);
+  cursor: pointer;
+}
+
+.lesson-timeline-node[data-state="past"] .lesson-timeline-button { border-top-color: #a9c4f4; color: var(--learning-navy); }
+.lesson-timeline-node[data-state="current"] .lesson-timeline-button { border-top-color: var(--learning-blue); color: var(--learning-blue); }
+
+.lesson-timeline-dot {
+  width: 10px;
+  height: 10px;
+  background: var(--learning-line);
+  border-radius: 50%;
+}
+
+.lesson-timeline-node[data-state="past"] .lesson-timeline-dot { background: #a9c4f4; }
+.lesson-timeline-node[data-state="current"] .lesson-timeline-dot { background: var(--learning-blue); }
+
+.lesson-timeline-panel {
+  padding: 18px 20px;
+  background: var(--learning-surface);
+  border: 1px solid var(--learning-line);
+  border-radius: 12px;
+}
+
+.lesson-timeline-era {
+  margin: 0 0 4px;
+  color: var(--learning-blue);
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.lesson-timeline-title {
+  margin: 0 0 10px;
+  color: var(--learning-navy);
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.lesson-timeline-line {
+  margin: 0 0 6px;
+  color: var(--learning-muted);
+  font-size: 15px;
+  line-height: 1.75;
+}
+
+.lesson-timeline-line strong { color: var(--learning-navy); }
+
+/* ---------- 接话茬打字机 ---------- */
+
+.lesson-type-screen {
+  padding: 18px 20px;
+  background: var(--learning-surface);
+  border: 1px solid var(--learning-line);
+  border-radius: 12px;
+}
+
+.lesson-type-prompt,
+.lesson-type-output {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0;
+  color: var(--learning-navy);
+  font-size: 16px;
+  line-height: 1.8;
+}
+
+.lesson-type-prompt { margin-bottom: 10px; }
+
+.lesson-type-tag {
+  flex: 0 0 auto;
+  padding: 3px 9px;
+  color: var(--learning-muted);
+  font-size: 12px;
+  font-weight: 800;
+  background: var(--learning-page);
+  border-radius: 999px;
+}
+
+.lesson-type-tag-ai {
+  color: var(--learning-blue);
+  background: var(--learning-blue-soft);
+}
+
+.lesson-type-text { font-weight: 650; }
+
+.lesson-type-caret {
+  display: inline-block;
+  width: 2px;
+  height: 18px;
+  background: var(--learning-blue);
+  animation: lessonCaret 1s step-end infinite;
+}
+
+@keyframes lessonCaret { 50% { opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .lesson-type-caret { animation: none; }
+}
+
+.lesson-type-steplabel {
+  margin: 16px 0 10px;
+  color: var(--learning-navy);
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.lesson-type-candidates {
+  display: grid;
+  gap: 8px;
+}
+
+.lesson-type-candidate {
+  display: grid;
+  grid-template-columns: minmax(96px, auto) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 8px 14px;
+  color: var(--learning-navy);
+  font: inherit;
+  font-size: 15px;
+  text-align: left;
+  background: var(--learning-surface);
+  border: 1px solid var(--learning-line);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.lesson-type-candidate:hover { border-color: var(--learning-blue); }
+
+.lesson-type-word { font-weight: 750; }
+
+.lesson-type-bar {
+  position: relative;
+  height: 6px;
+  background: var(--learning-page);
+  border-radius: 999px;
+}
+
+.lesson-type-bar::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(100% * var(--p, 0));
+  background: var(--learning-blue);
+  border-radius: 999px;
+}
+
+.lesson-type-prob {
+  color: var(--learning-muted);
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.lesson-type-verdict {
+  margin: 14px 0 0;
+  padding: 12px 16px;
+  color: var(--learning-navy);
+  font-size: 15px;
+  line-height: 1.75;
+  background: var(--learning-blue-soft);
+  border-left: 3px solid var(--learning-blue);
+  border-radius: 0 8px 8px 0;
+}
+
+/* ---------- 上下文窗口 ---------- */
+
+.lesson-context-meta {
+  margin: 0 0 12px;
+  color: var(--learning-muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.lesson-context-desk {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  background: var(--learning-surface);
+  border: 1px solid var(--learning-line);
+  border-radius: 12px;
+}
+
+.lesson-context-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 10px;
+  padding: 10px 12px;
+  font-size: 15px;
+  line-height: 1.7;
+  border: 1px solid var(--learning-line);
+  border-radius: 8px;
+}
+
+.lesson-context-card[data-state="kept"] {
+  color: var(--learning-navy);
+  background: var(--learning-surface);
+}
+
+.lesson-context-card[data-state="forgotten"] {
+  color: #9aa8bd;
+  background: var(--learning-page);
+  border-style: dashed;
+  text-decoration: line-through;
+}
+
+.lesson-context-role {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 800;
+  background: var(--learning-page);
+  border-radius: 999px;
+}
+
+.lesson-context-card[data-state="kept"] .lesson-context-role {
+  color: var(--learning-blue);
+  background: var(--learning-blue-soft);
+}
+
+.lesson-context-badge {
+  flex: 0 0 auto;
+  color: #c0392f;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.lesson-context-empty {
+  margin: 0;
+  padding: 12px;
+  color: var(--learning-muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+.lesson-context-verdict {
+  margin: 14px 0 0;
+  padding: 12px 16px;
+  color: var(--learning-navy);
+  font-size: 15px;
+  line-height: 1.75;
+  background: #fff6e8;
+  border-left: 3px solid #c98a12;
+  border-radius: 0 8px 8px 0;
+}
+
+/* ---------- 下一章门槛 ---------- */
+
+.lesson-actions a[data-next-locked="true"] {
+  color: var(--learning-muted);
+  background: var(--learning-page);
+  border-color: var(--learning-line);
+}
+
+@media (max-width: 720px) {
+  .lesson-concentric-stage {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .lesson-type-candidate {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .lesson-type-bar { grid-column: 1 / -1; }
+}
+
+/* 正文强调：只加重量和颜色，不用背景块，避免打断阅读节奏 */
+.lesson-emphasis {
+  color: var(--learning-navy);
+  font-weight: 780;
+}
+
+/* ---------- 同一件事两种做法（过去的软件 vs 现在的 AI） ---------- */
+
+.lesson-shift-task {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 16px;
+  color: var(--learning-navy);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.7;
+}
+
+.lesson-shift-tasklabel {
+  flex: 0 0 auto;
+  padding: 3px 10px;
+  color: var(--learning-muted);
+  font-size: 12px;
+  font-weight: 800;
+  background: var(--learning-surface);
+  border-radius: 999px;
+}
+
+.lesson-shift-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.lesson-shift-card {
+  padding: 20px;
+  background: var(--learning-surface);
+  border: 1px solid var(--learning-line);
+  border-left-width: 4px;
+  border-radius: 12px;
+}
+
+.lesson-shift-card[data-era="past"] { border-left-color: #9aa8bd; }
+.lesson-shift-card[data-era="now"] { border-left-color: var(--learning-blue); }
+
+.lesson-shift-era {
+  margin: 0 0 6px;
+  color: var(--learning-muted);
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.lesson-shift-card[data-era="now"] .lesson-shift-era { color: var(--learning-blue); }
+
+.lesson-shift-how {
+  margin: 0 0 12px;
+  color: var(--learning-navy);
+  font-size: 19px;
+  font-weight: 800;
+}
+
+.lesson-shift-steps {
+  counter-reset: shift-step;
+  margin: 0 0 14px;
+  padding-left: 0;
+  color: var(--learning-muted);
+  font-size: 15px;
+  line-height: 1.75;
+  list-style: none;
+}
+
+.lesson-shift-steps li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.lesson-shift-steps li::before {
+  counter-increment: shift-step;
+  content: counter(shift-step);
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  color: var(--learning-muted);
+  font-size: 12px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  background: var(--learning-page);
+  border-radius: 50%;
+}
+
+.lesson-shift-card[data-era="now"] .lesson-shift-steps li::before {
+  color: #ffffff;
+  background: var(--learning-amber);
+}
+
+.lesson-shift-cost {
+  margin: 0;
+  padding-top: 12px;
+  color: var(--learning-muted);
+  font-size: 14px;
+  line-height: 1.7;
+  border-top: 1px solid var(--learning-line);
+}
+
+.lesson-shift-cost strong { color: var(--learning-navy); }
+
+.lesson-shift-punch {
+  margin: 16px 0 0;
+  padding: 14px 18px;
+  color: var(--learning-navy);
+  font-size: 15.5px;
+  line-height: 1.75;
+  background: var(--learning-blue-soft);
+  border-left: 3px solid var(--learning-blue);
+  border-radius: 0 8px 8px 0;
+}
+
+@media (max-width: 720px) {
+  .lesson-shift-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ============================================================
+   2026-08-29 排版与配色调整
+   1. 正文标题和字号整体收小，和左侧目录成比例
+   2. 蓝 = 知识内容，黄 = 动手互动。看到黄色就知道这里可以点
+   ============================================================ */
+
+:root {
+  --learning-amber: #b8760a;
+  --learning-amber-soft: #fff7e9;
+  --learning-amber-line: #f0d9b0;
+}
+
+/* ---------- 字号收小 ---------- */
+
+.learning-detail-layout .lesson-header h1 {
+  font-size: clamp(28px, 2.8vw, 40px);
+}
+
+.learning-detail-layout .lesson-header > p:last-child {
+  font-size: clamp(16px, 1.2vw, 18px);
+}
+
+.learning-detail-layout .lesson-core-section h2,
+.learning-detail-layout .lesson-takeaway h2,
+.learning-detail-layout .lesson-case h2,
+.learning-detail-layout .lesson-exercise h2,
+.learning-detail-layout .lesson-check h2 {
+  font-size: clamp(21px, 1.9vw, 27px);
+  line-height: 1.35;
+}
+
+.learning-detail-layout .lesson-core-section p,
+.learning-detail-layout .lesson-case p,
+.learning-detail-layout .lesson-takeaway p,
+.learning-detail-layout .lesson-check p {
+  font-size: 15.5px;
+  line-height: 1.85;
+}
+
+.learning-detail-layout .lesson-bullets li { font-size: 15.5px; }
+.learning-detail-layout .lesson-bullet-term { font-size: 16px; }
+.learning-detail-layout .lesson-bullet-explain { font-size: 15px; }
+.learning-detail-layout .lesson-takeaway li { font-size: 15.5px; }
+
+/* ---------- 要点记号 ---------- */
+
+.lesson-bullets li.lesson-bullet-rich {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 2px 10px;
+  margin-bottom: 14px;
+  list-style: none;
+}
+
+.lesson-bullets li.lesson-bullet-rich::marker { content: none; }
+
+.lesson-bullet-icon {
+  grid-row: 1 / span 2;
+  width: 18px;
+  height: 18px;
+  margin-top: 4px;
+  fill: none;
+  stroke: var(--learning-blue);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.lesson-bullet-icon circle { stroke: #bdd1fa; }
+
+/* 要点用无序号列表，改成不带左内距的网格 */
+.lesson-bullets:has(.lesson-bullet-rich) { padding-left: 0; }
+
+/* ---------- 动手互动统一为黄色 ---------- */
+
+.lesson-demo,
+.lesson-exercise {
+  background: var(--learning-amber-soft);
+  border-color: var(--learning-amber-line);
+}
+
+.lesson-demo-title,
+.lesson-exercise .lesson-section-label {
+  color: var(--learning-amber);
+}
+
+.lesson-demo-title::before {
+  content: "动手试试 · ";
+  font-weight: 800;
+}
+
+.lesson-demo-action {
+  background: var(--learning-amber);
+  border-color: var(--learning-amber);
+}
+
+.lesson-demo-chip[aria-pressed="true"] {
+  background: var(--learning-amber);
+  border-color: var(--learning-amber);
+}
+
+.lesson-demo-chip,
+.lesson-demo-action,
+.lesson-type-candidate,
+.lesson-timeline-panel,
+.lesson-type-screen,
+.lesson-context-desk,
+.lesson-shift-card,
+.lesson-concentric-example {
+  border-color: var(--learning-amber-line);
+}
+
+.lesson-type-candidate:hover,
+.lesson-demo-chip:hover { border-color: var(--learning-amber); }
+
+.lesson-type-tag-ai {
+  color: var(--learning-amber);
+  background: #fdeed4;
+}
+
+.lesson-type-bar::after,
+.lesson-timeline-node[data-state="current"] .lesson-timeline-dot,
+.lesson-ring[data-active="true"] { fill: #fdeed4; }
+
+.lesson-type-bar::after,
+.lesson-timeline-node[data-state="current"] .lesson-timeline-dot {
+  background: var(--learning-amber);
+}
+
+.lesson-ring[data-active="true"] {
+  stroke: var(--learning-amber);
+}
+
+.lesson-ring-label[data-active="true"],
+.lesson-timeline-era,
+.lesson-timeline-node[data-state="current"] .lesson-timeline-button,
+.lesson-shift-card[data-era="now"] .lesson-shift-era,
+.lesson-shift-steps li::marker { color: var(--learning-amber); }
+
+.lesson-ring-label[data-active="true"] { fill: var(--learning-amber); }
+
+.lesson-timeline-node[data-state="current"] .lesson-timeline-button,
+.lesson-shift-card[data-era="now"] { border-color: var(--learning-amber); }
+
+.lesson-type-verdict,
+.lesson-shift-punch,
+.lesson-concentric-example {
+  background: #fdeed4;
+  border-left-color: var(--learning-amber);
+}
+
+.lesson-demo-live,
+.lesson-exercise .lesson-feedback { color: var(--learning-amber); }
+
+/* 演示的播报区不复用 .lesson-feedback：那是章末练习的选择器，
+   同页出现多个会让测试的 strict 定位撞车。 */
+.lesson-demo-live {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.7;
+}
+
+.lesson-demo-live:empty { margin: 0; }
+
+
+/* 演示的播报区只给屏幕阅读器：演示自己已经有可见反馈（进度行、结语），
+   再显示一遍就是重复。 */
+.lesson-demo-live.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* 矢量章首图：跟随容器宽度，不需要固定尺寸 */
+.lesson-figure-svg img {
+  width: 100%;
+  height: auto;
+  border-radius: 14px;
+}
+
+
+/* Hero 行动区：按钮独占一行，说明文字另起一行，
+   原来三样并排（按钮 + 进度胶囊 + 说明）挤在一起显得乱。 */
+.learn-hero .learn-hero-actions {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.learn-hero .learning-session-summary,
+.learn-hero .learning-session-hint {
+  margin: 0;
+}
+
+
+/* ---------- 上下文窗口对照 ---------- */
+
+.lesson-scale-list {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lesson-scale-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 8px 14px;
+  padding-bottom: 14px;
+}
+
+.lesson-scale-item + .lesson-scale-item {
+  padding-top: 14px;
+  border-top: 1px solid var(--learning-teal-line);
+}
+
+.lesson-scale-name {
+  color: var(--learning-navy);
+  font-size: 15px;
+  font-weight: 750;
+  line-height: 1.6;
+}
+
+.lesson-scale-bar {
+  position: relative;
+  grid-column: 1 / -1;
+  height: 10px;
+  background: var(--learning-surface);
+  border: 1px solid var(--learning-amber-line);
+  border-radius: 999px;
+}
+
+.lesson-scale-bar::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(100% * var(--w, 0));
+  min-width: 6px;
+  background: var(--learning-amber);
+  border-radius: 999px;
+}
+
+.lesson-scale-value {
+  color: var(--learning-navy);
+  font: 800 14px/1 var(--font-mono, ui-monospace, "JetBrains Mono", monospace);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.lesson-scale-note {
+  grid-column: 1 / -1;
+  color: var(--learning-muted);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.lesson-scale-foot {
+  margin: 18px 0 0;
+  padding-top: 14px;
+  color: var(--learning-muted);
+  font-size: 14px;
+  line-height: 1.75;
+  border-top: 1px solid var(--learning-amber-line);
+}
+
+@media (max-width: 720px) {
+  .lesson-scale-value { font-size: 13px; }
+}
+
+
+/* .learning-session-summary 的 display:inline-flex 会盖掉浏览器默认的
+   [hidden]{display:none}，导致首次访问时进度胶囊没被藏住。 */
+.learning-session-summary[hidden],
+.learning-session-hint[hidden],
+.learning-resume-note[hidden] {
+  display: none;
+}
+
+
+/* ============================================================
+   三类语义配色：蓝 = 正文知识，黄 = 动手互动，青 = 只读的小知识
+   ============================================================ */
+
+:root {
+  --learning-teal: #0f7b83;
+  --learning-teal-soft: #eefafb;
+  --learning-teal-line: #bfe3e6;
+}
+
+.lesson-demo[data-demo-kind="note"] {
+  background: var(--learning-teal-soft);
+  border-color: var(--learning-teal-line);
+}
+
+.lesson-demo[data-demo-kind="note"] .lesson-demo-title {
+  color: var(--learning-teal);
+}
+
+/* 小知识不是动手环节，不加「动手试试 ·」前缀 */
+.lesson-demo[data-demo-kind="note"] .lesson-demo-title::before {
+  content: "小知识 · ";
+}
+
+.lesson-demo[data-demo-kind="note"] .lesson-scale-bar {
+  background: #ffffff;
+  border-color: var(--learning-teal-line);
+}
+
+.lesson-demo[data-demo-kind="note"] .lesson-scale-bar::after {
+  background: var(--learning-teal);
+}
+
+.lesson-demo[data-demo-kind="note"] .lesson-scale-foot {
+  border-top-color: var(--learning-teal-line);
+}
+
+.lesson-scale-foot-more {
+  margin-top: 10px;
+  padding-top: 0;
+  border-top: 0;
 }

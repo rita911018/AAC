@@ -10,21 +10,23 @@ const scriptPath = fileURLToPath(import.meta.url);
 const defaultRoot = path.resolve(path.dirname(scriptPath), '../site/knowledge-base');
 const siteRoot = path.resolve(process.env.KB_ROOT || defaultRoot);
 
+// 2026-08-29 内容改版：六章重新分成三块（AI 是什么 / 怎么和 AI 沟通 / 怎么用 AI），
+// 「学会分工」从第 3 位移到第 5 位。id 不变，所以旧书签和别名映射照常可用。
 const chapterIds = [
   'ai-basics',
   'ai-boundaries',
-  'ai-delegation',
   'ai-prompting',
   'ai-verification',
+  'ai-delegation',
   'ai-workflow',
 ];
 const titles = [
-  '认识 AI',
-  '看清边界',
-  '学会分工',
-  '把需求说清楚',
-  '验证结果',
-  '从对话走向工作流',
+  'AI 到底是什么',
+  '哪些能信，哪些不能信',
+  '话怎么说它才懂',
+  '它给的东西怎么验',
+  '哪些活能交给它',
+  '好用的那次，怎么让它下次还好用',
 ];
 const chapterHrefs = chapterIds.map((id) => `detail.html?type=learn&id=${id}`);
 const allowedStatusCopy = new Set(['未看', '正在看', '看过']);
@@ -43,81 +45,82 @@ const requiredApiMethods = [
   'renderClaimClassifier', 'renderWorkflowSorter',
 ];
 const storageKey = 'amersports-ai-beginner-session-v1';
-const chapterMinutes = ['约 8 分钟', '约 7 分钟', '约 8 分钟', '约 10 分钟', '约 9 分钟', '约 8 分钟'];
+// 已按「每小节都要有演示」标准重构完的章节。改完一章就加一个进来。
+const rebuiltChapters = new Set(['ai-basics']);
+const chapterMinutes = ['约 8 分钟', '约 7 分钟', '约 10 分钟', '约 9 分钟', '约 8 分钟', '约 8 分钟'];
 const chapterImages = [
   ['images/ai-concept.webp', 'images/ai-concept.png'],
   ['images/ai-boundaries.webp', 'images/ai-boundaries.png'],
-  ['images/ai-delegation.webp', 'images/ai-delegation.png'],
   ['images/ai-prompt.webp', 'images/ai-prompt.png'],
   ['images/ai-verification.webp', 'images/ai-verification.png'],
+  ['images/ai-delegation.webp', 'images/ai-delegation.png'],
   ['images/ai-workflow.webp', 'images/ai-workflow.png'],
 ];
-const chapterDimensions = [[1200, 800], [1200, 800], [1200, 800], [1024, 1024], [1200, 800], [1200, 800]];
-const chapterFallbackDimensions = [[1536, 1024], [1536, 1024], [1536, 1024], [1024, 1024], [1536, 1024], [1536, 1024]];
+const chapterDimensions = [[1200, 800], [1200, 800], [1024, 1024], [1200, 800], [1200, 800], [1200, 800]];
+const chapterFallbackDimensions = [[1536, 1024], [1536, 1024], [1024, 1024], [1536, 1024], [1536, 1024], [1536, 1024]];
+// 2026-08-29：第 1 章重构。删掉「四个词」（在解释术语，不是在回答「AI 是什么」）、
+// 章首图库套图、工作案例、动手练一练、快速想一想——练习不再堆在章末，
+// 改为嵌进各小节的演示里。每章保留「带走要点」。
 const expectedChapterContent = {
   'ai-basics': {
-    sectionTitles: ['先看 AI 能做什么', '先把四个概念放对位置', '大模型在做什么'],
-    coreTerms: ['AI', '生成式 AI', '大模型', 'Agent', 'Token', '上下文', '预训练'],
-    caseTitle: '为什么新对话不记得上次说过的事？',
-    caseTerms: ['新对话', '上下文', '临时工作记忆'],
-    exerciseType: 'token-and-concepts',
-    exerciseKeys: ['candidates', 'relationshipNodes', 'relationshipLabels', 'relationshipJudgment', 'steps', 'stepExplanations'],
-    takeawayTitle: 'AI 概念关系图与 8 个工作必懂词',
-    takeawayTerms: ['Token', '上下文', '多模态', '幻觉', 'RAG', 'Prompt', '工作流', 'Agent'],
+    sectionTitles: ['不用学操作，说人话就行', '四件今天就能上手的活', '它每写一个词，都是在猜', '关掉对话，它就把你忘了'],
+    coreTerms: ['软件', '规则', '说人话', '猜', '上下文', '编', '桌子'],
+    takeawayTitle: '这一章带走什么',
+    takeawayTerms: ['猜', '编', '关掉', '核一个', '署名'],
   },
   'ai-boundaries': {
-    sectionTitles: ['AI 擅长加速，人擅长把关', '搜索找来源，AI 组织与生成', '“说得像真的”为什么还会错'],
-    coreTerms: ['整理', '改写', '事实确认', '高代价判断', '流畅', '查证'],
+    sectionTitles: ['它不是搜索引擎', '它会一本正经地胡说', '那为什么有的 AI 能查到今天的新闻'],
+    coreTerms: ['搜索', '出处', '幻觉', '闭卷', '开卷', '核'],
     caseTitle: '汇报里出现了原材料没有的增长数字',
-    caseTerms: ['原材料', '精确数字', '来源'],
+    caseTerms: ['原材料', '精确数字', '编'],
     exerciseType: 'hallucination-spotter',
     exerciseKeys: ['claims'],
-    takeawayTitle: 'AI 能力边界清单',
-    takeawayTerms: ['绿', '黄', '红'],
-  },
-  'ai-delegation': {
-    sectionTitles: ['三种分工方式', '分工前先问五个问题'],
-    coreTerms: ['AI', '人机协作', '人负责', '可验证', '错误代价'],
-    caseTitle: '一份月度汇报应该怎么分工？',
-    caseTerms: ['数据整理', '优先级判断', '行动'],
-    exerciseType: 'delegation-sort',
-    exerciseKeys: ['tasks'],
-    takeawayTitle: 'AI 任务分工五问',
-    takeawayTerms: ['目标清晰', '结果可验证', '错误代价', '业务语境', '最终谁负责'],
+    takeawayTitle: '这一章带走什么',
+    takeawayTerms: ['搜索', '记忆', '数字', '链接'],
   },
   'ai-prompting': {
-    sectionTitles: ['提示词就是一份工作 brief', '用多轮协作逐步校准'],
-    coreTerms: ['目标', '背景', '任务', '输出要求', '多轮', '具体差距'],
-    caseTitle: '从“帮我写汇报”到可执行的任务说明',
-    caseTerms: ['宽泛需求', '材料边界', '输出格式'],
+    sectionTitles: ['把它当入职第一天的新同事', '四要素：像给同事派活一样交代', '给背景，别给形容词', '说不清要什么？让它来问你', '别这么问'],
+    coreTerms: ['目标', '背景', '任务', '输出要求', '新同事', '形容词'],
+    caseTitle: '从「帮我写汇报」到一次就能用的初稿',
+    caseTerms: ['重点', '一页', '结论'],
     exerciseType: 'prompt-builder',
     exerciseKeys: ['fields', 'reference'],
-    takeawayTitle: '四要素 Prompt 模板',
+    takeawayTitle: '这一章带走什么',
     takeawayTerms: ['目标', '背景', '任务', '输出要求'],
   },
   'ai-verification': {
-    sectionTitles: ['先区分回答里的三种内容', '五步核验，再检查可用性'],
-    coreTerms: ['事实', '推论', '观点', '来源', '原文', '时间口径', '可追溯'],
-    caseTitle: '“销量上升”能否直接证明“营销有效”？',
-    caseTerms: ['销量上升', '因果结论', '其他因素'],
+    sectionTitles: ['动手之前，让它先复述一遍', '一段话里混着三种东西', '数字、日期、人名、引用——见一个核一个', '答歪了，别重开，接着改'],
+    coreTerms: ['事实', '推论', '观点', '复述', '出处', '原文'],
+    caseTitle: '「销量上升」能不能直接说成「营销有效」',
+    caseTerms: ['因果', '证据', '推论'],
     exerciseType: 'evidence-check',
     exerciseKeys: ['claims', 'evidenceOptions', 'versions'],
-    takeawayTitle: 'AI 结果核验五步卡',
-    takeawayTerms: ['查来源', '对原文', '时间口径', '检查推理', '任务标准'],
+    takeawayTitle: '这一章带走什么',
+    takeawayTerms: ['复述', '事实', '推论', '出处'],
+  },
+  'ai-delegation': {
+    sectionTitles: ['先问两个问题', '照着这张清单办', '要你签字的，它只能打底'],
+    coreTerms: ['标准答案', '代价', '放心交', '核实后再用', '只当参考', '签字'],
+    caseTitle: '一份月度汇报，四段活四种交法',
+    caseTerms: ['整理', '异常', '优先级'],
+    exerciseType: 'delegation-sort',
+    exerciseKeys: ['tasks'],
+    takeawayTitle: '这一章带走什么',
+    takeawayTerms: ['标准答案', '代价', '分段', '打底'],
   },
   'ai-workflow': {
-    sectionTitles: ['从一次成功，到稳定复用', '沉淀一条工作流的五步'],
-    coreTerms: ['对话', 'Prompt 模板', '工作流', 'Agent', '输入输出', '检查点'],
-    caseTitle: '把每月重复的汇报从对话变成流程',
-    caseTerms: ['每月', '步骤', '人机分工', '检查点'],
+    sectionTitles: ['把一次成功写成菜谱', '检查点插在哪', '有四类东西绝对不能贴进去'],
+    coreTerms: ['输入', '步骤', '验收标准', '检查点', '底线', '合规'],
+    caseTitle: '每月都要做的汇报，第三次开始不用重讲了',
+    caseTerms: ['重复', '输入', '验收'],
     exerciseType: 'workflow-builder',
     exerciseKeys: ['steps', 'shuffleOrder'],
-    takeawayTitle: '个人 AI 工作流画布',
-    takeawayTerms: ['拆任务', '输入输出', '明确分工', '设置检查点', '保存模板'],
+    takeawayTitle: '这一章带走什么',
+    takeawayTerms: ['输入', '检查点', '红线', '验收标准'],
   },
 };
 const allowedRuntimeStatuses = new Set(['unseen', 'in-progress', 'seen']);
-const learnHeroDescription = '从看懂 AI 到会协作，用六个轻量章节掌握分工、表达与判断。每章都有案例和小练习，无需技术背景。';
+const learnHeroDescription = '六章讲清 AI 是什么、话怎么说它才懂、哪些活能交给它。每章都能动手试，无需技术背景。';
 const learnHubHeading = '选择一个章节，轻松开始';
 const toolkitTitles = ['任务分工卡', '四要素提问模板', '结果验证清单', '工作流拆解模板'];
 const toolkitFields = [
@@ -691,7 +694,7 @@ function assertNoSentinelInnerHtmlWrites(root, sentinels, message) {
 function instrumentChapterDisplayText(chapter) {
   let sequence = 0;
   const sentinelByPath = new Map();
-  const structuralStringPaths = new Set(['id', 'number', 'image.webp', 'image.fallback', 'history.image.webp', 'history.image.fallback', 'exercise.type']);
+  const structuralStringPaths = new Set(['id', 'number', 'image.webp', 'image.fallback', 'exercise.type']);
   function visit(value, pathParts) {
     const pathName = pathParts.join('.');
     if (typeof value === 'string') {
@@ -1101,36 +1104,11 @@ function runContract() {
   assert.equal(summaryParts.filter((element) => element.attributes.has('data-learning-seen-count')).length, 1,
     'session summary must expose one seen-count update target');
 
-  const toolkits = learnElements.filter((element) => hasClass(element, 'learning-toolkit') && isVisible(element));
-  assert.equal(toolkits.length, 1, 'learn.html must contain one visible copyable toolkit');
-  assert.ok(toolkits[0].openStart > cards.at(-1).closeEnd, 'copyable toolkit must appear after the six chapter cards');
+  // 2026-08-29：目录页的「带走四张可复制工具卡」板块已移除。
+  // 四张模板本来就重复出现在对应章节的「带走要点」里，目录页干摆着没人用。
+  assert.equal(learnElements.filter((element) => hasClass(element, 'learning-toolkit')).length, 0,
+    'learn.html must no longer ship the standalone toolkit block');
   const footer = uniqueElement(learnElements, (element) => element.tagName === 'footer' && isVisible(element), 'learn.html must contain exactly one footer');
-  assert.ok(toolkits[0].closeEnd < footer.openStart, 'copyable toolkit must appear before the footer');
-  const toolkitElements = parseElements(toolkits[0].innerHtml, 'learning toolkit');
-  const toolCards = toolkitElements.filter((element) => element.tagName === 'article' && hasClass(element, 'learning-tool-card') && isVisible(element));
-  assert.equal(toolCards.length, 4, 'learning toolkit must contain exactly four tool cards');
-  for (const [index, toolCard] of toolCards.entries()) {
-    const descendants = parseElements(toolCard.innerHtml, `tool card ${index + 1}`);
-    const headings = descendants.filter((element) => /^h[1-6]$/.test(element.tagName) && isVisible(element));
-    assert.equal(headings.length, 1, `tool card ${index + 1} must contain one visible heading`);
-    assert.equal(visibleText(headings[0].innerHtml, `tool card ${index + 1} heading`), toolkitTitles[index],
-      `tool card ${index + 1} title must match the approved tool`);
-    assert.ok(descendants.some((element) => element.tagName === 'p' && isVisible(element) && visibleText(element.innerHtml, `tool card ${index + 1} description`).length > 0),
-      `tool card ${index + 1} must contain a short visible description`);
-    const templates = descendants.filter((element) => element.tagName === 'pre' && isVisible(element));
-    assert.equal(templates.length, 1, `tool card ${index + 1} must contain one visible preformatted template`);
-    const templateCopy = visibleText(templates[0].innerHtml, `tool card ${index + 1} template`);
-    for (const field of toolkitFields[index]) assert.ok(templateCopy.includes(field), `tool card ${index + 1} template must include ${field}`);
-    assert.equal(descendants.filter((element) => element.attributes.has('data-template-content')).length, 1,
-      `tool card ${index + 1} must expose one copy source`);
-    const copyButtons = descendants.filter((element) => element.tagName === 'button' && element.attributes.has('data-copy-template') && isVisible(element));
-    assert.equal(copyButtons.length, 1, `tool card ${index + 1} must contain one semantic copy button`);
-    assert.equal(visibleText(copyButtons[0].innerHtml, `tool card ${index + 1} button`), '复制模板',
-      `tool card ${index + 1} copy button must use the approved label`);
-    const feedback = descendants.filter((element) => element.attributes.has('data-copy-feedback') && isVisible(element));
-    assert.equal(feedback.length, 1, `tool card ${index + 1} must contain one copy feedback region`);
-    assert.equal(feedback[0].attributes.get('aria-live'), 'polite', `tool card ${index + 1} feedback must use polite live announcements`);
-  }
   for (const forbidden of ['课程目录', '视频目录', '博主目录']) {
     assert.ok(!visibleMainCopy.includes(forbidden), `learn hub must not contain the external-resource directory copy: ${forbidden}`);
   }
@@ -1176,54 +1154,68 @@ function runContract() {
   assert.deepEqual(api.chapters.map(({ id }) => id), chapterIds, 'learning chapter IDs must match the approved order');
   assert.deepEqual(api.chapters.map(({ title }) => title), titles, 'learning chapter titles must match the approved order');
   for (const [index, chapter] of api.chapters.entries()) {
-    for (const field of ['id', 'number', 'title', 'description', 'image', 'sections', 'caseStudy', 'exercise', 'quickCheck', 'takeaway']) {
+    // 必备字段：每章都得有正文小节和「带走要点」。
+    // 章首图、工作案例、动手练一练、快速想一想改为可选——
+    // 2026-08-29 起练习嵌进各小节的演示，不再堆在章末。
+    for (const field of ['id', 'number', 'title', 'description', 'sections', 'takeaway']) {
       assert.ok(Object.hasOwn(chapter, field), `${chapterIds[index]} must define ${field}`);
       assert.ok(chapter[field] !== null && chapter[field] !== undefined && !(typeof chapter[field] === 'string' && !chapter[field].trim()),
         `${chapterIds[index]}.${field} must contain learning content`);
     }
     assert.equal(chapter.number, String(index + 1).padStart(2, '0'), `${chapterIds[index]} must use its canonical chapter number`);
-    assert.deepEqual([chapter.image.webp, chapter.image.fallback], chapterImages[index], `${chapterIds[index]} must use the approved WebP and fallback image`);
-    assert.ok(typeof chapter.image.alt === 'string' && chapter.image.alt.trim(), `${chapterIds[index]} image must have meaningful alt text`);
-    assert.deepEqual([chapter.image.width, chapter.image.height], chapterDimensions[index], `${chapterIds[index]} image metadata must match its optimized intrinsic dimensions`);
-    assert.deepEqual(readPngDimensions(chapter.image.fallback), chapterFallbackDimensions[index],
-      `${chapterIds[index]} PNG fallback dimensions must match the actual asset`);
-    assert.equal(chapter.image.width / chapter.image.height,
-      chapterFallbackDimensions[index][0] / chapterFallbackDimensions[index][1],
-      `${chapterIds[index]} optimized image and PNG fallback must keep the same aspect ratio`);
-    assert.ok(typeof chapter.image.caption === 'string' && chapter.image.caption.trim(), `${chapterIds[index]} image must have a concise visual caption`);
-    assert.notEqual(chapter.image.caption.trim(), chapter.image.alt.trim(), `${chapterIds[index]} alt and figcaption must not duplicate each other`);
+    if (chapter.image) {
+      assert.deepEqual([chapter.image.webp, chapter.image.fallback], chapterImages[index], `${chapterIds[index]} must use the approved WebP and fallback image`);
+      assert.ok(typeof chapter.image.alt === 'string' && chapter.image.alt.trim(), `${chapterIds[index]} image must have meaningful alt text`);
+      assert.deepEqual([chapter.image.width, chapter.image.height], chapterDimensions[index], `${chapterIds[index]} image metadata must match its optimized intrinsic dimensions`);
+      assert.deepEqual(readPngDimensions(chapter.image.fallback), chapterFallbackDimensions[index],
+        `${chapterIds[index]} PNG fallback dimensions must match the actual asset`);
+      assert.equal(chapter.image.width / chapter.image.height,
+        chapterFallbackDimensions[index][0] / chapterFallbackDimensions[index][1],
+        `${chapterIds[index]} optimized image and PNG fallback must keep the same aspect ratio`);
+      assert.ok(typeof chapter.image.caption === 'string' && chapter.image.caption.trim(), `${chapterIds[index]} image must have a concise visual caption`);
+      assert.notEqual(chapter.image.caption.trim(), chapter.image.alt.trim(), `${chapterIds[index]} alt and figcaption must not duplicate each other`);
+    }
     assert.ok(Array.isArray(chapter.sections) && chapter.sections.length >= 2, `${chapterIds[index]} must include complete core-content sections`);
-    assert.ok(Array.isArray(chapter.quickCheck) && chapter.quickCheck.length >= 2, `${chapterIds[index]} must include at least two low-pressure review prompts`);
+    // 每个正文小节都要有能看能玩的东西：演示、场景卡、对比或四象限，光有文字不行。
+    // 目前只有第 1 章按这个标准重构完；其余五章改完后把它们加进这个列表。
+    if (rebuiltChapters.has(chapter.id)) {
+      for (const section of chapter.sections) {
+        const interactive = section.demo || section.demo2 || section.scenes || section.compare || section.quadrant;
+        assert.ok(interactive, `${chapter.id} · ${section.title} must ship a demo or interaction, not prose only`);
+      }
+    }
     const expected = expectedChapterContent[chapter.id];
     assert.deepEqual(chapter.sections.map(({ title }) => title), expected.sectionTitles,
       `${chapter.id} section titles must match the approved learning arc`);
     const coreCopy = JSON.stringify(chapter.sections);
     for (const term of expected.coreTerms) assert.ok(coreCopy.includes(term), `${chapter.id} core content must cover ${term}`);
-    assert.equal(chapter.caseStudy.title, expected.caseTitle, `${chapter.id} case study must use the approved workplace scenario`);
-    const caseCopy = JSON.stringify(chapter.caseStudy);
-    for (const term of expected.caseTerms) assert.ok(caseCopy.includes(term), `${chapter.id} case study must retain ${term}`);
-    assert.equal(chapter.exercise.type, expected.exerciseType, `${chapter.id} exercise must use ${expected.exerciseType}`);
-    for (const key of expected.exerciseKeys) assert.ok(Object.hasOwn(chapter.exercise, key), `${chapter.id} exercise must define ${key}`);
+    if (chapter.quickCheck) {
+      assert.ok(Array.isArray(chapter.quickCheck) && chapter.quickCheck.length >= 2, `${chapterIds[index]} review prompts must stay low-pressure`);
+    }
+    if (chapter.caseStudy) {
+      assert.equal(chapter.caseStudy.title, expected.caseTitle, `${chapter.id} case study must use the approved workplace scenario`);
+      const caseCopy = JSON.stringify(chapter.caseStudy);
+      for (const term of expected.caseTerms) assert.ok(caseCopy.includes(term), `${chapter.id} case study must retain ${term}`);
+    }
+    if (chapter.exercise) {
+      assert.equal(chapter.exercise.type, expected.exerciseType, `${chapter.id} exercise must use ${expected.exerciseType}`);
+      for (const key of expected.exerciseKeys) assert.ok(Object.hasOwn(chapter.exercise, key), `${chapter.id} exercise must define ${key}`);
+    }
     assert.equal(chapter.takeaway.title, expected.takeawayTitle, `${chapter.id} takeaway must match the approved tool`);
     const takeawayCopy = JSON.stringify(chapter.takeaway);
     for (const term of expected.takeawayTerms) assert.ok(takeawayCopy.includes(term), `${chapter.id} takeaway must retain ${term}`);
     assert.ok(typeof chapter.takeaway.template === 'string' && chapter.takeaway.template.trim(), `${chapter.id} takeaway must include a reusable template`);
   }
   const basics = api.chapters[0];
-  assert.deepEqual([basics.history.image.width, basics.history.image.height], [1200, 800],
-    'ai-basics history image metadata must match its optimized intrinsic dimensions');
-  assert.deepEqual(readPngDimensions(basics.history.image.fallback), [1536, 1024],
-    'ai-basics history PNG fallback dimensions must match the actual asset');
-  const optimizedAssets = [
-    ...api.chapters.map((chapter) => ({
+  // 「五个节点看懂 AI 演进」已随第 1 章重构一起移除：它讲的是技术演进史，
+  // 对「AI 到底是什么」这个问题帮助不大，读者看完不知道该记住什么。
+  assert.ok(!basics.history && !basics.historyTimeline, 'ai-basics must no longer ship the AI-evolution block');
+  const optimizedAssets = api.chapters
+    .filter((chapter) => chapter.image)
+    .map((chapter) => ({
       path: chapter.image.webp,
       expected: [chapter.image.width, chapter.image.height],
-    })),
-    {
-      path: basics.history.image.webp,
-      expected: [basics.history.image.width, basics.history.image.height],
-    },
-  ];
+    }));
   for (const asset of optimizedAssets) {
     const inspected = readWebpAsset(asset.path);
     assert.deepEqual([inspected.width, inspected.height], asset.expected,
@@ -1233,80 +1225,69 @@ function runContract() {
     assert.ok(inspected.bytes < 180 * 1024,
       `${asset.path} must stay below the 180KB web delivery budget`);
   }
-  assert.equal(basics.exercise.candidates.length, 3, 'ai-basics token exercise must expose three candidates');
-  assert.ok(basics.exercise.candidates.every(({ label, probability }) => typeof label === 'string' && label && Number.isFinite(probability)),
-    'ai-basics token candidates must have labels and numeric probabilities');
-  assert.equal(basics.exercise.candidates.reduce((sum, { probability }) => sum + probability, 0), 100,
-    'ai-basics token candidate probabilities must sum to 100');
-  const capabilitySection = basics.sections[0];
-  assert.equal(capabilitySection.title, '先看 AI 能做什么', 'ai-basics must lead with the approved capability-first section');
+  // 第 1 章重构：删掉了 token-and-concepts 练习和「四个词」小节，
+  // 它们在解释术语关系，不是在回答「AI 到底是什么」。
+  // 现在四个小节各自带一个演示，练习不再单独堆在章末。
+  assert.ok(!basics.exercise, 'ai-basics must no longer ship a chapter-end exercise block');
+  const basicsDemos = basics.sections.map((section) => (section.demo ? section.demo.type : (section.scenes ? 'scenes' : null)));
+  assert.deepEqual(basicsDemos, ['shift', 'scenes', 'typewriter', 'context-window'],
+    'ai-basics sections must each ship their approved demo');
+
+  const shiftDemo = basics.sections[0].demo;
+  assert.deepEqual(shiftDemo.sides.map(({ era }) => era), ['past', 'now'],
+    'the software-shift demo must contrast the old way with the new one');
+  assert.ok(shiftDemo.sides.every(({ steps, cost, note }) => Array.isArray(steps) && steps.length >= 4 && cost && note),
+    'both sides of the shift demo must show concrete steps and their real cost');
+
+  const capabilitySection = basics.sections[1];
+  assert.equal(capabilitySection.title, '四件今天就能上手的活', 'ai-basics must keep the capability section');
   assert.equal(capabilitySection.scenes.length, 4, 'ai-basics capability section must expose exactly four workplace scenes');
-  assert.deepEqual(capabilitySection.scenes.map(({ title }) => title), ['会议内容变清晰', '同一材料讲重点', '一个主题写成稿', '重复工作先打底'],
-    'ai-basics capability scenes must keep concise stable titles');
   assert.ok(capabilitySection.scenes.every(({ icon, input, assist, confirm, example }) =>
     typeof icon === 'string' && icon && input && assist && confirm && example),
   'every capability scene must define a unique icon, input material, AI assistance, human confirmation, and take-away example');
   assert.equal(new Set(capabilitySection.scenes.map(({ icon }) => icon)).size, 4,
     'all four capability scenes must use distinct line-icon keys');
-  assert.deepEqual(capabilitySection.scenes.map(({ input, assist, confirm }) => [Boolean(input), Boolean(assist), Boolean(confirm)]),
-    [[true, true, true], [true, true, true], [true, true, true], [true, true, true]],
-  'all four capability scenes must keep the input / AI assistance / human confirmation shape');
-  assert.deepEqual(basics.exercise.steps, ['切分 Token', '读取上下文', '预测候选', '选择下一个 Token', '重复直到完成'],
-    'ai-basics exercise must retain the approved five-step model flow');
-  assert.deepEqual(basics.exercise.relationshipNodes.map(({ label }) => label), ['AI', '生成式 AI', '大模型', 'Agent'],
-    'ai-basics relationship map must keep the approved four-node order');
-  assert.deepEqual(basics.exercise.relationshipLabels, {
-    scope: '范围：生成式 AI 是 AI 的一部分',
-    foundation: '常用能力底座：大模型常为生成式 AI 提供核心能力',
-    agent: '外接：模型 + 目标 + 工具 + 执行与检查循环',
-  }, 'ai-basics relationship map must expose visible scope, foundation, and Agent external-mechanism labels');
-  assert.ok(basics.exercise.relationshipNodes.every(({ label, explanation }) => label && explanation),
-    'every relationship-map node must have a dedicated short explanation');
-  assert.match(basics.exercise.relationshipNodes[3].explanation, /模型.*目标.*工具.*(?:执行|检查)/,
-    'Agent explanation must describe a model plus goals, tools, and an execution/check loop');
-  assert.equal(Object.hasOwn(basics.exercise, 'relations'), false,
-    'ai-basics must remove the old repeated three-group concept matching activity');
-  assert.deepEqual(basics.exercise.relationshipJudgment.options, ['对', '不对'],
-    'ai-basics must retain one binary lightweight Agent judgment');
-  assert.equal(basics.exercise.relationshipJudgment.statement, 'Agent 只是会写更长文本的大模型',
-    'ai-basics must use the approved single Agent judgment statement');
-  assert.equal(basics.exercise.relationshipJudgment.answer, '不对', 'the Agent judgment correct answer must be 不对');
-  assert.match(basics.exercise.relationshipJudgment.explanation, /模型.*目标.*工具.*(?:执行|检查)/,
-    'the Agent judgment explanation must teach model + goal + tools + execution/check');
-  assert.ok(basics.sections[1].bullets.includes('Agent：模型 + 目标 + 工具 + 执行与检查循环'),
-    'ai-basics relationship summary must describe Agent as model + goal + tools + execution/check loop');
-  assert.equal(basics.exercise.stepExplanations.length, 5, 'ai-basics exercise must explain all five model-flow steps');
-  assert.ok(basics.takeaway.template.includes('AI ⊃ 生成式 AI') && basics.takeaway.template.includes('能力底座'),
-    'ai-basics takeaway must express the AI scope and model capability-base relationship without a linear chain');
-  assert.ok(basics.takeaway.template.includes('Agent = 模型 + 目标 + 工具 + 执行与检查循环'),
-    'ai-basics takeaway must explain Agent as model plus goal, tools, and execution/check loop');
-  const boundaryComparison = api.chapters[1].sections[1];
-  assert.deepEqual(boundaryComparison.compare.map(({ role }) => role), ['搜索', 'AI', '两者配合'],
+
+  const typewriter = basics.sections[2].demo;
+  assert.ok(typewriter.steps.length >= 4, 'the next-word demo must run long enough to feel like generation');
+  assert.ok(typewriter.steps.every((step) => step.options.length === 3 &&
+    step.options.reduce((sum, { p }) => sum + p, 0) === 100),
+  'every next-word step must offer three candidates whose probabilities sum to 100');
+
+  const contextDemo = basics.sections[3].demo;
+  assert.ok(contextDemo.turns.length > contextDemo.capacity,
+    'the context-window demo must overflow so learners can watch a turn drop off');
+  assert.ok(contextDemo.consequence, 'the context-window demo must explain what breaks once a turn is dropped');
+
+  // 章节顺序改版后位置索引变了：0 basics / 1 boundaries / 2 prompting / 3 verification / 4 delegation / 5 workflow。
+  // 「它不是搜索引擎」现在是 boundaries 的第一小节。
+  const boundaryComparison = api.chapters[1].sections[0];
+  assert.deepEqual(boundaryComparison.compare.map(({ role }) => role), ['找搜索', '找 AI', '两个都用'],
     'ai-boundaries comparison must keep Search / AI / Both in a stable order');
-  assert.ok(JSON.stringify(boundaryComparison.compare).includes('实时事实') && JSON.stringify(boundaryComparison.compare).includes('原始出处') &&
-    JSON.stringify(boundaryComparison.compare).includes('解释') && JSON.stringify(boundaryComparison.compare).includes('改写') &&
-    JSON.stringify(boundaryComparison.compare).includes('生成'),
+  const boundaryCopy = JSON.stringify(boundaryComparison.compare);
+  assert.ok(boundaryCopy.includes('实时数字') && boundaryCopy.includes('原始来源') &&
+    boundaryCopy.includes('要点') && boundaryCopy.includes('初稿'),
   'ai-boundaries comparison must distinguish source finding from explanation and generation');
-  assert.deepEqual(boundaryComparison.choice.options.map(({ value }) => value), ['搜索', 'AI', '两者配合'],
-    'ai-boundaries lightweight choice must offer 搜索 / AI / 两者配合');
+  assert.deepEqual(boundaryComparison.choice.options.map(({ value }) => value), ['找搜索', '找 AI', '两个都用'],
+    'ai-boundaries lightweight choice must offer 找搜索 / 找 AI / 两个都用');
   assert.ok(boundaryComparison.choice.options.every(({ value, explanation }) => value && explanation),
     'every boundary choice must provide an immediate explanation');
   assert.deepEqual(api.chapters[1].exercise.claims.map(({ category }) => category), ['可以保留', '需要核验', '需要修改'],
     'ai-boundaries exercise must retain the three non-punitive review states');
   assert.ok(api.chapters[1].exercise.claims.some(({ text }) => /\d/.test(text)), 'ai-boundaries exercise must include a numeric claim to verify');
-  assert.deepEqual(api.chapters[2].exercise.tasks.map(({ lane }) => lane), ['AI', '人机协作', '人负责'],
+  assert.deepEqual(api.chapters[4].exercise.tasks.map(({ lane }) => lane), ['AI', '人机协作', '人负责'],
     'ai-delegation exercise must cover all three delegation lanes');
-  assert.deepEqual(api.chapters[3].exercise.fields, ['目标', '背景', '任务', '输出要求'],
+  assert.deepEqual(api.chapters[2].exercise.fields, ['目标', '背景', '任务', '输出要求'],
     'ai-prompting exercise must retain the four approved brief fields');
-  for (const field of api.chapters[3].exercise.fields) assert.ok(api.chapters[3].exercise.reference.includes(field),
+  for (const field of api.chapters[2].exercise.fields) assert.ok(api.chapters[2].exercise.reference.includes(field),
     `ai-prompting reference brief must demonstrate ${field}`);
-  assert.deepEqual(api.chapters[4].exercise.claims.map(({ kind }) => kind), ['事实', '推论', '观点'],
+  assert.deepEqual(api.chapters[3].exercise.claims.map(({ kind }) => kind), ['事实', '推论', '观点'],
     'ai-verification exercise must distinguish fact, inference, and opinion');
-  assert.ok(api.chapters[4].exercise.claims.every(({ evidence }) => typeof evidence === 'string' && evidence.trim()),
+  assert.ok(api.chapters[3].exercise.claims.every(({ evidence }) => typeof evidence === 'string' && evidence.trim()),
     'ai-verification exercise must connect every claim to evidence guidance');
-  assert.ok(api.chapters[4].exercise.claims.every(({ evidence }) => api.chapters[4].exercise.evidenceOptions.includes(evidence)),
+  assert.ok(api.chapters[3].exercise.claims.every(({ evidence }) => api.chapters[3].exercise.evidenceOptions.includes(evidence)),
     'ai-verification evidence choices must include every approved claim connection');
-  assert.deepEqual(api.chapters[4].exercise.versions.map(({ label, usable }) => [label, usable]), [['版本 A', false], ['版本 B', true]],
+  assert.deepEqual(api.chapters[3].exercise.versions.map(({ label, usable }) => [label, usable]), [['版本 A', false], ['版本 B', true]],
     'ai-verification must retain the approved two-version usability comparison');
   assert.ok(api.chapters[5].exercise.steps.length >= 4, 'ai-workflow exercise must contain sortable workflow steps');
   assert.deepEqual(api.chapters[5].exercise.steps.map(({ text }) => text),
@@ -1318,8 +1299,8 @@ function runContract() {
     'ai-workflow exercise must begin from the approved deterministic shuffled order');
   assert.notDeepEqual(api.chapters[5].exercise.shuffleOrder, [0, 1, 2, 3, 4],
     'ai-workflow initial order must not leak the recommended sequence');
-  assert.ok(api.chapters[5].sections[0].bullets.includes('Agent：模型 + 目标 + 工具 + 执行与检查循环'),
-    'ai-workflow summary must describe Agent as model + goal + tools + execution/check loop');
+  // Agent 的定义改版后只在 ai-basics 讲一次（那边的断言仍在）；
+  // ai-workflow 这一章现在讲菜谱、检查点和数据红线，不再重复定义 Agent。
   assert.deepEqual(api.aliases, aliases, 'legacy learning URL aliases must map to the approved new chapters');
   const renderChapterSource = learningScript.slice(
     learningScript.indexOf('function renderChapter('),
@@ -2503,13 +2484,9 @@ function runSelfTest() {
     replaceIn(root, 'learn.html', '<main>', '<main><a href="https://www.coursera.org/learn/ai-for-everyone">延伸阅读</a>');
   }, 'learn main must not contain external resource-directory links');
   expectMutation('incomplete basics Agent summary', (root) => {
-    replaceIn(root, 'learning-experience.js', '"大模型：从海量数据中学会模式","Agent：模型 + 目标 + 工具 + 执行与检查循环"',
-      '"大模型：从海量数据中学会模式","Agent：模型 + 工具 + 执行循环"');
+    replaceIn(root, 'learning-experience.js', 'Agent = 模型 + 一个目标 + 一套工具 + 自己执行并检查的循环',
+      'Agent = 模型 + 一套工具 + 循环');
   }, 'ai-basics relationship summary must describe Agent as model + goal + tools + execution/check loop');
-  expectMutation('incomplete workflow Agent summary', (root) => {
-    replaceIn(root, 'learning-experience.js', '"工作流：固定过程与检查点","Agent：模型 + 目标 + 工具 + 执行与检查循环"',
-      '"工作流：固定过程与检查点","Agent：在明确边界内调用工具、循环执行"');
-  }, 'ai-workflow summary must describe Agent as model + goal + tools + execution/check loop');
   expectMutation('narrow desktop relationship labels', (root) => {
     replaceIn(root, 'learning-experience.css', 'grid-template-columns: repeat(6, minmax(0, 1fr));',
       'grid-template-columns: minmax(0, 1fr) minmax(0, .8fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);');

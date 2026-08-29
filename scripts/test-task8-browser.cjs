@@ -254,13 +254,15 @@ const activeMutation = mutationDefinitions[mutation] ?? null;
 if (mutationMode && !activeMutation) throw new Error(`Unknown KB_QA_MUTATION: ${mutation}`);
 const activeMutationPages = activeMutation ? (activeMutation.pages ?? [activeMutation.page]) : [];
 const pages = mutationMode ? allPages.filter(([name]) => activeMutationPages.includes(name)) : allPages;
+// 2026-08-29 内容改版：三块分组（AI 是什么 / 怎么和 AI 沟通 / 怎么用 AI），
+// 「学会分工」从第 3 位移到第 5 位。id 不变，旧链接和别名照常可用。
 const learningChapters = [
-  ['ai-basics', '认识 AI'],
-  ['ai-boundaries', '看清边界'],
-  ['ai-delegation', '学会分工'],
-  ['ai-prompting', '把需求说清楚'],
-  ['ai-verification', '验证结果'],
-  ['ai-workflow', '从对话走向工作流'],
+  ['ai-basics', 'AI 到底是什么'],
+  ['ai-boundaries', '哪些能信，哪些不能信'],
+  ['ai-prompting', '话怎么说它才懂'],
+  ['ai-verification', '它给的东西怎么验'],
+  ['ai-delegation', '哪些活能交给它'],
+  ['ai-workflow', '好用的那次，怎么让它下次还好用'],
 ];
 
 function prepareBrowserGoodFixture(sourceRoot, targetRoot) {
@@ -766,6 +768,8 @@ async function runQa() {
           learnActionVisible: isVisible(learnAction),
           learnSummaryRect: rect(learnSummary),
           learnSummaryVisible: isVisible(learnSummary),
+          learnHintRect: rect(document.querySelector('[data-learning-first-hint]')),
+          learnHintVisible: isVisible(document.querySelector('[data-learning-first-hint]')),
           learnMetaRect: rect(learnMeta),
           learnMetaVisible: isVisible(learnMeta),
           learnMascotRect: rect(learnMascot),
@@ -973,8 +977,12 @@ async function runQa() {
         });
       }
 
+      if (name === 'video') {
+        expect(metrics.heroImageVisible && metrics.heroImageRect?.height >= (width >= 1236 ? 300 : width >= 820 ? 250 : 190), `video ${width}px: hero mascot should use the enlarged learning-page scale (${metrics.heroImageRect?.height || 0}px)`);
+      }
+
       if (name === 'learn') {
-        const expectedDescription = '从看懂 AI 到会协作，用六个轻量章节掌握分工、表达与判断。每章都有案例和小练习，无需技术背景。';
+        const expectedDescription = '六章讲清 AI 是什么、话怎么说它才懂、哪些活能交给它。每章都能动手试，无需技术背景。';
         const minimumImageHeight = width >= 1236 ? 300 : (width >= 820 ? 250 : 190);
         expect(metrics.learnDescriptionText === expectedDescription && metrics.learnDescriptionVisible,
           `learn ${width}px: full Hero description changed, hidden, or clipped (${metrics.learnDescriptionText})`);
@@ -997,25 +1005,23 @@ async function runQa() {
         ))), `learn ${width}px: reading Xiao A is clipped by ancestor (${JSON.stringify(metrics.learnImageClippingAncestors)})`);
         expect(!metrics.learnImageTitleOverlap && !metrics.learnImageDescriptionOverlap && !metrics.learnImageActionOverlap && !metrics.learnImageSummaryOverlap && !metrics.learnImageMetaOverlap,
           `learn ${width}px: reading Xiao A overlaps title, description, action, progress, or meta`);
-        expect(metrics.learnActionVisible && metrics.learnSummaryVisible && metrics.learnMetaVisible,
-          `learn ${width}px: action, session summary, or meta is hidden`);
+        expect(metrics.learnActionVisible, `learn ${width}px: continue action is hidden`);
+        // 首次访问显示「六章 · 每章 5–8 分钟」，回访才显示「已看 x / 6」，两者只出现一个。
+        expect(metrics.learnSummaryVisible !== metrics.learnHintVisible,
+          `learn ${width}px: exactly one of progress pill / first-visit hint must show`);
+        // 「6 轻量章节 / 6 工作案例 / 2–5 分钟小练习」统计块已删除：
+        // 工作案例和小练习在内容改版后不存在了，留着是过时信息。
+        expect(!metrics.learnMetaVisible, `learn ${width}px: the stale stats strip must stay removed`);
         const learnCopyLeft = metrics.learnCopyRect?.left ?? -1;
         expect(Math.abs((metrics.learnActionRect?.left ?? -100) - learnCopyLeft) <= 2,
           `learn ${width}px: continue action must align with copy left edge (${metrics.learnActionRect?.left}/${learnCopyLeft})`);
-        expect(Math.abs((metrics.learnMetaRect?.left ?? -100) - learnCopyLeft) <= 2,
-          `learn ${width}px: meta must align with copy left edge (${metrics.learnMetaRect?.left}/${learnCopyLeft})`);
-        if (width > 560) {
-          expect(Boolean(metrics.learnActionRect && metrics.learnSummaryRect
-            && Math.abs(metrics.learnActionRect.top - metrics.learnSummaryRect.top) <= 2
-            && metrics.learnSummaryRect.left - metrics.learnActionRect.right >= 12),
-            `learn ${width}px: action and session summary must form a horizontal group with at least 12px gap`);
-        } else {
-          expect(Boolean(metrics.learnActionRect && metrics.learnSummaryRect
-            && metrics.learnSummaryRect.top >= metrics.learnActionRect.bottom + 8),
-            `learn ${width}px: action and session summary must stack vertically with at least 8px gap`);
-          expect(Math.abs((metrics.learnSummaryRect?.left ?? -100) - learnCopyLeft) <= 2,
-            `learn ${width}px: stacked session summary must align with copy left edge (${metrics.learnSummaryRect?.left}/${learnCopyLeft})`);
-        }
+        // 按钮和下面那行说明改为上下堆叠：原来按钮、进度胶囊、说明三样并排太挤。
+        const learnMetaLineRect = metrics.learnSummaryVisible ? metrics.learnSummaryRect : metrics.learnHintRect;
+        expect(Boolean(metrics.learnActionRect && learnMetaLineRect
+          && learnMetaLineRect.top >= metrics.learnActionRect.bottom + 4),
+          `learn ${width}px: action and its meta line must stack vertically`);
+        expect(Math.abs((learnMetaLineRect?.left ?? -100) - learnCopyLeft) <= 2,
+          `learn ${width}px: stacked meta line must align with copy left edge (${learnMetaLineRect?.left}/${learnCopyLeft})`);
         learnViewportEvidence.push({
           width,
           descriptionLines: metrics.learnDescriptionLineCount,
@@ -1035,8 +1041,8 @@ async function runQa() {
         expect(metrics.resourcesInternalBeforeExternal, `resources ${width}px: internal Xiao A section must precede external resources`);
         expect(metrics.resourcesInternalTitle === '公司内部 AI 助手', `resources ${width}px: internal Xiao A title changed (${metrics.resourcesInternalTitle})`);
         expect(metrics.resourcesInternalPanelVisible && metrics.resourcesInternalTextPanelVisible && metrics.resourcesInternalAbilityPanelVisible, `resources ${width}px: full internal Xiao A panel is not visibly rendered`);
-        expect(metrics.resourcesInternalAbilityCount === 5, `resources ${width}px: expected five visible Xiao A capabilities (${metrics.resourcesInternalAbilityCount})`);
-        expect(JSON.stringify(metrics.resourcesInternalAbilityLabels) === JSON.stringify(['问流程', '查财务', '查系统', '连续追问', '看图表']), `resources ${width}px: Xiao A capability labels changed (${metrics.resourcesInternalAbilityLabels.join('/')})`);
+        expect(metrics.resourcesInternalAbilityCount === 3, `resources ${width}px: expected three visible Xiao A capabilities (${metrics.resourcesInternalAbilityCount})`);
+        expect(JSON.stringify(metrics.resourcesInternalAbilityLabels) === JSON.stringify(['问流程', '查财务', '查系统']), `resources ${width}px: Xiao A capability labels changed (${metrics.resourcesInternalAbilityLabels.join('/')})`);
         expect(metrics.resourcesInternalNote === '进入 Portal 后，点击右侧「小A智助」打开助手。', `resources ${width}px: Portal usage note changed (${metrics.resourcesInternalNote})`);
         expect(metrics.resourcesInternalPortal?.href === portalUrl && metrics.resourcesInternalPortal.target === '_blank' && metrics.resourcesInternalPortal.rel.split(/\s+/).includes('noopener'), `resources ${width}px: internal Xiao A Portal CTA is not a safe approved target`);
         expect(!metrics.resourcesComparisonVisible && !metrics.resourcesComparisonTableVisible, `resources ${width}px: removed Xiao A comparison table is still visible`);
@@ -1065,15 +1071,12 @@ async function runQa() {
         }
       }
 
-      if (name === 'video') {
-        expect(metrics.heroImageVisible && metrics.heroImageRect?.height >= (width >= 1236 ? 300 : width >= 820 ? 250 : 190), `video ${width}px: hero mascot should use the enlarged learning-page scale (${metrics.heroImageRect?.height || 0}px)`);
-      }
-
       if (name === 'learn') {
         expect(metrics.learningCardCount === 6 && metrics.visibleLearningCardCount === 6, `learn ${width}px: expected six visible chapter cards (${metrics.visibleLearningCardCount}/${metrics.learningCardCount})`);
         expect(JSON.stringify(metrics.learningCards.map((card) => [card.id, card.title])) === JSON.stringify(learningChapters), `learn ${width}px: chapter order or titles changed (${JSON.stringify(metrics.learningCards)})`);
         expect(metrics.learningCards.every((card) => card.status === '未看' && card.href === `detail.html?type=learn&id=${card.id}`), `learn ${width}px: fresh-session cards must expose 未看 and canonical detail URLs`);
-        expect(metrics.learningToolCardCount === 4 && metrics.visibleLearningToolCardCount === 4, `learn ${width}px: expected four visible takeaway tools (${metrics.visibleLearningToolCardCount}/${metrics.learningToolCardCount})`);
+        // 目录页的四张工具卡已移除——模板本来就重复在各章「带走要点」里。
+        expect(metrics.learningToolCardCount === 0, `learn ${width}px: standalone toolkit must be gone (${metrics.learningToolCardCount})`);
         expect(!metrics.learningMovedTextVisible, `learn ${width}px: moved external resource directory returned to the beginner hub`);
       }
 
@@ -1261,18 +1264,34 @@ async function runQa() {
       session: sessionStorage.getItem('amersports-ai-beginner-session-v1'),
       persistentKeys: Object.keys(localStorage),
     }));
-    expect(JSON.parse(sessionAfterVisit.session || '{}')['ai-basics'] === 'in-progress', 'opening a canonical chapter must mark it 正在看 in sessionStorage');
+    // 2026-08-29 起：打开页面不再写状态，「正在看」要读满 2 个小节才成立。
+    expect(JSON.parse(sessionAfterVisit.session || '{}').s?.['ai-basics'] !== 'in-progress',
+      'opening a canonical chapter must not by itself mark it 正在看');
     expect(sessionAfterVisit.persistentKeys.length === 0, 'learning progress must not write localStorage');
+
+    // 滚过前几个小节，把状态真正推到「正在看」，再验证它跨刷新存活。
+    // 观察器只对滚到视口上半部分的小节触发，所以要逐节滚，不能一次跳到底。
+    for (const key of ['c0', 'c1', 'c2', 'c3']) {
+      const section = page.locator(`#sec-ai-basics-${key}`);
+      if (await section.count() === 0) continue;
+      await section.evaluate((node) => node.scrollIntoView({ block: 'start', behavior: 'instant' }));
+      await page.waitForTimeout(120);
+    }
+    await page.waitForFunction(() => {
+      const raw = sessionStorage.getItem('amersports-ai-beginner-session-v1');
+      return !!raw && JSON.parse(raw).s?.['ai-basics'] === 'in-progress';
+    }, null, { timeout: 5000 });
     await page.reload({ waitUntil: 'domcontentloaded' });
-    expect(JSON.parse(await page.evaluate(() => sessionStorage.getItem('amersports-ai-beginner-session-v1')) || '{}')['ai-basics'] === 'in-progress', 'session progress must survive reload in the same tab');
+    expect(JSON.parse(await page.evaluate(() => sessionStorage.getItem('amersports-ai-beginner-session-v1')) || '{}').s?.['ai-basics'] === 'in-progress',
+      'session progress must survive reload in the same tab');
     await page.goto(`${base}/learn.html`, { waitUntil: 'domcontentloaded' });
     expect((await page.locator('#chapter-ai-basics .learning-status').textContent()).trim() === '正在看', 'learning hub must reflect session progress');
 
     for (const [alias, canonicalTitle] of [
-      ['ai-what', '认识 AI'],
-      ['ai-history', '认识 AI'],
-      ['prompt-basics', '把需求说清楚'],
-      ['ai-other', '认识 AI'],
+      ['ai-what', 'AI 到底是什么'],
+      ['ai-history', 'AI 到底是什么'],
+      ['prompt-basics', '话怎么说它才懂'],
+      ['ai-other', 'AI 到底是什么'],
     ]) {
       await page.goto(`${base}/detail.html?type=learn&id=${alias}`, { waitUntil: 'domcontentloaded' });
       await page.locator('.lesson-header h1').waitFor();
@@ -1300,14 +1319,16 @@ async function runQa() {
     expect(reducedCardMotion.animationName === 'none' && reducedCardMotion.transitionDuration.split(',').every((duration) => Number.parseFloat(duration) <= .001),
       `reduced motion must disable learning-card animation and transitions (${JSON.stringify(reducedCardMotion)})`);
     await page.goto(`${base}/detail.html?type=learn&id=ai-basics`, { waitUntil: 'domcontentloaded' });
-    const reducedFeedbackMotion = await page.locator('.lesson-feedback').evaluate((node) => {
+    // 第 1 章重构后练习嵌进小节演示，反馈区从 .lesson-feedback 换成 .lesson-demo-live。
+    const reducedFeedbackMotion = await page.locator('.lesson-demo-live').first().evaluate((node) => {
       const style = getComputedStyle(node);
       return { animationName: style.animationName, transitionDuration: style.transitionDuration };
     });
     expect(reducedFeedbackMotion.animationName === 'none' && reducedFeedbackMotion.transitionDuration.split(',').every((duration) => Number.parseFloat(duration) <= .001),
-      `reduced motion must disable lesson-feedback animation and transitions (${JSON.stringify(reducedFeedbackMotion)})`);
-    await page.locator('[data-token-option]').first().click();
-    expect((await page.locator('.lesson-feedback').textContent()).trim().length > 0, 'reduced-motion preference must not disable lesson interaction feedback');
+      `reduced motion must disable demo feedback animation and transitions (${JSON.stringify(reducedFeedbackMotion)})`);
+    await page.locator('.lesson-demo-typewriter .lesson-type-candidate').first().click();
+    expect((await page.locator('.lesson-demo-typewriter .lesson-demo-live').textContent()).trim().length > 0,
+      'reduced-motion preference must not disable lesson interaction feedback');
     await page.emulateMedia({ reducedMotion: 'no-preference' });
 
     await page.goto(`${base}/video.html`, { waitUntil: 'domcontentloaded' });

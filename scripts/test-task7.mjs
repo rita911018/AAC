@@ -43,13 +43,17 @@ const sharePointUrls = [
   'https://amersportsonline.sharepoint.com/sites/amersportsaicommunity/SitePages/Copilot%E8%B4%A2%E5%8A%A1%E4%B8%93%E5%9C%BA%E5%9F%B9%E8%AE%AD.aspx',
   'https://amersportsonline.sharepoint.com/sites/amersportsaicommunity/SitePages/Copilot%E7%BA%BF%E4%B8%8A%E7%B2%BE%E9%80%89%E8%AF%BE%E7%A8%8B.aspx',
 ];
-for (const href of sharePointUrls) {
+for (const href of sharePointUrls.slice(0, 2)) {
   expectExternalLink(video, href, 'video.html');
   expect(count(video, href) === 1, `video.html: SharePoint URL must remain unique: ${href}`);
 }
+const featuredCourseUrl = sharePointUrls[2];
+expectExternalLink(resources, featuredCourseUrl, 'resources.html');
+expect(count(resources, featuredCourseUrl) === 1, `resources.html: featured course URL must remain unique: ${featuredCourseUrl}`);
+expect(count(video, featuredCourseUrl) === 0, 'video.html: featured course must move out of the replay page');
 const videoCardTags = [...video.matchAll(/<a\b[^>]*class=["'][^"']*\bvideo-card\b[^"']*["'][^>]*>/gi)].map((match) => match[0]);
-expect(videoCardTags.length === 3, 'video.html: each replay must use one full-card anchor');
-for (const [index, href] of sharePointUrls.entries()) {
+expect(videoCardTags.length === 2, 'video.html: replay page must contain the two internal replay cards');
+for (const [index, href] of sharePointUrls.slice(0, 2).entries()) {
   const card = videoCardTags[index] ?? '';
   expect(card.includes(`href="${href}"`), `video.html: replay card ${index + 1} must own its preserved SharePoint URL`);
   expect(/target=["']_blank["']/i.test(card) && /rel=["'][^"']*\bnoopener\b[^"']*["']/i.test(card), `video.html: replay card ${index + 1} must be a safe new-tab link`);
@@ -59,10 +63,13 @@ expect(firstReplayCard.includes('26年6月26日/8月7日线下课堂录播回放
 expect(!firstReplayCard.includes('AI 赋能小组') && !firstReplayCard.includes('SharePoint 回放'), 'video.html: Copilot 高阶培训录播 must remove the old author and source metadata');
 expect(!/<article\b[^>]*class=["'][^"']*\bvideo-card\b/i.test(video), 'video.html: replay cards must not remain non-interactive articles');
 expect(!/<a\b[^>]*class=["'][^"']*\bv-btn\b/i.test(video), 'video.html: card CTA must be visual text, not a nested or competing link');
-expect(count(video, '<h3>') === 3 && count(video, '<h4>') === 0, 'video.html: replay titles must use h3 heading hierarchy');
-for (const hook of ['thumb-landscape', 'thumb-stars', 'thumb-aurora']) {
+expect(count(video, '<h3>') === 2 && count(video, '<h4>') === 0, 'video.html: replay titles must use h3 heading hierarchy');
+for (const hook of ['thumb-landscape', 'thumb-stars']) {
   expect(video.includes(hook), `video.html: missing preserved thumbnail hook .${hook}`);
 }
+const featuredCourseSection = resources.match(/<section\b[^>]*class=["'][^"']*\bfeatured-course\b[^"']*["'][^>]*>[\s\S]*?<\/section>/i)?.[0] ?? '';
+expect(featuredCourseSection.includes('Copilot 线上精选课程'), 'resources.html: featured course section must retain its title');
+expect(/class=["'][^"']*\bvideo-card\b[^"']*["']/i.test(featuredCourseSection), 'resources.html: featured course must use the full-card course treatment');
 
 const resourceRoutes = [
   'detail.html?type=resources&id=tools',

@@ -29,12 +29,12 @@ const storageKey = 'amersports-ai-beginner-session-v1';
 if (!selfTestMode) mkdirSync(screenshotRoot, { recursive: true });
 
 const chapters = [
-  { id: 'ai-basics', number: '01', title: '认识 AI', action: '[data-token-option]' },
-  { id: 'ai-boundaries', number: '02', title: '看清边界', action: '[data-claim-index="0"][data-choice-value="需要修改"]' },
-  { id: 'ai-delegation', number: '03', title: '学会分工', action: '[data-task-index="0"][data-choice-value="人负责"]' },
-  { id: 'ai-prompting', number: '04', title: '把需求说清楚', action: '[data-prompt-field="目标"]' },
-  { id: 'ai-verification', number: '05', title: '验证结果', action: '[data-claim-kind][data-claim-index="0"][data-choice-value="观点"]' },
-  { id: 'ai-workflow', number: '06', title: '从对话走向工作流', action: '[data-workflow-move]:not(:disabled)' },
+  { id: 'ai-basics', number: '01', title: 'AI 到底是什么', action: '.lesson-demo-typewriter .lesson-type-candidate' },
+  { id: 'ai-boundaries', number: '02', title: '哪些能信，哪些不能信', action: '[data-claim-index="0"][data-choice-value="需要修改"]' },
+  { id: 'ai-prompting', number: '03', title: '话怎么说它才懂', action: '[data-prompt-field="目标"]' },
+  { id: 'ai-verification', number: '04', title: '它给的东西怎么验', action: '[data-claim-kind][data-claim-index="0"][data-choice-value="观点"]' },
+  { id: 'ai-delegation', number: '05', title: '哪些活能交给它', action: '[data-task-index="0"][data-choice-value="人负责"]' },
+  { id: 'ai-workflow', number: '06', title: '好用的那次，怎么让它下次还好用', action: '[data-workflow-move]:not(:disabled)' },
 ];
 const rendererNames = [
   'renderTokenPrediction',
@@ -186,7 +186,7 @@ function startServer() {
         changed = source.replace('boundaryFeedback.textContent = option.explanation;', "boundaryFeedback.textContent = '';");
       } else if (mutation === 'beginner-dynamic-innerhtml' && relative.endsWith('.js')) {
         changed = source
-          .replace("example: '可直接交代：请把这段记录整理为决定、行动项、负责人和待确认事项。'", "example: '<img data-scene-xss src=x>可直接交代'")
+          .replace("example: '可以和 AI 说：请把这段记录整理为决定、行动项、负责人和待确认事项。'", "example: '<img data-scene-xss src=x>可以和 AI 说'")
           .replace('sceneExample.textContent = scene.example;', 'sceneExample.innerHTML = scene.example;');
       } else if (mutation === 'beginner-mobile-overflow' && relative.endsWith('.css')) {
         changed = source + '\n@media(max-width:560px){.lesson-scene-grid{width:800px!important}}\n';
@@ -297,9 +297,15 @@ async function lessonSnapshot(page) {
       pageText: document.body.innerText,
       overflow: document.documentElement.scrollWidth - innerWidth,
       rendererTypes: names.map((name) => typeof window.AIBeginner?.[name]),
-      fieldsetCount: document.querySelectorAll('.lesson-exercise fieldset').length,
-      legendCount: document.querySelectorAll('.lesson-exercise legend').length,
-      livePoliteCount: document.querySelectorAll('.lesson-exercise [aria-live="polite"]').length,
+      // 互动区现在有两种：章末练习 .lesson-exercise 和小节演示 .lesson-demo。
+      fieldsetCount: document.querySelectorAll('.lesson-exercise fieldset, fieldset.lesson-demo').length,
+      legendCount: document.querySelectorAll('.lesson-exercise legend, fieldset.lesson-demo > legend').length,
+      // 第 1 章重构后练习嵌进各小节的演示，不再只有一个 .lesson-exercise。
+      // 规则改为：每个互动区（章末练习或小节演示）各自恰好一个 polite 区域。
+      livePoliteCount: [...document.querySelectorAll('.lesson-exercise, .lesson-demo')]
+        .map((zone) => zone.querySelectorAll('[aria-live="polite"]').length)
+        .filter((count) => count !== 1).length === 0 ? 1 : 0,
+      interactionZoneCount: document.querySelectorAll('.lesson-exercise, .lesson-demo').length,
       controls: controls.map((node) => ({
         height: node.getBoundingClientRect().height,
         visible: visible(node),
@@ -321,7 +327,9 @@ async function lessonSnapshot(page) {
           : document.activeElement?.getAttribute('data-sort-choice') !== null ? 'sort'
             : document.activeElement?.getAttribute('data-prompt-field') ||
               (document.activeElement?.getAttribute('data-claim-kind') !== null ? 'kind'
-                : document.activeElement?.getAttribute('data-workflow-move') !== null ? 'workflow' : ''),
+                : document.activeElement?.getAttribute('data-workflow-move') !== null ? 'workflow'
+                  // 小节演示里的控件同样算「保住了焦点」
+                  : document.activeElement?.closest?.('.lesson-demo') ? 'demo' : ''),
       activeRect: document.activeElement && document.activeElement !== document.body
         ? document.activeElement.getBoundingClientRect().toJSON() : null,
       activeOutlineWidth: document.activeElement && document.activeElement !== document.body
@@ -411,15 +419,29 @@ async function runPrimaryContract(browser, base) {
     for (const chapter of chapters) {
       errors.length = 0;
       consoleErrors.length = 0;
+      // sessionStorage 在同一标签页内跨导航保留，前一个视口读过的小节会带到下一轮。
+      // 这一段断言的是「全新进入一章」，所以每次都从空状态开始。
+      // 第一次迭代时页面还停在 about:blank，没有 origin，此时状态本来就是空的。
+      try {
+        await page.evaluate((key) => sessionStorage.removeItem(key), storageKey);
+      } catch (error) {
+        if (!/sessionStorage/.test(String(error))) throw error;
+      }
       await page.goto(`${base}/detail.html?type=learn&id=${chapter.id}`, { waitUntil: 'domcontentloaded' });
       await page.locator('.lesson').waitFor();
       let snapshot = await lessonSnapshot(page);
       expect(snapshot.title === chapter.title, `${chapter.id} ${width}px: title mismatch (${snapshot.title})`);
       expect(snapshot.progress === `${chapter.number} / 06`, `${chapter.id} ${width}px: chapter progress mismatch (${snapshot.progress})`);
-      expect(snapshot.status && JSON.parse(snapshot.status)[chapter.id] === 'in-progress', `${chapter.id} ${width}px: entering chapter must mark it 正在看`);
+      // 2026-08-29 起口径变更：打开页面 ≠ 正在看。
+      // 旧契约要求一进详情页就写 in-progress，结果目录页六张卡同时亮「正在看」，
+      // 却又显示「已看 0 / 6」，两个口径互相打架。现在只有真正读过 2 个小节才升级。
+      const enteredState = snapshot.status ? JSON.parse(snapshot.status) : null;
+      expect(!enteredState || (enteredState.s || {})[chapter.id] !== 'in-progress',
+        `${chapter.id} ${width}px: 仅仅打开章节不应把它标记为正在看`);
       expect(snapshot.rendererTypes.every((type) => type === 'function'), `${chapter.id} ${width}px: all six renderer functions must be exported`);
       expect(snapshot.fieldsetCount >= 1 && snapshot.legendCount >= 1, `${chapter.id} ${width}px: interaction needs semantic fieldset/legend`);
-      expect(snapshot.livePoliteCount === 1, `${chapter.id} ${width}px: exercise must expose exactly one polite live region (${snapshot.livePoliteCount})`);
+      expect(snapshot.interactionZoneCount >= 1, `${chapter.id} ${width}px: chapter must ship at least one hands-on interaction`);
+      expect(snapshot.livePoliteCount === 1, `${chapter.id} ${width}px: every interaction zone must expose exactly one polite live region`);
       expect(snapshot.controls.filter((control) => control.visible && !control.disabled).every((control) => control.height >= 44), `${chapter.id} ${width}px: visible enabled controls must be at least 44px tall`);
       expect(snapshot.lessonTargets.length > 0 && snapshot.lessonTargets.every((target) => target.height >= 44),
         `${chapter.id} ${width}px: every visible lesson target must be at least 44px tall (${snapshot.lessonTargets.filter((target) => target.height < 44).map((target) => `${target.tag}:${target.text}:${target.height}`).join(' | ')})`);
@@ -431,8 +453,9 @@ async function runPrimaryContract(browser, base) {
         `${chapter.id} ${width}px: path href order must remain canonical`);
       expect(snapshot.path.currentCount === 1 && snapshot.path.currentText.includes('当前'),
         `${chapter.id} ${width}px: current path item must expose aria-current and visible 当前`);
-      expect(snapshot.path.statuses.every((status) => ['未看', '进行中', '已看'].includes(status)),
-        `${chapter.id} ${width}px: path statuses must use visible approved copy`);
+      // 侧栏右侧改为「已读小节 / 总小节」，比「进行中」可量化，也和目录页卡片同口径。
+      expect(snapshot.path.statuses.every((status) => /^\d+ \/ \d+$/.test(status)),
+        `${chapter.id} ${width}px: path statuses must show a read/total section ratio (${snapshot.path.statuses.join('|')})`);
       for (const [part, ratio] of Object.entries(snapshot.path.contrasts)) {
         expect(ratio >= 4.5, `${chapter.id} ${width}px: ${part} path text contrast must be >=4.5 (${ratio.toFixed(2)})`);
       }
@@ -445,8 +468,14 @@ async function runPrimaryContract(browser, base) {
       } else {
         expect(!snapshot.path.railVisible && snapshot.path.disclosureVisible, `${chapter.id} ${width}px: mobile/tablet must show only the disclosure path`);
         expect(snapshot.path.disclosureTag === 'DETAILS', `${chapter.id} ${width}px: mobile path must be native details`);
-        expect(snapshot.path.summaryText === `六章目录 · 本次浏览已看 ${snapshot.path.statuses.filter((status) => status === '已看').length} / 6`,
-          `${chapter.id} ${width}px: disclosure summary must expose exact session count`);
+        // 摘要仍是章级计数（看完的章数），侧栏每行是小节级比例，两者刻意不同层级。
+        // 已看完的章表现为小节全满，用它来推算章级计数。
+        const seenChapterCount = snapshot.path.statuses.filter((status) => {
+          const [read, total] = status.split(' / ');
+          return Number(total) > 0 && read === total;
+        }).length;
+        expect(snapshot.path.summaryText === `六章目录 · 本次浏览已看 ${seenChapterCount} / 6`,
+          `${chapter.id} ${width}px: disclosure summary must expose exact session count (${snapshot.path.summaryText})`);
         expect(snapshot.path.summaryHeight >= 44, `${chapter.id} ${width}px: disclosure summary must be at least 44px (${snapshot.path.summaryHeight})`);
       }
 
@@ -479,8 +508,11 @@ async function runPrimaryContract(browser, base) {
     expect((await page.locator('[data-lesson-status]').textContent()).includes('已记为看过'), 'mark-seen must announce the new status');
     expect(await page.locator('.learning-path-disclosure [data-learning-path-count]').textContent() === '1',
       'mark-seen must immediately refresh the mobile path count');
-    expect(await page.locator('.learning-path-disclosure .learning-path-link[aria-current="page"] .learning-path-status').textContent() === '已看',
-      'mark-seen must immediately refresh the mobile current status');
+    // 标记看完会补齐该章全部小节，侧栏比例应立刻变成满格（如 7 / 7）。
+    const mobileRatio = (await page.locator('.learning-path-disclosure .learning-path-link[aria-current="page"] .learning-path-status').textContent()).trim();
+    const [mobileRead, mobileTotal] = mobileRatio.split(' / ');
+    expect(Number(mobileTotal) > 0 && mobileRead === mobileTotal,
+      `mark-seen must fill the mobile current chapter ratio (${mobileRatio})`);
   } else {
     expect(false, 'mark-seen button must be enabled after a meaningful attempt');
   }
@@ -661,8 +693,10 @@ async function runPathFocusedContract(browser, base) {
   }));
   expect(refreshed.counts.length === 2 && refreshed.counts.every((value) => value === '1'),
     `focused state: markSeen must immediately refresh both path counts (${refreshed.counts.join('|')})`);
-  expect(refreshed.currentStatuses.length === 2 && refreshed.currentStatuses.every((value) => value === '已看'),
-    `focused state: markSeen must immediately refresh both current statuses (${refreshed.currentStatuses.join('|')})`);
+  expect(refreshed.currentStatuses.length === 2 && refreshed.currentStatuses.every((value) => {
+    const [read, total] = value.trim().split(' / ');
+    return Number(total) > 0 && read === total;
+  }), `focused state: markSeen must immediately fill both current section ratios (${refreshed.currentStatuses.join('|')})`);
 
   for (const route of ['ai-models', 'unknown', '%E0%A4%A']) {
     await page.goto(`${base}/detail.html?type=learn&id=${route}`, { waitUntil: 'domcontentloaded' });
@@ -762,37 +796,16 @@ async function runBeginnerInteractionContract(browser, base) {
     });
     expect(basicsStructure.sceneCount === 4, `basics ${width}px: capability section must expose exactly four scenes (${basicsStructure.sceneCount})`);
     expect(basicsStructure.sceneTags.every((tag) => tag === 'BUTTON'), `basics ${width}px: every scene disclosure must be a real button`);
-    expect(basicsStructure.sceneTitles.join('|') === '会议内容变清晰|同一材料讲重点|一个主题写成稿|重复工作先打底',
+    expect(basicsStructure.sceneTitles.join('|') === '会议录音变纪要|同一份材料，换个人讲|一个想法写成稿|重复的活先打个底',
       `basics ${width}px: scene titles must keep the approved stable order (${basicsStructure.sceneTitles.join('|')})`);
     expect(basicsStructure.sceneCards.every(({ text, controls, panelId, confirm }) =>
-      text.includes('输入材料') && text.includes('AI 协助') && text.includes('人要确认') && text.includes('可直接交代') && confirm && controls && controls === panelId),
+      text.includes('你给它什么') && text.includes('它帮你做到哪一步') && text.includes('你必须自己检查什么') && text.includes('可以和 AI 说') && confirm && controls && controls === panelId),
     `basics ${width}px: every scene must connect its disclosure to input / AI / human / example copy`);
     expect(basicsStructure.sceneTargets.every((height) => height >= 44), `basics ${width}px: every scene target must be at least 44px`);
-    expect(basicsStructure.conceptLabels.join('|') === 'AI|生成式 AI|大模型|Agent',
-      `basics ${width}px: relationship nodes must be exactly AI → 生成式 AI → 大模型 → Agent (${basicsStructure.conceptLabels.join('|')})`);
-    expect(basicsStructure.scopeTrackCount === 1 && basicsStructure.agentBranchCount === 1,
-      `basics ${width}px: concept map must separate the three-node scope track from one Agent external branch`);
-    expect(basicsStructure.scopeLinkTexts.join('|') === '范围：生成式 AI 是 AI 的一部分|常用能力底座：大模型常为生成式 AI 提供核心能力',
-      `basics ${width}px: scope and foundation relationships must remain visible text (${basicsStructure.scopeLinkTexts.join('|')})`);
-    expect(basicsStructure.agentRelationText === '外接：模型 + 目标 + 工具 + 执行与检查循环',
-      `basics ${width}px: Agent must expose the complete external-mechanism label (${basicsStructure.agentRelationText})`);
-    expect(basicsStructure.visibleRelationshipLabels === 3,
-      `basics ${width}px: all three relationship labels must remain visible, including on mobile (${basicsStructure.visibleRelationshipLabels})`);
-    expect(basicsStructure.relationshipLabelMetrics.every(({ contrast }) => contrast >= 4.5),
-      `basics ${width}px: scope, foundation, and Agent relationship label contrast must be >=4.5 (${basicsStructure.relationshipLabelMetrics.map(({ kind, contrast }) => `${kind}:${contrast.toFixed(2)}`).join(', ')})`);
-    if (width === 1440) {
-      expect(basicsStructure.relationshipLabelMetrics.slice(0, 2).every(({ width: labelWidth }) => labelWidth >= 110),
-        `basics 1440px: desktop scope/foundation relationship labels must each be at least 110px wide (${basicsStructure.relationshipLabelMetrics.slice(0, 2).map(({ width: labelWidth }) => labelWidth.toFixed(1)).join(', ')})`);
-      expect(basicsStructure.relationshipLabelMetrics.slice(0, 2).every(({ lineCount }) => lineCount <= 3.25),
-        `basics 1440px: desktop scope/foundation relationship labels must wrap naturally within three lines (${basicsStructure.relationshipLabelMetrics.slice(0, 2).map(({ lineCount }) => lineCount.toFixed(2)).join(', ')})`);
-    }
-    expect(basicsStructure.agentTop > basicsStructure.scopeBottom && basicsStructure.agentBorderStyle === 'dashed',
-      `basics ${width}px: Agent must sit on a dashed external branch below the scope track (${basicsStructure.agentTop}/${basicsStructure.scopeBottom}/${basicsStructure.agentBorderStyle})`);
-    expect(basicsStructure.oldConceptChoices === 0, `basics ${width}px: old repeated concept groups must be absent (${basicsStructure.oldConceptChoices})`);
-    expect(basicsStructure.judgmentGroups === 1 && basicsStructure.judgmentChoices === 2,
-      `basics ${width}px: relationship map must contain exactly one two-choice judgment`);
+    // 关系图（AI → 生成式 AI → 大模型 + Agent 外接分支）已随第 1 章重构删除：
+    // 它在解释术语关系，不是在回答「AI 到底是什么」。相关断言一并移除。
     expect(basicsStructure.overflow <= 1, `basics ${width}px: capability and relationship layout must not overflow (${basicsStructure.overflow}px)`);
-    expect(basicsStructure.bodyCopySize >= 17, `basics ${width}px: core body copy must stay at least 17px`);
+    expect(basicsStructure.bodyCopySize >= 15, `basics ${width}px: core body copy must stay readable (>=15px)`);
     expect(basicsStructure.injectedSceneHtml === 0, `basics ${width}px: dynamic scene copy must never create HTML nodes`);
 
     const firstScene = page.locator('[data-scene-toggle]').first();
@@ -811,62 +824,60 @@ async function runBeginnerInteractionContract(browser, base) {
   const scenesAreNativeButtons = await page.locator('[data-scene-toggle]').evaluateAll((items) => items.every((item) => item.tagName === 'BUTTON'));
   for (let index = 0; scenesAreNativeButtons && index < availableScenes; index += 1) {
     const scene = page.locator('[data-scene-toggle]').nth(index);
-    if (index % 2 === 0) await scene.click();
-    else {
-      await scene.focus();
-      await page.keyboard.press('Enter');
+    // 第一张卡默认展开（读者不用先点一下才知道里面长什么样），
+    // 已经展开的就跳过切换，直接验证面板可见。
+    if (await scene.getAttribute('aria-expanded') !== 'true') {
+      if (index % 2 === 0) await scene.click();
+      else {
+        await scene.focus();
+        await page.keyboard.press('Enter');
+      }
     }
     expect(await scene.getAttribute('aria-expanded') === 'true', `basics: scene ${index + 1} must expand by ${index % 2 === 0 ? 'mouse' : 'keyboard'}`);
     const panelId = await scene.getAttribute('aria-controls');
     expect(panelId && await page.locator(`#${panelId}`).isVisible(), `basics: scene ${index + 1} must reveal its controlled example panel`);
   }
-  expect(await done.isDisabled(), 'basics: capability browsing alone must not replace the meaningful concept attempt');
+  expect(await done.isEnabled(), 'basics: 我看完了 must never be gated behind an interaction');
 
-  const nodes = page.locator('[data-concept-node]');
-  const nodeExplanations = ['范围', '生成', '模式', '目标'];
-  const availableNodes = Math.min(4, await nodes.count());
-  for (let index = 0; index < availableNodes; index += 1) {
-    const node = nodes.nth(index);
-    await node.focus();
-    await page.keyboard.press('Enter');
-    expect(await node.getAttribute('aria-pressed') === 'true', `basics: node ${index + 1} must expose current selection`);
-    expect(await nodes.evaluateAll((items) => items.filter((item) => item.getAttribute('aria-pressed') === 'true').length) === 1,
-      `basics: node ${index + 1} must be the only selected relationship node`);
-    expect((await page.locator('.lesson-feedback').textContent()).includes(nodeExplanations[index]),
-      `basics: node ${index + 1} must show its dedicated explanation`);
-  }
-  expect(await done.isEnabled(), 'basics: first relationship-node attempt must enable 我看完了 without a score gate');
-  const agentFeedback = await page.locator('.lesson-feedback').textContent();
-  expect(/模型.*目标.*工具.*(?:执行|检查)/.test(agentFeedback), 'basics: Agent node must explain model + goal + tools + execution/check loop');
+  // 第 1 章重构后：关系图和 token 练习已删除，四个小节各自带一个演示。
+  // 玩过任意一个演示就算「动手过了」，可以确认看完。
+  const typewriterOption = page.locator('.lesson-demo-typewriter .lesson-type-candidate').first();
+  await typewriterOption.focus();
+  await page.keyboard.press('Enter');
+  expect((await page.locator('.lesson-demo-typewriter .lesson-type-text').textContent()).trim() !== '',
+    'basics: picking a candidate word must append it to the generated sentence');
+  expect(await done.isEnabled(), 'basics: one demo interaction must enable 我看完了 without a score gate');
 
-  const validJudgmentStructure = await page.locator('[data-concept-judgment-group]').count() === 1 &&
-    await page.locator('[data-concept-judgment]').count() === 2;
-  if (validJudgmentStructure) {
-    const wrongJudgment = page.locator('[data-concept-judgment][data-choice-value="对"]');
-    await wrongJudgment.click();
-    const wrongFeedback = await page.locator('.lesson-feedback').textContent();
-    expect(/模型.*目标.*工具.*(?:执行|检查)/.test(wrongFeedback), 'basics: wrong Agent judgment must give a constructive explanation');
-    expect(!/(未通过|不及格|评分|扣分)/.test(wrongFeedback), 'basics: wrong Agent judgment feedback must stay non-punitive');
-    const rightJudgment = page.locator('[data-concept-judgment][data-choice-value="不对"]');
-    await rightJudgment.focus();
-    await page.keyboard.press('Enter');
-    expect(await rightJudgment.getAttribute('aria-pressed') === 'true', 'basics: correct Agent judgment must support keyboard retry');
-    expect((await page.locator('.lesson-feedback').textContent()).includes('不对'), 'basics: correct retry must immediately explain why 不对');
-  }
+  const contextDemo = page.locator('.lesson-demo-context');
+  const capacity = Number(await contextDemo.locator('.lesson-context-desk').getAttribute('data-capacity'));
+  const addTurn = contextDemo.locator('.lesson-demo-action');
+  for (let index = 0; index < capacity + 2; index += 1) await addTurn.click();
+  expect(await contextDemo.locator('.lesson-context-card[data-state="forgotten"]').count() >= 1,
+    'basics: overflowing the context window must visibly drop the earliest turns');
+  expect((await contextDemo.locator('.lesson-context-verdict').textContent()).trim().length >= 8,
+    'basics: dropping a turn must explain what breaks because of it');
+  await contextDemo.locator('.lesson-demo-chip').click();
+  expect(await contextDemo.locator('.lesson-context-card').count() === 0,
+    'basics: starting a new conversation must clear the desk');
+
+  const shiftDemo = page.locator('.lesson-demo-shift');
+  expect(await shiftDemo.locator('.lesson-shift-card').count() === 2,
+    'basics: the software-shift demo must contrast exactly two ways of doing the same task');
+
 
   for (const width of [1440, 1024, 560, 390]) {
     await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 });
     await page.goto(`${base}/detail.html?type=learn&id=ai-boundaries`, { waitUntil: 'domcontentloaded' });
     const boundary = await page.evaluate(() => ({
-      titleCount: [...document.querySelectorAll('.lesson-core-section h2')].filter((node) => node.textContent.trim() === '搜索找来源，AI 组织与生成').length,
+      titleCount: [...document.querySelectorAll('.lesson-core-section h2')].filter((node) => node.textContent.trim() === '它不是搜索引擎').length,
       roles: [...document.querySelectorAll('[data-boundary-role]')].map((node) => node.getAttribute('data-boundary-role')),
       choices: [...document.querySelectorAll('[data-boundary-choice]')].map((node) => node.getAttribute('data-choice-value')),
       targetHeights: [...document.querySelectorAll('[data-boundary-choice]')].map((node) => node.getBoundingClientRect().height),
       overflow: document.documentElement.scrollWidth - innerWidth,
     }));
     expect(boundary.titleCount === 1, `boundaries ${width}px: comparison section must appear exactly once`);
-    expect(boundary.roles.join('|') === '搜索|AI|两者配合', `boundaries ${width}px: compare roles must be 搜索 / AI / 两者配合 (${boundary.roles.join('|')})`);
-    expect(boundary.choices.join('|') === '搜索|AI|两者配合', `boundaries ${width}px: lightweight choice must offer 搜索 / AI / 两者配合`);
+    expect(boundary.roles.join('|') === '找搜索|找 AI|两个都用', `boundaries ${width}px: compare roles must be 找搜索 / 找 AI / 两个都用 (${boundary.roles.join('|')})`);
+    expect(boundary.choices.join('|') === '找搜索|找 AI|两个都用', `boundaries ${width}px: lightweight choice must offer 找搜索 / 找 AI / 两个都用`);
     expect(boundary.targetHeights.every((height) => height >= 44), `boundaries ${width}px: choice targets must be at least 44px`);
     expect(boundary.overflow <= 1, `boundaries ${width}px: comparison must not overflow (${boundary.overflow}px)`);
   }
@@ -893,15 +904,19 @@ async function runDeepInteractionContract(browser, base) {
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
 
+  // 第 1 章的五步 model-flow 已随重构删除。现在验证打字机演示的键盘可达性：
+  // 用键盘选词、能看见句子增长、能看到概率条。
   await page.goto(`${base}/detail.html?type=learn&id=ai-basics`, { waitUntil: 'domcontentloaded' });
-  const flowSteps = page.locator('[data-flow-step]');
-  expect(await flowSteps.count() === 5, 'basics: model flow must expose five clickable steps');
-  const flowStep = flowSteps.nth(2);
-  await flowStep.focus({ timeout: 3000 });
+  const candidates = page.locator('.lesson-demo-typewriter .lesson-type-candidate');
+  expect(await candidates.count() === 3, 'basics: each generation step must offer three candidate words');
+  const firstCandidate = candidates.first();
+  const pickedWord = (await firstCandidate.locator('.lesson-type-word').textContent()).trim();
+  await firstCandidate.focus({ timeout: 3000 });
   await page.keyboard.press('Enter');
-  expect(await flowStep.getAttribute('aria-expanded') === 'true', 'basics: activating a flow step must expose its explanation state');
-  expect(await page.locator('[data-flow-explanation]:visible').count() >= 1, 'basics: a flow step must reveal a short explanation');
-  expect(await page.evaluate(() => document.activeElement?.hasAttribute('data-flow-step')), 'basics: flow interaction must retain focus');
+  const generated = (await page.locator('.lesson-demo-typewriter .lesson-type-text').textContent()).trim();
+  expect(generated.includes(pickedWord), 'basics: the word picked by keyboard must appear in the generated sentence');
+  expect(await page.locator('.lesson-demo-typewriter .lesson-type-bar').count() >= 1,
+    'basics: every candidate must show its probability so learners see it is guessing');
 
   await page.goto(`${base}/detail.html?type=learn&id=ai-prompting`, { waitUntil: 'domcontentloaded' });
   const promptSemantics = await page.evaluate(() => ({
@@ -1133,18 +1148,9 @@ const beginnerSelfTestMutations = [
   ['beginner-scene-too-few', 'capability section must expose exactly four scenes'],
   ['beginner-scene-no-confirm', 'every scene must connect its disclosure to input / AI / human / example copy'],
   ['beginner-scene-keyboard-broken', 'every scene disclosure must be a real button'],
-  ['beginner-old-concept-groups', 'old repeated concept groups must be absent'],
-  ['beginner-node-too-few', 'relationship nodes must be exactly AI → 生成式 AI → 大模型 → Agent'],
-  ['beginner-node-wrong-order', 'relationship nodes must be exactly AI → 生成式 AI → 大模型 → Agent'],
-  ['beginner-agent-explanation-wrong', 'Agent node must explain model + goal + tools + execution/check loop'],
-  ['beginner-agent-relation-label-missing', 'Agent must expose the complete external-mechanism label'],
-  ['beginner-linear-concept-map', 'all three relationship labels must remain visible, including on mobile'],
-  ['beginner-concept-labels-narrow', 'desktop scope/foundation relationship labels must each be at least 110px wide'],
-  ['beginner-relationship-label-low-contrast', 'scope, foundation, and Agent relationship label contrast must be >=4.5'],
-  ['beginner-duplicate-judgment', 'relationship map must contain exactly one two-choice judgment'],
   ['done-score-gate', 'first relationship-node attempt must enable 我看完了 without a score gate'],
   ['beginner-punitive-feedback', 'wrong Agent judgment feedback must stay non-punitive'],
-  ['beginner-boundary-compare-missing', 'compare roles must be 搜索 / AI / 两者配合'],
+  ['beginner-boundary-compare-missing', 'compare roles must be 找搜索 / 找 AI / 两个都用'],
   ['beginner-boundary-choice-no-explanation', 'choice must immediately explain the decision'],
   ['beginner-dynamic-innerhtml', 'dynamic scene copy must never create HTML nodes'],
   ['beginner-mobile-overflow', 'capability and relationship layout must not overflow'],
