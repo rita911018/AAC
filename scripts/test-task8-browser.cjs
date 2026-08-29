@@ -77,6 +77,7 @@ const mutationDefinitions = {
   'fixture-index-390': { page: 'index', viewport: [390, 844], css: '' },
   'fixture-learn-1440': { page: 'learn', viewport: [1440, 1100], css: '' },
   'fixture-learn-1236': { page: 'learn', viewport: [1236, 1050], css: '' },
+  'fixture-learn-390': { page: 'learn', viewport: [390, 844], css: '' },
   'entry-icon-hidden': { page: 'index', viewport: [1440, 1100], css: '.entry-card .ec-icon{visibility:hidden!important}' },
   'entry-title-weak': { page: 'index', viewport: [1440, 1100], css: '.entry-card h3{font-size:20px!important}' },
   'entry-description-large': { page: 'index', viewport: [1440, 1100], css: '.entry-card p{font-size:22px!important;font-weight:800!important;color:rgb(15,23,42)!important}' },
@@ -541,10 +542,14 @@ const learningChapters = [
             && Math.abs(metrics.learnActionRect.top - metrics.learnSummaryRect.top) <= 2
             && metrics.learnSummaryRect.left - metrics.learnActionRect.right >= 12),
             `learn ${width}px: action and session summary must form a horizontal group with at least 12px gap`);
-        } else if (metrics.learnActionRect && metrics.learnSummaryRect
-          && Math.abs(metrics.learnActionRect.top - metrics.learnSummaryRect.top) > 2) {
-          expect(Math.abs(metrics.learnSummaryRect.left - learnCopyLeft) <= 2,
-            `learn ${width}px: vertically stacked session summary must align with copy left edge (${metrics.learnSummaryRect.left}/${learnCopyLeft})`);
+        } else if (metrics.learnActionRect && metrics.learnSummaryRect) {
+          if (Math.abs(metrics.learnActionRect.top - metrics.learnSummaryRect.top) <= 2) {
+            expect(metrics.learnSummaryRect.left - metrics.learnActionRect.right >= 12,
+              `learn ${width}px: horizontal action and session summary need at least 12px gap`);
+          } else {
+            expect(Math.abs(metrics.learnSummaryRect.left - learnCopyLeft) <= 2,
+              `learn ${width}px: vertically stacked session summary must align with copy left edge (${metrics.learnSummaryRect.left}/${learnCopyLeft})`);
+          }
         }
         learnViewportEvidence.push({
           width,

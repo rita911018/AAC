@@ -47,7 +47,23 @@
 - [ ] Run all learning, homepage, Task 7, Task 8, verifier and browser regression suites.
 - [ ] Commit the production change.
 
-### Task 3: Simplify the first chapter relationship interaction
+### Task 3: Make the six-chapter learning path visible
+
+**Files:**
+- Modify: `site/knowledge-base/detail.html`
+- Modify: `site/knowledge-base/learning-experience.js`
+- Modify: `site/knowledge-base/learning-experience.css`
+- Modify: `scripts/test-learning-experience.mjs`
+- Modify: `scripts/test-learning-browser.cjs`
+
+- [ ] For `type=learn` chapter detail pages only, add a left-side six-chapter path rail with an exact `已看 n/6` session count, current chapter, per-chapter status and a return-to-directory link.
+- [ ] Use real links, `aria-current="page"`, text/icon status in addition to color, and update from the existing session store without adding `localStorage`, login, certificate or cross-device behavior.
+- [ ] Keep the article as a strong single reading column. At `1024px` and below, replace the sticky rail with a native top disclosure containing the same six links and statuses.
+- [ ] Preserve alias routing, back/return focus, previous/next, completion, reduced motion and storage-throw fallbacks.
+- [ ] Add focused static/runtime/browser tests and mutations for six links/order/current/status/count, desktop sticky geometry, mobile disclosure, keyboard operation and no overflow.
+- [ ] Run learning static/runtime/mutation/browser suites and commit the focused change.
+
+### Task 4: Refine the beginner content rhythm and relationship interaction
 
 **Files:**
 - Modify: `site/knowledge-base/learning-experience.js`
@@ -55,6 +71,8 @@
 - Modify: `scripts/test-learning-experience.mjs`
 - Modify: `scripts/test-learning-browser.cjs`
 
+- [ ] Add a four-scene “先看 AI 能做什么” overview to `ai-basics` before the principle explanation, using Amersports-relevant generic work examples and no external resource links.
+- [ ] Add a concise “搜索找来源 / AI 组织与生成” choice comparison to `ai-boundaries`; keep source verification in `ai-verification` and do not create a safety or comprehensive-practice chapter.
 - [ ] Replace the three repetitive concept matching fieldsets with a four-node clickable relationship map: AI, generative AI, large language model, Agent.
 - [ ] Each node exposes one concise relationship explanation via the existing polite feedback region; add one lightweight retryable judgment question after the map.
 - [ ] Keep the Token interaction and five-step disclosure unchanged; do not add scores, gates, drag-only behavior or persistence beyond the existing session state.
@@ -62,7 +80,7 @@
 - [ ] Add static/runtime/browser contract and targeted mutations for the four nodes, explanation feedback, single judgment, keyboard use and removal of the old three repeated groups.
 - [ ] Run learning static/runtime/mutation/browser suites and commit the focused change.
 
-### Task 4: Deliver and verify
+### Task 5: Deliver and verify
 
 **Files:**
 - Update: `/Users/rita/Downloads/知识库/` excluding `backups/`
