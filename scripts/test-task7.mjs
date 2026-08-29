@@ -54,6 +54,9 @@ for (const [index, href] of sharePointUrls.entries()) {
   expect(card.includes(`href="${href}"`), `video.html: replay card ${index + 1} must own its preserved SharePoint URL`);
   expect(/target=["']_blank["']/i.test(card) && /rel=["'][^"']*\bnoopener\b[^"']*["']/i.test(card), `video.html: replay card ${index + 1} must be a safe new-tab link`);
 }
+const firstReplayCard = video.match(new RegExp(`<a\\b[^>]*href=["']${escapePattern(sharePointUrls[0])}["'][^>]*>[\\s\\S]*?<\\/a>`, 'i'))?.[0] ?? '';
+expect(firstReplayCard.includes('26年6月26日/8月7日线下课堂录播回放'), 'video.html: Copilot 高阶培训录播 must show the approved offline-class replay dates');
+expect(!firstReplayCard.includes('AI 赋能小组') && !firstReplayCard.includes('SharePoint 回放'), 'video.html: Copilot 高阶培训录播 must remove the old author and source metadata');
 expect(!/<article\b[^>]*class=["'][^"']*\bvideo-card\b/i.test(video), 'video.html: replay cards must not remain non-interactive articles');
 expect(!/<a\b[^>]*class=["'][^"']*\bv-btn\b/i.test(video), 'video.html: card CTA must be visual text, not a nested or competing link');
 expect(count(video, '<h3>') === 3 && count(video, '<h4>') === 0, 'video.html: replay titles must use h3 heading hierarchy');
