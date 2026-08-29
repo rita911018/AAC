@@ -56,17 +56,17 @@ const chapterDimensions = [[1200, 800], [1200, 800], [1200, 800], [1024, 1024], 
 const chapterFallbackDimensions = [[1536, 1024], [1536, 1024], [1536, 1024], [1024, 1024], [1536, 1024], [1536, 1024]];
 const expectedChapterContent = {
   'ai-basics': {
-    sectionTitles: ['先把四个概念放对位置', '大模型在做什么'],
+    sectionTitles: ['先看 AI 能做什么', '先把四个概念放对位置', '大模型在做什么'],
     coreTerms: ['AI', '生成式 AI', '大模型', 'Agent', 'Token', '上下文', '预训练'],
     caseTitle: '为什么新对话不记得上次说过的事？',
     caseTerms: ['新对话', '上下文', '临时工作记忆'],
     exerciseType: 'token-and-concepts',
-    exerciseKeys: ['candidates', 'relations', 'steps', 'stepExplanations'],
+    exerciseKeys: ['candidates', 'relationshipNodes', 'relationshipJudgment', 'steps', 'stepExplanations'],
     takeawayTitle: 'AI 概念关系图与 8 个工作必懂词',
     takeawayTerms: ['Token', '上下文', '多模态', '幻觉', 'RAG', 'Prompt', '工作流', 'Agent'],
   },
   'ai-boundaries': {
-    sectionTitles: ['AI 擅长加速，人擅长把关', '“说得像真的”为什么还会错'],
+    sectionTitles: ['AI 擅长加速，人擅长把关', '搜索找来源，AI 组织与生成', '“说得像真的”为什么还会错'],
     coreTerms: ['整理', '改写', '事实确认', '高代价判断', '流畅', '查证'],
     caseTitle: '汇报里出现了原材料没有的增长数字',
     caseTerms: ['原材料', '精确数字', '来源'],
@@ -1238,16 +1238,52 @@ function runContract() {
     'ai-basics token candidates must have labels and numeric probabilities');
   assert.equal(basics.exercise.candidates.reduce((sum, { probability }) => sum + probability, 0), 100,
     'ai-basics token candidate probabilities must sum to 100');
+  const capabilitySection = basics.sections[0];
+  assert.equal(capabilitySection.title, '先看 AI 能做什么', 'ai-basics must lead with the approved capability-first section');
+  assert.equal(capabilitySection.scenes.length, 4, 'ai-basics capability section must expose exactly four workplace scenes');
+  assert.deepEqual(capabilitySection.scenes.map(({ title }) => title), ['会议内容变清晰', '同一材料讲重点', '一个主题写成稿', '重复工作先打底'],
+    'ai-basics capability scenes must keep concise stable titles');
+  assert.ok(capabilitySection.scenes.every(({ icon, input, assist, confirm, example }) =>
+    typeof icon === 'string' && icon && input && assist && confirm && example),
+  'every capability scene must define a unique icon, input material, AI assistance, human confirmation, and take-away example');
+  assert.equal(new Set(capabilitySection.scenes.map(({ icon }) => icon)).size, 4,
+    'all four capability scenes must use distinct line-icon keys');
+  assert.deepEqual(capabilitySection.scenes.map(({ input, assist, confirm }) => [Boolean(input), Boolean(assist), Boolean(confirm)]),
+    [[true, true, true], [true, true, true], [true, true, true], [true, true, true]],
+  'all four capability scenes must keep the input / AI assistance / human confirmation shape');
   assert.deepEqual(basics.exercise.steps, ['切分 Token', '读取上下文', '预测候选', '选择下一个 Token', '重复直到完成'],
     'ai-basics exercise must retain the approved five-step model flow');
-  assert.equal(basics.exercise.relations.length, 3, 'ai-basics exercise must include three concept-relationship choices');
-  assert.ok(basics.exercise.relations.every(({ prompt, answer, options, explanation }) => prompt && answer && explanation && options.includes(answer)),
-    'ai-basics concept relationships must retain a valid answer and explanation');
+  assert.deepEqual(basics.exercise.relationshipNodes.map(({ label }) => label), ['AI', '生成式 AI', '大模型', 'Agent'],
+    'ai-basics relationship map must keep the approved four-node order');
+  assert.ok(basics.exercise.relationshipNodes.every(({ label, explanation }) => label && explanation),
+    'every relationship-map node must have a dedicated short explanation');
+  assert.match(basics.exercise.relationshipNodes[3].explanation, /模型.*目标.*工具.*(?:执行|检查)/,
+    'Agent explanation must describe a model plus goals, tools, and an execution/check loop');
+  assert.equal(Object.hasOwn(basics.exercise, 'relations'), false,
+    'ai-basics must remove the old repeated three-group concept matching activity');
+  assert.deepEqual(basics.exercise.relationshipJudgment.options, ['对', '不对'],
+    'ai-basics must retain one binary lightweight Agent judgment');
+  assert.equal(basics.exercise.relationshipJudgment.statement, 'Agent 只是会写更长文本的大模型',
+    'ai-basics must use the approved single Agent judgment statement');
+  assert.equal(basics.exercise.relationshipJudgment.answer, '不对', 'the Agent judgment correct answer must be 不对');
+  assert.match(basics.exercise.relationshipJudgment.explanation, /模型.*目标.*工具.*(?:执行|检查)/,
+    'the Agent judgment explanation must teach model + goal + tools + execution/check');
   assert.equal(basics.exercise.stepExplanations.length, 5, 'ai-basics exercise must explain all five model-flow steps');
   assert.ok(basics.takeaway.template.includes('AI → 生成式 AI → 大模型'),
     'ai-basics takeaway must make the AI / generative AI / model relationship explicit');
   assert.ok(basics.takeaway.template.includes('Agent = 大模型 + 目标拆解 + 工具 + 执行循环'),
     'ai-basics takeaway must explain Agent as model plus goal, tools, and execution loop');
+  const boundaryComparison = api.chapters[1].sections[1];
+  assert.deepEqual(boundaryComparison.compare.map(({ role }) => role), ['搜索', 'AI', '两者配合'],
+    'ai-boundaries comparison must keep Search / AI / Both in a stable order');
+  assert.ok(JSON.stringify(boundaryComparison.compare).includes('实时事实') && JSON.stringify(boundaryComparison.compare).includes('原始出处') &&
+    JSON.stringify(boundaryComparison.compare).includes('解释') && JSON.stringify(boundaryComparison.compare).includes('改写') &&
+    JSON.stringify(boundaryComparison.compare).includes('生成'),
+  'ai-boundaries comparison must distinguish source finding from explanation and generation');
+  assert.deepEqual(boundaryComparison.choice.options.map(({ value }) => value), ['搜索', 'AI', '两者配合'],
+    'ai-boundaries lightweight choice must offer 搜索 / AI / 两者配合');
+  assert.ok(boundaryComparison.choice.options.every(({ value, explanation }) => value && explanation),
+    'every boundary choice must provide an immediate explanation');
   assert.deepEqual(api.chapters[1].exercise.claims.map(({ category }) => category), ['可以保留', '需要核验', '需要修改'],
     'ai-boundaries exercise must retain the three non-punitive review states');
   assert.ok(api.chapters[1].exercise.claims.some(({ text }) => /\d/.test(text)), 'ai-boundaries exercise must include a numeric claim to verify');
@@ -1908,8 +1944,10 @@ function runRuntimeUnitTest() {
   const instrumented = installInstrumentedChapter(instrumentedRuntime);
   assert.equal(new Set(instrumented.sentinels).size, instrumented.sentinels.length,
     'every recursively instrumented display string must receive a unique sentinel');
-  for (const pathName of ['title', 'description', 'image.alt', 'sections.0.title', 'sections.0.paragraphs.0', 'sections.0.bullets.0',
+  for (const pathName of ['title', 'description', 'image.alt', 'sections.0.title', 'sections.0.paragraphs.0', 'sections.0.scenes.0.title',
+    'sections.0.scenes.0.input', 'sections.0.scenes.0.assist', 'sections.0.scenes.0.confirm', 'sections.0.scenes.0.example', 'sections.1.bullets.0',
     'caseStudy.title', 'caseStudy.situation', 'caseStudy.lesson', 'exercise.title', 'exercise.instruction', 'exercise.candidates.0.label',
+    'exercise.relationshipNodes.0.label', 'exercise.relationshipNodes.0.explanation', 'exercise.relationshipJudgment.statement',
     'quickCheck.0.question', 'quickCheck.0.answer', 'quickCheck.0.explanation', 'takeaway.title', 'takeaway.items.0', 'takeaway.template']) {
     assert.ok(instrumented.sentinelByPath.has(pathName), `recursive display instrumentation must cover ${pathName}`);
   }
@@ -1921,7 +1959,9 @@ function runRuntimeUnitTest() {
     'instrumented chapter clone must render through the production renderer');
   assertNoSentinelInnerHtmlWrites(instrumentedTarget, instrumented.sentinels,
     'no recursively instrumented chapter display value may reach innerHTML');
-  for (const pathName of ['title', 'description', 'sections.0.title', 'caseStudy.lesson', 'exercise.title', 'quickCheck.0.question', 'takeaway.template']) {
+  for (const pathName of ['title', 'description', 'sections.0.title', 'sections.0.scenes.0.input', 'sections.0.scenes.0.confirm',
+    'sections.0.scenes.0.example', 'caseStudy.lesson', 'exercise.title', 'exercise.relationshipNodes.0.label',
+    'exercise.relationshipJudgment.statement', 'quickCheck.0.question', 'takeaway.template']) {
     const sentinel = instrumented.sentinelByPath.get(pathName);
     assert.ok(sentinel && instrumentedTarget.textContent.includes(sentinel),
       `production rendering must visibly exercise the sentinel for ${pathName}`);
@@ -1929,6 +1969,30 @@ function runRuntimeUnitTest() {
   const altSentinel = instrumented.sentinelByPath.get('image.alt');
   assert.ok(altSentinel && instrumentedTarget.querySelectorAll('img').some((node) => node.getAttribute('alt')?.includes(altSentinel)),
     'production rendering must exercise the instrumented image.alt value');
+
+  const boundaryInstrumentedDom = createMiniDom();
+  const boundaryInstrumentedRuntime = evaluateLearningRuntime(source, createStorage(), { document: boundaryInstrumentedDom.document });
+  const boundaryInstrumented = installInstrumentedChapter(boundaryInstrumentedRuntime, 'ai-boundaries');
+  for (const pathName of ['sections.1.title', 'sections.1.compare.0.role', 'sections.1.compare.0.title',
+    'sections.1.compare.0.description', 'sections.1.choice.question', 'sections.1.choice.options.0.value',
+    'sections.1.choice.options.0.explanation']) {
+    assert.ok(boundaryInstrumented.sentinelByPath.has(pathName), `boundary display instrumentation must cover ${pathName}`);
+  }
+  const boundaryInstrumentedTarget = boundaryInstrumentedDom.createTarget();
+  assert.equal(boundaryInstrumentedRuntime.renderChapter('ai-boundaries', boundaryInstrumentedTarget), true,
+    'instrumented boundary chapter must render through the production renderer');
+  const boundaryChoice = boundaryInstrumentedTarget.querySelector('[data-boundary-choice]');
+  assert.ok(boundaryChoice, 'instrumented boundary chapter must expose the lightweight choice');
+  boundaryChoice.dispatchEvent({ type: 'click' });
+  assertNoSentinelInnerHtmlWrites(boundaryInstrumentedTarget, boundaryInstrumented.sentinels,
+    'no recursively instrumented boundary metadata may reach innerHTML');
+  for (const pathName of ['sections.1.title', 'sections.1.compare.0.role', 'sections.1.compare.0.title',
+    'sections.1.compare.0.description', 'sections.1.choice.question', 'sections.1.choice.options.0.value',
+    'sections.1.choice.options.0.explanation']) {
+    const sentinel = boundaryInstrumented.sentinelByPath.get(pathName);
+    assert.ok(sentinel && boundaryInstrumentedTarget.textContent.includes(sentinel),
+      `production rendering must visibly exercise boundary sentinel ${pathName}`);
+  }
 
   const finalDom = createMiniDom();
   const finalRuntime = evaluateLearningRuntime(source, createStorage(), { document: finalDom.document });

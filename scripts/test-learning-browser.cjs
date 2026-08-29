@@ -24,6 +24,7 @@ const screenshotRoot = resolve(process.env.KB_LEARNING_SCREENSHOT_ROOT || positi
 const suppliedBase = positionalArguments[0] || '';
 const mutation = process.env.KB_LEARNING_MUTATION || positionalArguments[2] || '';
 const pathOnlyMode = process.env.KB_LEARNING_PATH_ONLY === '1';
+const beginnerOnlyMode = process.env.KB_LEARNING_BEGINNER_ONLY === '1';
 const storageKey = 'amersports-ai-beginner-session-v1';
 if (!selfTestMode) mkdirSync(screenshotRoot, { recursive: true });
 
@@ -141,6 +142,42 @@ function startServer() {
         changed = source.replace('      else showCopyFallback(card, templateText);', '      else return;');
       } else if (mutation === 'concept-interaction-removed' && relative.endsWith('.js')) {
         changed = source.replace('for (var relationIndex = 0; relationIndex < exercise.relations.length; relationIndex += 1)', 'for (var relationIndex = 0; false && relationIndex < exercise.relations.length; relationIndex += 1)');
+      } else if (mutation === 'beginner-scene-too-few' && relative.endsWith('.js')) {
+        changed = source.replace('for (var sceneIndex = 0; sceneIndex < scenes.length; sceneIndex += 1)', 'for (var sceneIndex = 0; sceneIndex < scenes.length - 1; sceneIndex += 1)');
+      } else if (mutation === 'beginner-scene-no-confirm' && relative.endsWith('.js')) {
+        changed = source.replace("confirm: '确认事实、行动项和责任人，再决定是否发送。'", "confirm: ''");
+      } else if (mutation === 'beginner-scene-keyboard-broken' && relative.endsWith('.js')) {
+        changed = source.replace("var sceneButton = element(ownerDocument, 'button', 'lesson-scene-toggle');", "var sceneButton = element(ownerDocument, 'div', 'lesson-scene-toggle');");
+      } else if (mutation === 'beginner-old-concept-groups' && relative.endsWith('.js')) {
+        changed = source.replace(
+          "var nodeButton = interactionButton(ownerDocument, relationshipNode.label, 'data-concept-node', relationshipNode.label);",
+          "var nodeButton = interactionButton(ownerDocument, relationshipNode.label, 'data-concept-choice', relationshipNode.label);",
+        );
+      } else if (mutation === 'beginner-node-too-few' && relative.endsWith('.js')) {
+        changed = source.replace('for (var nodeIndex = 0; nodeIndex < exercise.relationshipNodes.length; nodeIndex += 1)', 'for (var nodeIndex = 0; nodeIndex < exercise.relationshipNodes.length - 1; nodeIndex += 1)');
+      } else if (mutation === 'beginner-node-wrong-order' && relative.endsWith('.js')) {
+        changed = source.replace('}(exercise.relationshipNodes[nodeIndex]));', '}(exercise.relationshipNodes[nodeIndex === 0 ? 1 : nodeIndex === 1 ? 0 : nodeIndex]));');
+      } else if (mutation === 'beginner-agent-explanation-wrong' && relative.endsWith('.js')) {
+        changed = source.replace('Agent = 模型 + 目标 + 工具 + 执行与检查循环。', 'Agent 只是一个更大的模型。');
+      } else if (mutation === 'beginner-duplicate-judgment' && relative.endsWith('.js')) {
+        changed = source.replace('conceptMap.appendChild(judgmentFieldset);', 'conceptMap.appendChild(judgmentFieldset); conceptMap.appendChild(judgmentFieldset.cloneNode(true));');
+      } else if (mutation === 'beginner-punitive-feedback' && relative.endsWith('.js')) {
+        changed = source.replace('这个说法容易混淆能力边界。', '未通过。这个说法容易混淆能力边界。');
+      } else if (mutation === 'beginner-boundary-compare-missing' && relative.endsWith('.js')) {
+        changed = source.replace(
+          'if (Array.isArray(sectionData.compare) && sectionData.choice) appendBoundaryComparison(ownerDocument, section, sectionData);',
+          'if (Array.isArray(sectionData.compare) && sectionData.choice) { /* mutation: boundary comparison missing */ }',
+        );
+      } else if (mutation === 'beginner-boundary-choice-no-explanation' && relative.endsWith('.js')) {
+        changed = source.replace('boundaryFeedback.textContent = option.explanation;', "boundaryFeedback.textContent = '';");
+      } else if (mutation === 'beginner-dynamic-innerhtml' && relative.endsWith('.js')) {
+        changed = source
+          .replace("example: '可直接交代：请把这段记录整理为决定、行动项、负责人和待确认事项。'", "example: '<img data-scene-xss src=x>可直接交代'")
+          .replace('sceneExample.textContent = scene.example;', 'sceneExample.innerHTML = scene.example;');
+      } else if (mutation === 'beginner-mobile-overflow' && relative.endsWith('.css')) {
+        changed = source + '\n@media(max-width:560px){.lesson-scene-grid{width:800px!important}}\n';
+      } else if (mutation === 'beginner-scene-focus-missing' && relative.endsWith('.css')) {
+        changed = source + '\n.lesson-scene-toggle:focus-visible{outline:0!important;outline-offset:0!important}\n';
       } else if (mutation === 'five-step-removed' && relative.endsWith('.js')) {
         changed = source.replace('    appendFlowSteps(ownerDocument, root, exercise.steps, exercise.stepExplanations);', '    // mutation: five-step interaction removed');
       } else if (mutation === 'evidence-interaction-removed' && relative.endsWith('.js')) {
@@ -225,6 +262,10 @@ async function lessonSnapshot(page) {
       '.lesson-exercise textarea',
       '.lesson-exercise select',
       '.lesson-exercise label',
+      '[data-scene-toggle]',
+      '[data-concept-node]',
+      '[data-concept-judgment]',
+      '[data-boundary-choice]',
       '.lesson-takeaway button',
       '.lesson-takeaway textarea',
       '.lesson-actions a',
@@ -618,6 +659,147 @@ async function runPathFocusedContract(browser, base) {
   await context.close();
 }
 
+async function runBeginnerInteractionContract(browser, base) {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  const errors = [];
+  const consoleErrors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text());
+  });
+
+  for (const width of [1440, 1024, 560, 390]) {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 });
+    await page.goto(`${base}/detail.html?type=learn&id=ai-basics`, { waitUntil: 'domcontentloaded' });
+    const basicsStructure = await page.evaluate(() => ({
+      sceneCount: document.querySelectorAll('[data-scene-toggle]').length,
+      sceneTags: [...document.querySelectorAll('[data-scene-toggle]')].map((node) => node.tagName),
+      sceneTitles: [...document.querySelectorAll('[data-scene-toggle] .lesson-scene-title')].map((node) => node.textContent.trim()),
+      sceneTargets: [...document.querySelectorAll('[data-scene-toggle]')].map((node) => node.getBoundingClientRect().height),
+      sceneCards: [...document.querySelectorAll('[data-scene-card]')].map((card) => ({
+        text: card.textContent,
+        controls: card.querySelector('[data-scene-toggle]')?.getAttribute('aria-controls') || '',
+        panelId: card.querySelector('[data-scene-panel]')?.id || '',
+        confirm: card.querySelectorAll('dd')[2]?.textContent.trim() || '',
+      })),
+      conceptLabels: [...document.querySelectorAll('[data-concept-node]')].map((node) => node.textContent.trim()),
+      oldConceptChoices: document.querySelectorAll('[data-concept-choice]').length,
+      judgmentGroups: document.querySelectorAll('[data-concept-judgment-group]').length,
+      judgmentChoices: document.querySelectorAll('[data-concept-judgment]').length,
+      overflow: document.documentElement.scrollWidth - innerWidth,
+      bodyCopySize: Number.parseFloat(getComputedStyle(document.querySelector('.lesson-core-section p')).fontSize),
+      injectedSceneHtml: document.querySelectorAll('[data-scene-xss]').length,
+    }));
+    expect(basicsStructure.sceneCount === 4, `basics ${width}px: capability section must expose exactly four scenes (${basicsStructure.sceneCount})`);
+    expect(basicsStructure.sceneTags.every((tag) => tag === 'BUTTON'), `basics ${width}px: every scene disclosure must be a real button`);
+    expect(basicsStructure.sceneTitles.join('|') === '会议内容变清晰|同一材料讲重点|一个主题写成稿|重复工作先打底',
+      `basics ${width}px: scene titles must keep the approved stable order (${basicsStructure.sceneTitles.join('|')})`);
+    expect(basicsStructure.sceneCards.every(({ text, controls, panelId, confirm }) =>
+      text.includes('输入材料') && text.includes('AI 协助') && text.includes('人要确认') && text.includes('可直接交代') && confirm && controls && controls === panelId),
+    `basics ${width}px: every scene must connect its disclosure to input / AI / human / example copy`);
+    expect(basicsStructure.sceneTargets.every((height) => height >= 44), `basics ${width}px: every scene target must be at least 44px`);
+    expect(basicsStructure.conceptLabels.join('|') === 'AI|生成式 AI|大模型|Agent',
+      `basics ${width}px: relationship nodes must be exactly AI → 生成式 AI → 大模型 → Agent (${basicsStructure.conceptLabels.join('|')})`);
+    expect(basicsStructure.oldConceptChoices === 0, `basics ${width}px: old repeated concept groups must be absent (${basicsStructure.oldConceptChoices})`);
+    expect(basicsStructure.judgmentGroups === 1 && basicsStructure.judgmentChoices === 2,
+      `basics ${width}px: relationship map must contain exactly one two-choice judgment`);
+    expect(basicsStructure.overflow <= 1, `basics ${width}px: capability and relationship layout must not overflow (${basicsStructure.overflow}px)`);
+    expect(basicsStructure.bodyCopySize >= 17, `basics ${width}px: core body copy must stay at least 17px`);
+    expect(basicsStructure.injectedSceneHtml === 0, `basics ${width}px: dynamic scene copy must never create HTML nodes`);
+
+    const firstScene = page.locator('[data-scene-toggle]').first();
+    await firstScene.focus();
+    expect(await firstScene.evaluate((node) => {
+      const style = getComputedStyle(node);
+      const rect = node.getBoundingClientRect();
+      return Number.parseFloat(style.outlineWidth) >= 3 && Number.parseFloat(style.outlineOffset) >= 3 && rect.left >= 3 && rect.right <= innerWidth - 3;
+    }), `basics ${width}px: scene focus ring must be >=3px, outside, and unclipped`);
+  }
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${base}/detail.html?type=learn&id=ai-basics`, { waitUntil: 'domcontentloaded' });
+  const done = page.locator('[data-mark-seen]');
+  const availableScenes = Math.min(4, await page.locator('[data-scene-toggle]').count());
+  const scenesAreNativeButtons = await page.locator('[data-scene-toggle]').evaluateAll((items) => items.every((item) => item.tagName === 'BUTTON'));
+  for (let index = 0; scenesAreNativeButtons && index < availableScenes; index += 1) {
+    const scene = page.locator('[data-scene-toggle]').nth(index);
+    if (index % 2 === 0) await scene.click();
+    else {
+      await scene.focus();
+      await page.keyboard.press('Enter');
+    }
+    expect(await scene.getAttribute('aria-expanded') === 'true', `basics: scene ${index + 1} must expand by ${index % 2 === 0 ? 'mouse' : 'keyboard'}`);
+    const panelId = await scene.getAttribute('aria-controls');
+    expect(panelId && await page.locator(`#${panelId}`).isVisible(), `basics: scene ${index + 1} must reveal its controlled example panel`);
+  }
+  expect(await done.isDisabled(), 'basics: capability browsing alone must not replace the meaningful concept attempt');
+
+  const nodes = page.locator('[data-concept-node]');
+  const nodeExplanations = ['范围', '生成', '模式', '目标'];
+  const availableNodes = Math.min(4, await nodes.count());
+  for (let index = 0; index < availableNodes; index += 1) {
+    const node = nodes.nth(index);
+    await node.focus();
+    await page.keyboard.press('Enter');
+    expect(await node.getAttribute('aria-pressed') === 'true', `basics: node ${index + 1} must expose current selection`);
+    expect(await nodes.evaluateAll((items) => items.filter((item) => item.getAttribute('aria-pressed') === 'true').length) === 1,
+      `basics: node ${index + 1} must be the only selected relationship node`);
+    expect((await page.locator('.lesson-feedback').textContent()).includes(nodeExplanations[index]),
+      `basics: node ${index + 1} must show its dedicated explanation`);
+  }
+  expect(await done.isEnabled(), 'basics: first relationship-node attempt must enable 我看完了 without a score gate');
+  const agentFeedback = await page.locator('.lesson-feedback').textContent();
+  expect(/模型.*目标.*工具.*(?:执行|检查)/.test(agentFeedback), 'basics: Agent node must explain model + goal + tools + execution/check loop');
+
+  const validJudgmentStructure = await page.locator('[data-concept-judgment-group]').count() === 1 &&
+    await page.locator('[data-concept-judgment]').count() === 2;
+  if (validJudgmentStructure) {
+    const wrongJudgment = page.locator('[data-concept-judgment][data-choice-value="对"]');
+    await wrongJudgment.click();
+    const wrongFeedback = await page.locator('.lesson-feedback').textContent();
+    expect(/模型.*目标.*工具.*(?:执行|检查)/.test(wrongFeedback), 'basics: wrong Agent judgment must give a constructive explanation');
+    expect(!/(未通过|不及格|评分|扣分)/.test(wrongFeedback), 'basics: wrong Agent judgment feedback must stay non-punitive');
+    const rightJudgment = page.locator('[data-concept-judgment][data-choice-value="不对"]');
+    await rightJudgment.focus();
+    await page.keyboard.press('Enter');
+    expect(await rightJudgment.getAttribute('aria-pressed') === 'true', 'basics: correct Agent judgment must support keyboard retry');
+    expect((await page.locator('.lesson-feedback').textContent()).includes('不对'), 'basics: correct retry must immediately explain why 不对');
+  }
+
+  for (const width of [1440, 1024, 560, 390]) {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 });
+    await page.goto(`${base}/detail.html?type=learn&id=ai-boundaries`, { waitUntil: 'domcontentloaded' });
+    const boundary = await page.evaluate(() => ({
+      titleCount: [...document.querySelectorAll('.lesson-core-section h2')].filter((node) => node.textContent.trim() === '搜索找来源，AI 组织与生成').length,
+      roles: [...document.querySelectorAll('[data-boundary-role]')].map((node) => node.getAttribute('data-boundary-role')),
+      choices: [...document.querySelectorAll('[data-boundary-choice]')].map((node) => node.getAttribute('data-choice-value')),
+      targetHeights: [...document.querySelectorAll('[data-boundary-choice]')].map((node) => node.getBoundingClientRect().height),
+      overflow: document.documentElement.scrollWidth - innerWidth,
+    }));
+    expect(boundary.titleCount === 1, `boundaries ${width}px: comparison section must appear exactly once`);
+    expect(boundary.roles.join('|') === '搜索|AI|两者配合', `boundaries ${width}px: compare roles must be 搜索 / AI / 两者配合 (${boundary.roles.join('|')})`);
+    expect(boundary.choices.join('|') === '搜索|AI|两者配合', `boundaries ${width}px: lightweight choice must offer 搜索 / AI / 两者配合`);
+    expect(boundary.targetHeights.every((height) => height >= 44), `boundaries ${width}px: choice targets must be at least 44px`);
+    expect(boundary.overflow <= 1, `boundaries ${width}px: comparison must not overflow (${boundary.overflow}px)`);
+  }
+  const boundaryValues = await page.locator('[data-boundary-choice]').evaluateAll((items) => items.map((item) => item.getAttribute('data-choice-value')));
+  for (const value of boundaryValues) {
+    const choice = page.locator(`[data-boundary-choice][data-choice-value="${value}"]`);
+    await choice.focus();
+    await page.keyboard.press('Enter');
+    expect(await choice.getAttribute('aria-pressed') === 'true', `boundaries: ${value} choice must expose selected state`);
+    expect((await page.locator('[data-boundary-feedback]').textContent()).trim().length >= 8,
+      `boundaries: ${value} choice must immediately explain the decision`);
+  }
+  if (await page.locator('[data-boundary-feedback]').count()) {
+    expect(!/(未通过|不及格|评分|扣分)/.test(await page.locator('[data-boundary-feedback]').textContent()),
+      'boundaries: lightweight choice must not use assessment language');
+  }
+  await assertNoPageErrors(page, errors, consoleErrors, 'beginner capability, relationship, and boundary interactions');
+  await context.close();
+}
+
 async function runDeepInteractionContract(browser, base) {
   const context = await browser.newContext();
   const page = await context.newPage();
@@ -625,18 +807,6 @@ async function runDeepInteractionContract(browser, base) {
   page.on('pageerror', (error) => errors.push(error.message));
 
   await page.goto(`${base}/detail.html?type=learn&id=ai-basics`, { waitUntil: 'domcontentloaded' });
-  const conceptChoices = page.locator('[data-concept-choice]');
-  expect(await conceptChoices.count() >= 6, 'basics: concept relationship activity must expose at least three keyboard-operable choices');
-  const wrongConcept = page.locator('[data-concept-choice][data-relation-index="0"]').last();
-  await wrongConcept.focus({ timeout: 3000 });
-  await page.keyboard.press('Enter');
-  expect(await wrongConcept.getAttribute('aria-pressed') === 'true', 'basics: concept choice must expose selected state');
-  expect((await page.locator('.lesson-feedback').textContent()).length > 8, 'basics: concept choice must explain the attempt');
-  expect(!/(未通过|不及格|评分)/.test(await page.locator('.lesson-feedback').textContent()), 'basics: concept feedback must stay non-punitive');
-  const correctConcept = page.locator('[data-concept-choice][data-relation-index="0"][data-choice-value="生成式 AI 是 AI 的一部分"]');
-  await correctConcept.focus();
-  await page.keyboard.press('Enter');
-  expect((await page.locator('.lesson-feedback').textContent()).includes('合理'), 'basics: concept relationship must support a correct retry with explanation');
   const flowSteps = page.locator('[data-flow-step]');
   expect(await flowSteps.count() === 5, 'basics: model flow must expose five clickable steps');
   const flowStep = flowSteps.nth(2);
@@ -872,6 +1042,25 @@ const pathSelfTestMutations = [
   ['path-low-contrast', 'currentNumber path text contrast must be >=4.5'],
 ];
 
+const beginnerSelfTestMutations = [
+  ['beginner-scene-too-few', 'capability section must expose exactly four scenes'],
+  ['beginner-scene-no-confirm', 'every scene must connect its disclosure to input / AI / human / example copy'],
+  ['beginner-scene-keyboard-broken', 'every scene disclosure must be a real button'],
+  ['beginner-old-concept-groups', 'old repeated concept groups must be absent'],
+  ['beginner-node-too-few', 'relationship nodes must be exactly AI → 生成式 AI → 大模型 → Agent'],
+  ['beginner-node-wrong-order', 'relationship nodes must be exactly AI → 生成式 AI → 大模型 → Agent'],
+  ['beginner-agent-explanation-wrong', 'Agent node must explain model + goal + tools + execution/check loop'],
+  ['beginner-duplicate-judgment', 'relationship map must contain exactly one two-choice judgment'],
+  ['done-score-gate', 'first relationship-node attempt must enable 我看完了 without a score gate'],
+  ['beginner-punitive-feedback', 'wrong Agent judgment feedback must stay non-punitive'],
+  ['beginner-boundary-compare-missing', 'compare roles must be 搜索 / AI / 两者配合'],
+  ['beginner-boundary-choice-no-explanation', 'choice must immediately explain the decision'],
+  ['beginner-dynamic-innerhtml', 'dynamic scene copy must never create HTML nodes'],
+  ['beginner-mobile-overflow', 'capability and relationship layout must not overflow'],
+  ['beginner-scene-focus-missing', 'scene focus ring must be >=3px, outside, and unclipped'],
+  ['target-below-44', 'every scene target must be at least 44px'],
+];
+
 function runSelfTestChild(environment, timeoutMs) {
   return new Promise((resolveChild) => {
     const child = spawn(process.execPath, [__filename], {
@@ -911,12 +1100,13 @@ async function runBrowserSelfTest() {
       KB_LEARNING_SITE_ROOT: temporarySite,
       KB_LEARNING_SCREENSHOT_ROOT: temporaryScreenshots,
       KB_LEARNING_PATH_ONLY: '1',
+      KB_LEARNING_BEGINNER_ONLY: '0',
       KB_LEARNING_MUTATION: '',
       KB_LEARNING_SELF_TEST_CRASH: '',
       KB_LEARNING_SELF_TEST_HANG: '',
     };
 
-    const baseline = await runSelfTestChild(sharedEnvironment, 15000);
+    const baseline = await runSelfTestChild(sharedEnvironment, 25000);
     if (baseline.error || baseline.timedOut || baseline.code !== 0) {
       throw new Error(`path browser baseline must be GREEN\n${baseline.stdout}\n${baseline.stderr}`);
     }
@@ -938,18 +1128,37 @@ async function runBrowserSelfTest() {
     console.log('DETECTED path browser child timeout and SIGKILL');
 
     for (const [name, diagnostic] of pathSelfTestMutations) {
-      const result = await runSelfTestChild({ ...sharedEnvironment, KB_LEARNING_MUTATION: name }, 15000);
+      const result = await runSelfTestChild({ ...sharedEnvironment, KB_LEARNING_MUTATION: name }, 25000);
       const output = `${result.stdout}\n${result.stderr}`;
       if (result.error || result.timedOut || result.code === 0 || !output.includes(diagnostic)) {
         throw new Error(`${name} mutation was not detected for “${diagnostic}”\n${output}`);
       }
       console.log(`DETECTED path browser mutation: ${name}`);
     }
+
+    const beginnerEnvironment = {
+      ...sharedEnvironment,
+      KB_LEARNING_PATH_ONLY: '0',
+      KB_LEARNING_BEGINNER_ONLY: '1',
+    };
+    const beginnerBaseline = await runSelfTestChild(beginnerEnvironment, 30000);
+    if (beginnerBaseline.error || beginnerBaseline.timedOut || beginnerBaseline.code !== 0) {
+      throw new Error(`beginner browser baseline must be GREEN\n${beginnerBaseline.stdout}\n${beginnerBaseline.stderr}`);
+    }
+    console.log('GREEN beginner browser baseline: capability, relationship, and boundary interactions');
+    for (const [name, diagnostic] of beginnerSelfTestMutations) {
+      const result = await runSelfTestChild({ ...beginnerEnvironment, KB_LEARNING_MUTATION: name }, 30000);
+      const output = `${result.stdout}\n${result.stderr}`;
+      if (result.error || result.timedOut || result.code === 0 || !output.includes(diagnostic)) {
+        throw new Error(`${name} mutation was not detected for “${diagnostic}”\n${output}`);
+      }
+      console.log(`DETECTED beginner browser mutation: ${name}`);
+    }
   } finally {
     rmSync(temporaryRoot, { recursive: true, force: true });
   }
   if (existsSync(temporaryRoot)) throw new Error(`browser self-test temporary root was not removed: ${temporaryRoot}`);
-  console.log(`PASS: learning path browser self-test (1 baseline + ${pathSelfTestMutations.length} mutations)`);
+  console.log(`PASS: learning browser self-test (2 baselines + ${pathSelfTestMutations.length + beginnerSelfTestMutations.length} mutations)`);
   console.log('CLEANED path browser children, servers, browsers, and temporary site');
 }
 
@@ -965,10 +1174,13 @@ async function runBrowserContract() {
     browser = await chromium.launch({ headless: true });
     if (pathOnlyMode) {
       await runPathFocusedContract(browser, base);
+    } else if (beginnerOnlyMode) {
+      await runBeginnerInteractionContract(browser, base);
     } else {
       await runPrimaryContract(browser, base);
       await runPathRouteAndStateContract(browser, base);
       await runDesktopPathGeometryContract(browser, base);
+      await runBeginnerInteractionContract(browser, base);
       await runDeepInteractionContract(browser, base);
       await runFreshContextContract(browser, base);
       for (const mode of ['get', 'set', 'invalid-json']) await runStorageFaultContract(browser, base, mode);

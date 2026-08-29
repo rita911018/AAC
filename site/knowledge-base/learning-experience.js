@@ -15,6 +15,17 @@
       image: { webp: 'images/ai-concept.webp', fallback: 'images/ai-concept.png', width: 1200, height: 800, alt: 'AI 与大模型概念关系插画', caption: '图解四个概念如何连接' },
       sections: [
         {
+          title: '先看 AI 能做什么',
+          paragraphs: ['先从熟悉的工作现场看能力，再理解背后的原理。AI 可以帮你整理、解释、改写和打底，但结果仍需要人确认。'],
+          bullets: [],
+          scenes: [
+            { icon: 'notes', title: '会议内容变清晰', input: '录音转写或零散笔记', assist: '整理为结构化会议纪要', confirm: '确认事实、行动项和责任人，再决定是否发送。', example: '可直接交代：请把这段记录整理为决定、行动项、负责人和待确认事项。' },
+            { icon: 'audience', title: '同一材料讲重点', input: '一份长报告或一组公开数据', assist: '按不同对象解释重点与影响', confirm: '核对数字、来源和对象是否匹配。', example: '可直接交代：请分别用给管理者和新同事看的方式，解释这份材料的三个重点。' },
+            { icon: 'draft', title: '一个主题写成稿', input: '一个主题、必要背景和语气要求', assist: '改写成邮件、汇报或沟通稿初稿', confirm: '确认事实、语气和最终对外口径。', example: '可直接交代：请把这个主题改写成一封简洁邮件，先给结论，再列三项行动。' },
+            { icon: 'repeat', title: '重复工作先打底', input: '重复步骤、样例和期望输出', assist: '先生成模板或小工具草稿', confirm: '检查规则、边界和异常情况后再使用。', example: '可直接交代：请根据这些重复步骤，先起草一个可复用模板，并标出需要人工确认的位置。' },
+          ],
+        },
+        {
           title: '先把四个概念放对位置',
           paragraphs: ['AI 是让机器完成智能任务的大范围；生成式 AI 专门生成文字、图像等新内容；大模型是它的一类核心能力；Agent 则在模型外加上目标拆解、工具调用与执行循环。'],
           bullets: ['AI：最大的能力范围', '生成式 AI：创造新内容', '大模型：从海量数据中学会模式', 'Agent：模型 + 工具 + 执行循环'],
@@ -40,11 +51,18 @@
         title: '看看下一个 Token 可能是什么',
         instruction: '观察候选内容的概率，再把 AI、大模型与 Agent 放到正确关系中。',
         candidates: [{ label: '初稿', probability: 52 }, { label: '摘要', probability: 31 }, { label: '图表', probability: 17 }],
-        relations: [
-          { prompt: '生成式 AI 与 AI 的关系', answer: '生成式 AI 是 AI 的一部分', options: ['生成式 AI 是 AI 的一部分', 'AI 只包含生成式 AI', '两者没有关系'], explanation: 'AI 是更大的能力范围，生成式 AI 专注于创造新内容。' },
-          { prompt: '大模型与生成式 AI 的关系', answer: '大模型可提供核心能力', options: ['大模型可提供核心能力', '大模型就是所有 AI', '生成式 AI 不需要模型'], explanation: '大模型是生成式 AI 的重要能力基础之一，但两者不是完全同义。' },
-          { prompt: 'Agent 在大模型之外增加了什么', answer: '目标、工具与执行循环', options: ['目标、工具与执行循环', '只增加更长文本', '只增加更多参数'], explanation: 'Agent 围绕目标拆解任务、调用工具，并在明确边界内循环执行。' },
+        relationshipNodes: [
+          { label: 'AI', explanation: 'AI 是让机器完成智能任务的最大能力范围。' },
+          { label: '生成式 AI', explanation: '生成式 AI 是 AI 的一部分，重点是生成文字、图像等新内容。' },
+          { label: '大模型', explanation: '大模型从大量数据中学习模式，可为生成式 AI 提供核心能力。' },
+          { label: 'Agent', explanation: 'Agent = 模型 + 目标 + 工具 + 执行与检查循环。它不是简单变大的模型。' },
         ],
+        relationshipJudgment: {
+          statement: 'Agent 只是会写更长文本的大模型',
+          options: ['对', '不对'],
+          answer: '不对',
+          explanation: 'Agent = 模型 + 目标 + 工具 + 执行与检查循环。它会围绕目标调用工具并检查进展。',
+        },
         steps: ['切分 Token', '读取上下文', '预测候选', '选择下一个 Token', '重复直到完成'],
         stepExplanations: ['把输入拆成模型可处理的小单位。', '结合当前对话和材料理解临时语境。', '为多个可能的后续 Token 分配概率。', '按概率与生成策略选择一个 Token。', '把新 Token 放回上下文，继续预测直到完成。'],
       },
@@ -66,6 +84,24 @@
       image: { webp: 'images/ai-boundaries.webp', fallback: 'images/ai-boundaries.png', width: 1200, height: 800, alt: '人员核验 AI 回答证据的插画', caption: '核验答案背后的证据' },
       sections: [
         { title: 'AI 擅长加速，人擅长把关', paragraphs: ['AI 很适合整理、改写、提取、归纳、生成初稿、发散思路和寻找模式。涉及事实确认、业务取舍、正式承诺和高代价判断时，人必须把关。'], bullets: ['可直接加速：整理、改写、初稿', '需要人机协作：分析、创作、决策准备', '最终由人决定：承诺、审批、高代价选择'] },
+        {
+          title: '搜索找来源，AI 组织与生成',
+          paragraphs: ['先判断要找原始来源，还是要理解和表达。重要事实通常需要两者配合，最后仍由人回到来源确认。'],
+          bullets: [],
+          compare: [
+            { role: '搜索', title: '找事实与出处', description: '实时事实、精确数字和原始出处，优先搜索或联网核对。' },
+            { role: 'AI', title: '解释与生成', description: '解释、改写、归纳和生成初稿，可以先请 AI 协助。' },
+            { role: '两者配合', title: '重要事实先查再写', description: 'AI 帮助理解和组织，但要回到原始来源确认重要事实。' },
+          ],
+          choice: {
+            question: '要解释刚发布的公开数据，同时确保数字准确，该找谁？',
+            options: [
+              { value: '搜索', explanation: '搜索适合先找到最新数字和原始出处；如果还要面向对象解释，可再请 AI 协助组织。' },
+              { value: 'AI', explanation: 'AI 可以解释和改写，但刚发布的数字仍要回到实时搜索结果与原始来源确认。' },
+              { value: '两者配合', explanation: '先用搜索找到最新原始来源，再让 AI 帮助解释，最后由人核对数字和引用。' },
+            ],
+          },
+        },
         { title: '“说得像真的”为什么还会错', paragraphs: ['模型的目标是生成像答案的文本，不是主动查证每个事实。缺少资料时，它仍可能给出流畅、自信但无来源的内容。'], bullets: ['精确数字要找原始来源', '时效信息要确认日期', '内部信息要提供当前材料'] },
       ],
       caseStudy: {
@@ -617,6 +653,88 @@
     } catch (error) {}
   }
 
+  function appendCapabilityScenes(ownerDocument, root, scenes) {
+    var grid = element(ownerDocument, 'div', 'lesson-scene-grid');
+    for (var sceneIndex = 0; sceneIndex < scenes.length; sceneIndex += 1) {
+      (function (scene, currentSceneIndex) {
+        var card = element(ownerDocument, 'article', 'lesson-scene-card');
+        card.setAttribute('data-scene-card', String(currentSceneIndex));
+        var sceneButton = element(ownerDocument, 'button', 'lesson-scene-toggle');
+        sceneButton.setAttribute('type', 'button');
+        sceneButton.setAttribute('data-scene-toggle', String(currentSceneIndex));
+        sceneButton.setAttribute('aria-expanded', 'false');
+        var panelId = 'lesson-scene-panel-' + currentSceneIndex;
+        sceneButton.setAttribute('aria-controls', panelId);
+        var icon = element(ownerDocument, 'span', 'lesson-scene-icon');
+        icon.setAttribute('data-scene-icon', scene.icon);
+        icon.setAttribute('aria-hidden', 'true');
+        sceneButton.appendChild(icon);
+        sceneButton.appendChild(element(ownerDocument, 'span', 'lesson-scene-title', scene.title));
+        sceneButton.appendChild(element(ownerDocument, 'span', 'lesson-scene-cue', '查看现场'));
+        var panel = element(ownerDocument, 'div', 'lesson-scene-panel');
+        panel.setAttribute('id', panelId);
+        panel.setAttribute('data-scene-panel', String(currentSceneIndex));
+        panel.hidden = true;
+        var details = element(ownerDocument, 'dl', 'lesson-scene-details');
+        var labels = ['输入材料', 'AI 协助', '人要确认'];
+        var values = [scene.input, scene.assist, scene.confirm];
+        for (var detailIndex = 0; detailIndex < labels.length; detailIndex += 1) {
+          details.appendChild(element(ownerDocument, 'dt', '', labels[detailIndex]));
+          details.appendChild(element(ownerDocument, 'dd', '', values[detailIndex]));
+        }
+        panel.appendChild(details);
+        var sceneExample = element(ownerDocument, 'p', 'lesson-scene-example');
+        sceneExample.textContent = scene.example;
+        panel.appendChild(sceneExample);
+        sceneButton.addEventListener('click', function () {
+          var expanded = sceneButton.getAttribute('aria-expanded') !== 'true';
+          sceneButton.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+          panel.hidden = !expanded;
+          sceneButton.querySelector('.lesson-scene-cue').textContent = expanded ? '收起现场' : '查看现场';
+        });
+        card.appendChild(sceneButton);
+        card.appendChild(panel);
+        grid.appendChild(card);
+      }(scenes[sceneIndex], sceneIndex));
+    }
+    root.appendChild(grid);
+  }
+
+  function appendBoundaryComparison(ownerDocument, root, sectionData) {
+    var comparison = element(ownerDocument, 'div', 'lesson-boundary-compare');
+    comparison.setAttribute('aria-label', '搜索、AI 与两者配合的用途对比');
+    for (var compareIndex = 0; compareIndex < sectionData.compare.length; compareIndex += 1) {
+      var compareItem = sectionData.compare[compareIndex];
+      var card = element(ownerDocument, 'article', 'lesson-boundary-card');
+      card.setAttribute('data-boundary-role', compareItem.role);
+      card.appendChild(element(ownerDocument, 'p', 'lesson-boundary-role', compareItem.role));
+      card.appendChild(element(ownerDocument, 'h3', '', compareItem.title));
+      card.appendChild(element(ownerDocument, 'p', '', compareItem.description));
+      comparison.appendChild(card);
+    }
+    root.appendChild(comparison);
+
+    var choiceFieldset = interactionFieldset(ownerDocument, sectionData.choice.question, 'lesson-boundary-choice');
+    var choiceRow = element(ownerDocument, 'div', 'lesson-choice-row');
+    var boundaryFeedback = element(ownerDocument, 'p', 'lesson-boundary-feedback');
+    boundaryFeedback.setAttribute('data-boundary-feedback', '');
+    boundaryFeedback.setAttribute('aria-live', 'polite');
+    for (var optionIndex = 0; optionIndex < sectionData.choice.options.length; optionIndex += 1) {
+      (function (option) {
+        var button = interactionButton(ownerDocument, option.value, 'data-boundary-choice', option.value);
+        button.setAttribute('aria-pressed', 'false');
+        button.addEventListener('click', function () {
+          setChoiceState(choiceRow.querySelectorAll('[data-boundary-choice]'), button);
+          boundaryFeedback.textContent = option.explanation;
+        });
+        choiceRow.appendChild(button);
+      }(sectionData.choice.options[optionIndex]));
+    }
+    choiceFieldset.appendChild(choiceRow);
+    choiceFieldset.appendChild(boundaryFeedback);
+    root.appendChild(choiceFieldset);
+  }
+
   function appendFlowSteps(ownerDocument, root, steps, explanations) {
     var flow = element(ownerDocument, 'ol', 'lesson-model-flow');
     flow.setAttribute('aria-label', '大模型生成内容的五个步骤');
@@ -665,30 +783,46 @@
     fieldset.appendChild(options);
     root.appendChild(fieldset);
 
-    var concepts = element(ownerDocument, 'div', 'lesson-concept-map');
-    concepts.appendChild(element(ownerDocument, 'h3', '', '概念关系匹配'));
-    concepts.appendChild(element(ownerDocument, 'p', '', '为每条关系选择最准确的描述，再查看解释。'));
-    for (var relationIndex = 0; relationIndex < exercise.relations.length; relationIndex += 1) {
-      (function (relation, currentRelationIndex) {
-        var relationFieldset = interactionFieldset(ownerDocument, relation.prompt, 'lesson-concept-relation');
-        var relationOptions = element(ownerDocument, 'div', 'lesson-choice-row');
-        for (var optionIndex = 0; optionIndex < relation.options.length; optionIndex += 1) {
-          (function (option) {
-            var relationButton = interactionButton(ownerDocument, option, 'data-concept-choice', option);
-            relationButton.setAttribute('data-relation-index', String(currentRelationIndex));
-            relationButton.setAttribute('aria-pressed', 'false');
-            relationButton.addEventListener('click', function () {
-              setChoiceState(relationOptions.querySelectorAll('[data-concept-choice]'), relationButton);
-              dispatchExerciseAttempt(root, (option === relation.answer ? '关系匹配合理。' : '这个关系还可以再想想。') + relation.explanation);
-            });
-            relationOptions.appendChild(relationButton);
-          }(relation.options[optionIndex]));
-        }
-        relationFieldset.appendChild(relationOptions);
-        concepts.appendChild(relationFieldset);
-      }(exercise.relations[relationIndex], relationIndex));
+    var conceptMap = element(ownerDocument, 'div', 'lesson-concept-map');
+    conceptMap.appendChild(element(ownerDocument, 'h3', '', '四个概念怎么连接'));
+    conceptMap.appendChild(element(ownerDocument, 'p', '', '依次点开节点：前三个表示范围与能力关系，Agent 则是在模型外加入行动机制。'));
+    var nodeList = element(ownerDocument, 'ol', 'lesson-concept-nodes');
+    for (var nodeIndex = 0; nodeIndex < exercise.relationshipNodes.length; nodeIndex += 1) {
+      (function (relationshipNode) {
+        var nodeItem = element(ownerDocument, 'li', '');
+        var nodeButton = interactionButton(ownerDocument, relationshipNode.label, 'data-concept-node', relationshipNode.label);
+        nodeButton.className += ' lesson-concept-node';
+        nodeButton.setAttribute('aria-pressed', 'false');
+        nodeButton.addEventListener('click', function () {
+          setChoiceState(nodeList.querySelectorAll('[data-concept-node]'), nodeButton);
+          dispatchExerciseAttempt(root, relationshipNode.label + '：' + relationshipNode.explanation);
+        });
+        nodeItem.appendChild(nodeButton);
+        nodeList.appendChild(nodeItem);
+      }(exercise.relationshipNodes[nodeIndex]));
     }
-    root.appendChild(concepts);
+    conceptMap.appendChild(nodeList);
+
+    var judgment = exercise.relationshipJudgment;
+    var judgmentFieldset = interactionFieldset(ownerDocument, judgment.statement, 'lesson-concept-judgment');
+    judgmentFieldset.setAttribute('data-concept-judgment-group', '');
+    judgmentFieldset.appendChild(element(ownerDocument, 'p', 'lesson-interaction-note', '选一个判断，立即看解释；不计分，可以重试。'));
+    var judgmentOptions = element(ownerDocument, 'div', 'lesson-choice-row');
+    for (var judgmentIndex = 0; judgmentIndex < judgment.options.length; judgmentIndex += 1) {
+      (function (option) {
+        var judgmentButton = interactionButton(ownerDocument, option, 'data-concept-judgment', option);
+        judgmentButton.setAttribute('aria-pressed', 'false');
+        judgmentButton.addEventListener('click', function () {
+          setChoiceState(judgmentOptions.querySelectorAll('[data-concept-judgment]'), judgmentButton);
+          var lead = option === judgment.answer ? '不对，理解到位。' : '这个说法容易混淆能力边界。';
+          dispatchExerciseAttempt(root, lead + judgment.explanation);
+        });
+        judgmentOptions.appendChild(judgmentButton);
+      }(judgment.options[judgmentIndex]));
+    }
+    judgmentFieldset.appendChild(judgmentOptions);
+    conceptMap.appendChild(judgmentFieldset);
+    root.appendChild(conceptMap);
     appendFlowSteps(ownerDocument, root, exercise.steps, exercise.stepExplanations);
   }
 
@@ -1187,6 +1321,8 @@
       section.appendChild(element(ownerDocument, 'h2', '', sectionData.title));
       appendParagraphs(ownerDocument, section, sectionData.paragraphs);
       appendBulletList(ownerDocument, section, sectionData.bullets);
+      if (Array.isArray(sectionData.scenes)) appendCapabilityScenes(ownerDocument, section, sectionData.scenes);
+      if (Array.isArray(sectionData.compare) && sectionData.choice) appendBoundaryComparison(ownerDocument, section, sectionData);
       content.appendChild(section);
     }
     article.appendChild(content);
