@@ -350,7 +350,7 @@
 }
 
 .learning-path-number {
-  color: var(--learning-muted);
+  color: #52657F;
   font: 700 11px/1.4 var(--font-mono, monospace);
 }
 
@@ -363,7 +363,7 @@
 
 .learning-path-current {
   grid-column: 2;
-  color: var(--learning-blue);
+  color: #1F56D8;
   font-size: 11px;
   font-weight: 800;
   line-height: 1.3;
@@ -371,14 +371,17 @@
 
 .learning-path-status {
   flex: none;
-  color: var(--learning-muted);
+  color: #52657F;
   font-size: 11px;
   font-weight: 750;
   line-height: 1.4;
 }
 
+.learning-path-link[aria-current="page"],
+.learning-path-link[aria-current="page"] .learning-path-number,
+.learning-path-link[aria-current="page"] .learning-path-current,
 .learning-path-link[aria-current="page"] .learning-path-status {
-  color: var(--learning-blue);
+  color: #1F56D8;
 }
 
 .learning-path-summary {

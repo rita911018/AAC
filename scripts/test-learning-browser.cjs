@@ -1,6 +1,7 @@
 const http = require('node:http');
-const { createReadStream, existsSync, mkdirSync, readFileSync, statSync } = require('node:fs');
-const { execFileSync } = require('node:child_process');
+const { cpSync, createReadStream, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } = require('node:fs');
+const { execFileSync, spawn } = require('node:child_process');
+const { tmpdir } = require('node:os');
 const { extname, join, normalize, resolve } = require('node:path');
 
 let playwright;
@@ -12,12 +13,19 @@ try {
 }
 
 const { chromium } = playwright;
+const cliArguments = process.argv.slice(2);
+const unknownFlags = cliArguments.filter((argument) => argument.startsWith('--') && argument !== '--self-test');
+if (unknownFlags.length) throw new Error(`Unknown option: ${unknownFlags.join(', ')}`);
+const selfTestMode = cliArguments.includes('--self-test');
+const positionalArguments = cliArguments.filter((argument) => !argument.startsWith('--'));
+if (positionalArguments.length > 3) throw new Error('Expected at most base URL, screenshot directory, and mutation');
 const siteRoot = resolve(process.env.KB_LEARNING_SITE_ROOT || resolve(__dirname, '../site/knowledge-base'));
-const screenshotRoot = resolve(process.argv[3] || '/private/tmp/knowledge-base-learning-qa');
-const suppliedBase = process.argv[2] || '';
-const mutation = process.env.KB_LEARNING_MUTATION || process.argv[4] || '';
+const screenshotRoot = resolve(process.env.KB_LEARNING_SCREENSHOT_ROOT || positionalArguments[1] || '/private/tmp/knowledge-base-learning-qa');
+const suppliedBase = positionalArguments[0] || '';
+const mutation = process.env.KB_LEARNING_MUTATION || positionalArguments[2] || '';
+const pathOnlyMode = process.env.KB_LEARNING_PATH_ONLY === '1';
 const storageKey = 'amersports-ai-beginner-session-v1';
-mkdirSync(screenshotRoot, { recursive: true });
+if (!selfTestMode) mkdirSync(screenshotRoot, { recursive: true });
 
 const chapters = [
   { id: 'ai-basics', number: '01', title: '认识 AI', action: '[data-token-option]' },
@@ -115,6 +123,8 @@ function startServer() {
         changed = source + '\n.learning-path-summary{min-height:10px!important;height:10px!important;padding:0!important;line-height:10px!important}\n';
       } else if (mutation === 'path-focus-clipped' && relative.endsWith('.css')) {
         changed = source + '\n.learning-path-disclosure{overflow:hidden!important}.learning-path-disclosure summary:focus-visible,.learning-path-disclosure a:focus-visible{outline-offset:0!important}\n';
+      } else if (mutation === 'path-low-contrast' && relative.endsWith('.css')) {
+        changed = source + '\n.learning-path-link[aria-current="page"],.learning-path-link[aria-current="page"] .learning-path-number,.learning-path-link[aria-current="page"] .learning-path-current,.learning-path-link[aria-current="page"] .learning-path-status{color:#2f68ed!important}\n';
       } else if (mutation === 'drag-only' && relative.endsWith('.css')) {
         changed = source + '\n.lesson-exercise button{display:none!important}\n';
       } else if (mutation === 'prompt-innerhtml' && relative.endsWith('.js')) {
@@ -262,11 +272,37 @@ async function lessonSnapshot(page) {
       activeOutlineWidth: document.activeElement && document.activeElement !== document.body
         ? Number.parseFloat(getComputedStyle(document.activeElement).outlineWidth) : 0,
       path: (() => {
+        const parseColor = (value) => {
+          const channels = value.match(/[\d.]+/g)?.map(Number) || [];
+          return { rgb: channels.slice(0, 3), alpha: channels[3] ?? 1 };
+        };
+        const luminance = (rgb) => {
+          const channels = rgb.map((channel) => {
+            const normalized = channel / 255;
+            return normalized <= 0.04045 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
+          });
+          return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+        };
+        const effectiveBackground = (node) => {
+          for (let currentNode = node; currentNode; currentNode = currentNode.parentElement) {
+            const color = parseColor(getComputedStyle(currentNode).backgroundColor);
+            if (color.alpha > 0) return color.rgb;
+          }
+          return [255, 255, 255];
+        };
+        const contrast = (node, backgroundNode) => {
+          if (!node || !backgroundNode) return 0;
+          const foreground = luminance(parseColor(getComputedStyle(node).color).rgb);
+          const background = luminance(effectiveBackground(backgroundNode));
+          return (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05);
+        };
         const rail = document.querySelector('.learning-path-rail');
         const disclosure = document.querySelector('.learning-path-disclosure');
         const visiblePath = visible(rail) ? rail : disclosure;
         const links = [...(visiblePath?.querySelectorAll('.learning-path-link') || [])];
         const current = links.filter((link) => link.getAttribute('aria-current') === 'page');
+        const currentLink = current[0] || null;
+        const nonCurrentLink = links.find((link) => link !== currentLink) || null;
         const railRect = rail?.getBoundingClientRect();
         const topbarRect = document.querySelector('.topbar')?.getBoundingClientRect();
         return {
@@ -280,6 +316,14 @@ async function lessonSnapshot(page) {
           statuses: links.map((link) => link.querySelector('.learning-path-status')?.textContent.trim() || ''),
           currentCount: current.length,
           currentText: current[0]?.textContent.trim() || '',
+          contrasts: {
+            currentNumber: contrast(currentLink?.querySelector('.learning-path-number'), currentLink),
+            currentName: contrast(currentLink?.querySelector('.learning-path-name'), currentLink),
+            currentMarker: contrast(currentLink?.querySelector('.learning-path-current'), currentLink),
+            currentStatus: contrast(currentLink?.querySelector('.learning-path-status'), currentLink),
+            nonCurrentNumber: contrast(nonCurrentLink?.querySelector('.learning-path-number'), nonCurrentLink),
+            nonCurrentStatus: contrast(nonCurrentLink?.querySelector('.learning-path-status'), nonCurrentLink),
+          },
           asideLabel: rail?.getAttribute('aria-label') || '',
           railPosition: rail ? getComputedStyle(rail).position : '',
           railTop: railRect?.top || 0,
@@ -334,6 +378,9 @@ async function runPrimaryContract(browser, base) {
         `${chapter.id} ${width}px: current path item must expose aria-current and visible 当前`);
       expect(snapshot.path.statuses.every((status) => ['未看', '进行中', '已看'].includes(status)),
         `${chapter.id} ${width}px: path statuses must use visible approved copy`);
+      for (const [part, ratio] of Object.entries(snapshot.path.contrasts)) {
+        expect(ratio >= 4.5, `${chapter.id} ${width}px: ${part} path text contrast must be >=4.5 (${ratio.toFixed(2)})`);
+      }
       if (width > 1024) {
         expect(snapshot.path.railVisible && !snapshot.path.disclosureVisible, `${chapter.id} ${width}px: desktop must show only the aside path`);
         expect(snapshot.path.asideLabel === 'AI 新手入门学习路径', `${chapter.id} ${width}px: aside must expose its accessible label`);
@@ -478,6 +525,96 @@ async function runDesktopPathGeometryContract(browser, base) {
     expect(geometry.top >= geometry.topbarBottom - 1, `${width}px: sticky rail must not sit beneath the topbar (${geometry.top} < ${geometry.topbarBottom})`);
     expect(geometry.overflow <= 1, `${width}px: desktop path layout must not overflow horizontally (${geometry.overflow})`);
   }
+  await context.close();
+}
+
+async function runPathFocusedContract(browser, base) {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  const canonicalHrefs = chapters.map(({ id }) => `detail.html?type=learn&id=${id}`).join('|');
+
+  await page.setViewportSize({ width: 1440, height: 820 });
+  await page.goto(`${base}/detail.html?type=learn&id=ai-basics`, { waitUntil: 'domcontentloaded' });
+  let snapshot = await lessonSnapshot(page);
+  const contrastEvidence = { desktop1440: snapshot.path.contrasts };
+  expect(snapshot.path.linkCount === 6, `focused desktop: visible path must contain exactly six chapter links (${snapshot.path.linkCount})`);
+  expect(snapshot.path.hrefs.join('|') === canonicalHrefs, 'focused desktop: path href order must remain canonical');
+  expect(snapshot.path.currentCount === 1 && snapshot.path.currentText.includes('当前'),
+    `focused desktop: current item must expose aria-current and visible 当前 (${snapshot.path.currentCount})`);
+  expect(snapshot.path.railVisible && !snapshot.path.disclosureVisible, 'focused desktop: desktop must show only the aside path');
+  expect(snapshot.path.railPosition === 'sticky', `focused desktop: desktop path must be sticky (${snapshot.path.railPosition})`);
+  for (const [part, ratio] of Object.entries(snapshot.path.contrasts)) {
+    expect(ratio >= 4.5, `focused desktop: ${part} path text contrast must be >=4.5 (${ratio.toFixed(2)})`);
+  }
+  await page.evaluate(() => scrollTo(0, 700));
+  await page.waitForTimeout(30);
+  const stickyGeometry = await page.evaluate(() => {
+    const rail = document.querySelector('.learning-path-rail').getBoundingClientRect();
+    const topbar = document.querySelector('.topbar').getBoundingClientRect();
+    return { top: rail.top, topbarBottom: topbar.bottom };
+  });
+  expect(stickyGeometry.top >= stickyGeometry.topbarBottom - 1,
+    `focused desktop: sticky rail must not sit beneath the topbar (${stickyGeometry.top} < ${stickyGeometry.topbarBottom})`);
+
+  await page.setViewportSize({ width: 1024, height: 900 });
+  await page.goto(`${base}/detail.html?type=learn&id=ai-basics`, { waitUntil: 'domcontentloaded' });
+  snapshot = await lessonSnapshot(page);
+  contrastEvidence.mobile1024 = snapshot.path.contrasts;
+  expect(snapshot.path.linkCount === 6, `focused mobile: visible path must contain exactly six chapter links (${snapshot.path.linkCount})`);
+  expect(snapshot.path.hrefs.join('|') === canonicalHrefs, 'focused mobile: path href order must remain canonical');
+  expect(snapshot.path.currentCount === 1 && snapshot.path.currentText.includes('当前'),
+    `focused mobile: current item must expose aria-current and visible 当前 (${snapshot.path.currentCount})`);
+  expect(!snapshot.path.railVisible && snapshot.path.disclosureVisible, 'focused mobile: mobile/tablet must show only the disclosure path');
+  expect(snapshot.path.disclosureTag === 'DETAILS', `focused mobile: mobile path must be native details (${snapshot.path.disclosureTag})`);
+  expect(snapshot.path.summaryHeight >= 44, `focused mobile: disclosure summary must be at least 44px (${snapshot.path.summaryHeight})`);
+  for (const [part, ratio] of Object.entries(snapshot.path.contrasts)) {
+    expect(ratio >= 4.5, `focused mobile: ${part} path text contrast must be >=4.5 (${ratio.toFixed(2)})`);
+  }
+  const focusEvidence = await page.evaluate(() => {
+    const details = document.querySelector('.learning-path-disclosure');
+    const summary = details?.querySelector('summary');
+    if (details?.tagName === 'DETAILS') details.open = true;
+    summary?.focus();
+    const summaryOffset = Number.parseFloat(summary ? getComputedStyle(summary).outlineOffset : '0');
+    const link = details?.querySelector('.learning-path-link');
+    link?.focus();
+    const linkOffset = Number.parseFloat(link ? getComputedStyle(link).outlineOffset : '0');
+    return {
+      summaryOffset,
+      linkOffset,
+    };
+  });
+  expect(focusEvidence.summaryOffset >= 3 && focusEvidence.linkOffset >= 3,
+    `focused mobile: path focus rings must not be clipped (${focusEvidence.summaryOffset}/${focusEvidence.linkOffset})`);
+
+  await page.evaluate((key) => sessionStorage.setItem(key, JSON.stringify({
+    'ai-basics': 'seen',
+    'ai-boundaries': 'seen',
+    'ai-workflow': 'in-progress',
+  })), storageKey);
+  await page.goto(`${base}/detail.html?type=learn&id=ai-workflow`, { waitUntil: 'domcontentloaded' });
+  expect((await page.locator('.learning-path-disclosure > summary').textContent()).trim() === '六章目录 · 本次浏览已看 2 / 6',
+    'focused state: partial path count must be 2 / 6');
+
+  await page.evaluate((key) => sessionStorage.removeItem(key), storageKey);
+  await page.goto(`${base}/detail.html?type=learn&id=ai-basics`, { waitUntil: 'domcontentloaded' });
+  await page.locator('[data-token-option]').first().click();
+  await page.locator('[data-mark-seen]').click();
+  const refreshed = await page.evaluate(() => ({
+    counts: [...document.querySelectorAll('[data-learning-path-count]')].map((node) => node.textContent),
+    currentStatuses: [...document.querySelectorAll('.learning-path-link[aria-current="page"] .learning-path-status')].map((node) => node.textContent),
+  }));
+  expect(refreshed.counts.length === 2 && refreshed.counts.every((value) => value === '1'),
+    `focused state: markSeen must immediately refresh both path counts (${refreshed.counts.join('|')})`);
+  expect(refreshed.currentStatuses.length === 2 && refreshed.currentStatuses.every((value) => value === '已看'),
+    `focused state: markSeen must immediately refresh both current statuses (${refreshed.currentStatuses.join('|')})`);
+
+  for (const route of ['ai-models', 'unknown', '%E0%A4%A']) {
+    await page.goto(`${base}/detail.html?type=learn&id=${route}`, { waitUntil: 'domcontentloaded' });
+    const pathCount = await page.locator('.learning-path-rail,.learning-path-disclosure').count();
+    expect(pathCount === 0, `focused route ${route}: non-canonical learning route must not expose the learning path (${pathCount})`);
+  }
+  if (!mutation) console.log(`PATH CONTRAST: ${JSON.stringify(contrastEvidence)}`);
   await context.close();
 }
 
@@ -719,7 +856,104 @@ async function runCopyContract(browser, base) {
   await context.close();
 }
 
-(async () => {
+const pathSelfTestMutations = [
+  ['path-missing-chapter', 'visible path must contain exactly six chapter links'],
+  ['path-order-swap', 'path href order must remain canonical'],
+  ['path-current-removed', 'current item must expose aria-current and visible 当前'],
+  ['path-count-hardcoded', 'partial path count must be 2 / 6'],
+  ['path-mark-seen-no-refresh', 'markSeen must immediately refresh both path counts'],
+  ['path-leaks-routes', 'non-canonical learning route must not expose the learning path'],
+  ['path-mobile-not-details', 'mobile path must be native details'],
+  ['path-desktop-not-sticky', 'desktop path must be sticky'],
+  ['path-sticky-overlaps-topbar', 'sticky rail must not sit beneath the topbar'],
+  ['path-1024-shows-aside', 'mobile/tablet must show only the disclosure path'],
+  ['path-summary-below-44', 'disclosure summary must be at least 44px'],
+  ['path-focus-clipped', 'path focus rings must not be clipped'],
+  ['path-low-contrast', 'currentNumber path text contrast must be >=4.5'],
+];
+
+function runSelfTestChild(environment, timeoutMs) {
+  return new Promise((resolveChild) => {
+    const child = spawn(process.execPath, [__filename], {
+      cwd: __dirname,
+      env: { ...process.env, ...environment },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let stdout = '';
+    let stderr = '';
+    let timedOut = false;
+    let settled = false;
+    child.stdout.on('data', (chunk) => { stdout += chunk; });
+    child.stderr.on('data', (chunk) => { stderr += chunk; });
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill('SIGKILL');
+    }, timeoutMs);
+    function finish(result) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolveChild({ stdout, stderr, timedOut, ...result });
+    }
+    child.once('error', (error) => finish({ code: null, signal: null, error }));
+    child.once('close', (code, signal) => finish({ code, signal, error: null }));
+  });
+}
+
+async function runBrowserSelfTest() {
+  const temporaryRoot = mkdtempSync(join(tmpdir(), 'learning-path-browser-self-test-'));
+  const temporarySite = join(temporaryRoot, 'site');
+  const temporaryScreenshots = join(temporaryRoot, 'screenshots');
+  try {
+    cpSync(siteRoot, temporarySite, { recursive: true });
+    mkdirSync(temporaryScreenshots, { recursive: true });
+    const sharedEnvironment = {
+      KB_LEARNING_SITE_ROOT: temporarySite,
+      KB_LEARNING_SCREENSHOT_ROOT: temporaryScreenshots,
+      KB_LEARNING_PATH_ONLY: '1',
+      KB_LEARNING_MUTATION: '',
+      KB_LEARNING_SELF_TEST_CRASH: '',
+      KB_LEARNING_SELF_TEST_HANG: '',
+    };
+
+    const baseline = await runSelfTestChild(sharedEnvironment, 15000);
+    if (baseline.error || baseline.timedOut || baseline.code !== 0) {
+      throw new Error(`path browser baseline must be GREEN\n${baseline.stdout}\n${baseline.stderr}`);
+    }
+    console.log('GREEN path browser baseline: desktop 1440 + mobile 1024');
+    const contrastLine = baseline.stdout.split(/\r?\n/).find((line) => line.startsWith('PATH CONTRAST:'));
+    if (!contrastLine) throw new Error(`path browser baseline must report computed contrast evidence\n${baseline.stdout}`);
+    console.log(contrastLine);
+
+    const childError = await runSelfTestChild({ ...sharedEnvironment, KB_LEARNING_SELF_TEST_CRASH: '1' }, 5000);
+    if (childError.timedOut || childError.code === 0 || !`${childError.stdout}\n${childError.stderr}`.includes('intentional learning browser self-test child error')) {
+      throw new Error(`browser self-test must surface child errors\n${childError.stdout}\n${childError.stderr}`);
+    }
+    console.log('DETECTED path browser child error');
+
+    const timedOut = await runSelfTestChild({ ...sharedEnvironment, KB_LEARNING_SELF_TEST_HANG: '1' }, 300);
+    if (!timedOut.timedOut || timedOut.signal !== 'SIGKILL') {
+      throw new Error(`browser self-test must kill timed-out children (${JSON.stringify(timedOut)})`);
+    }
+    console.log('DETECTED path browser child timeout and SIGKILL');
+
+    for (const [name, diagnostic] of pathSelfTestMutations) {
+      const result = await runSelfTestChild({ ...sharedEnvironment, KB_LEARNING_MUTATION: name }, 15000);
+      const output = `${result.stdout}\n${result.stderr}`;
+      if (result.error || result.timedOut || result.code === 0 || !output.includes(diagnostic)) {
+        throw new Error(`${name} mutation was not detected for “${diagnostic}”\n${output}`);
+      }
+      console.log(`DETECTED path browser mutation: ${name}`);
+    }
+  } finally {
+    rmSync(temporaryRoot, { recursive: true, force: true });
+  }
+  if (existsSync(temporaryRoot)) throw new Error(`browser self-test temporary root was not removed: ${temporaryRoot}`);
+  console.log(`PASS: learning path browser self-test (1 baseline + ${pathSelfTestMutations.length} mutations)`);
+  console.log('CLEANED path browser children, servers, browsers, and temporary site');
+}
+
+async function runBrowserContract() {
   let localServer = null;
   let browser = null;
   try {
@@ -729,23 +963,41 @@ async function runCopyContract(browser, base) {
       base = localServer.base;
     }
     browser = await chromium.launch({ headless: true });
-    await runPrimaryContract(browser, base);
-    await runPathRouteAndStateContract(browser, base);
-    await runDesktopPathGeometryContract(browser, base);
-    await runDeepInteractionContract(browser, base);
-    await runFreshContextContract(browser, base);
-    for (const mode of ['get', 'set', 'invalid-json']) await runStorageFaultContract(browser, base, mode);
-    await runCopyContract(browser, base);
+    if (pathOnlyMode) {
+      await runPathFocusedContract(browser, base);
+    } else {
+      await runPrimaryContract(browser, base);
+      await runPathRouteAndStateContract(browser, base);
+      await runDesktopPathGeometryContract(browser, base);
+      await runDeepInteractionContract(browser, base);
+      await runFreshContextContract(browser, base);
+      for (const mode of ['get', 'set', 'invalid-json']) await runStorageFaultContract(browser, base, mode);
+      await runCopyContract(browser, base);
+    }
 
     if (failures.length) {
       throw new Error(`Learning browser contract${mutation ? ` [mutation: ${mutation}]` : ''} failed (${failures.length}/${checks})\n- ${failures.join('\n- ')}`);
     }
-    console.log(`PASS: learning browser contract (${checks} checks, ${chapters.length * viewports.length} screenshots at ${screenshotRoot})`);
+    console.log(pathOnlyMode
+      ? `PASS: focused learning path browser contract (${checks} checks)`
+      : `PASS: learning browser contract (${checks} checks, ${chapters.length * viewports.length} screenshots at ${screenshotRoot})`);
   } finally {
     if (browser) await browser.close();
     if (localServer) await new Promise((resolveClose) => localServer.server.close(resolveClose));
   }
-})().catch((error) => {
+}
+
+async function main() {
+  if (process.env.KB_LEARNING_SELF_TEST_CRASH === '1') throw new Error('intentional learning browser self-test child error');
+  if (process.env.KB_LEARNING_SELF_TEST_HANG === '1') {
+    await new Promise(() => { setInterval(() => {}, 1000); });
+    return;
+  }
+  if (selfTestMode) await runBrowserSelfTest();
+  else await runBrowserContract();
+}
+
+main().catch((error) => {
   console.error(error.stack || error.message || error);
   process.exitCode = 1;
 });
