@@ -148,7 +148,6 @@ html.is-ready .reveal{animation:reveal-in 420ms ease both}
 .entry-card::before,.sub-card::before{content:none}
 .entry-card:hover,.sub-card:hover,.video-card:hover,.res-entry:hover,.gate-home-card:hover{border-color:var(--blue);background:var(--blue-soft);box-shadow:none;transform:none}
 .entry-card{padding:30px 26px 32px;display:flex;flex-direction:column}
-.entry-card:focus-visible{outline:3px solid var(--blue);outline-offset:3px}
 .entry-card .ec-top,.sub-card .sc-top{margin-bottom:22px;display:flex;align-items:center;justify-content:space-between;gap:16px}
 .entry-card .ec-num,.sub-card .sc-num{color:var(--blue);font:700 12px/1.5 var(--font-mono);letter-spacing:.08em}
 .entry-card .ec-num{order:2}
@@ -529,12 +528,12 @@ body .xa-hero .xh-side li b{color:var(--white)}
 
 /* Homepage WorkBuddy-style Xiao A composition */
 .home-hero .container{min-height:360px;padding-block:0;grid-template-columns:minmax(0,1fr) minmax(340px,440px);align-items:center;gap:clamp(40px,5vw,72px)}
-.home-hero .bh-left{grid-column:1;grid-row:1;width:calc(100% - 28px)}
+.home-hero .bh-left{grid-column:1;grid-row:1;justify-self:start}
 .home-hero .hero-mascot{position:relative;right:auto;bottom:auto;grid-column:2;grid-row:1;width:100%;max-width:440px;height:360px;max-height:none;margin:0;overflow:visible;justify-self:end;align-self:end;animation:none!important;transform:none;opacity:1}
 .home-hero .hero-xiaoa-entry{position:absolute;top:88px;right:-25px;z-index:5;width:190px;pointer-events:auto}
 .home-hero .hero-xiaoa-entry p{margin:9px 0 0;color:var(--on-navy);font-size:12.5px;line-height:1.6}
 .home-hero .hero-mascot picture{position:absolute;inset:0;display:block;overflow:visible}
-.home-hero .hero-mascot img{position:absolute;right:80px;bottom:-165px;width:auto;height:520px;max-width:none;max-height:none;object-fit:contain;object-position:center bottom}
+.home-hero .hero-mascot img{position:absolute;right:85px;bottom:-165px;width:400px;height:480px;max-width:none;max-height:none;object-fit:contain;object-position:center bottom}
 
 /* Beginner Hero: keep the reading mascot complete and the learning controls grouped. */
 .learn-hero{overflow:visible}

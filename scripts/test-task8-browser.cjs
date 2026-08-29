@@ -218,6 +218,11 @@ const focusedViewports = [
   [560, 900],
   [390, 844],
 ];
+const homeBoundaryViewports = [
+  [821, 1100],
+  [834, 1100],
+  [849, 1100],
+];
 const mutationDefinitions = {
   '1': { pages: ['index', 'resources'], viewport: [390, 844], css: '' },
   'fixture-index-1440': { page: 'index', viewport: [1440, 1100], css: '' },
@@ -281,7 +286,7 @@ function prepareBrowserGoodFixture(sourceRoot, targetRoot) {
 .entry-card .ec-top{display:flex}.entry-card .ec-icon{width:72px;height:72px;background:#2563eb;color:#fff}
 .entry-card .ec-icon svg{width:36px;height:36px;fill:none;stroke:currentColor}
 .entry-card h3{font-size:28px;font-weight:800;color:#0e2144}.entry-card p{color:#60728d;font-size:17px;font-weight:400}
-.entry-card .ec-link{margin-top:auto}.home-hero .hero-mascot img{right:78.5px}
+.entry-card .ec-link{margin-top:auto}
 @media(max-width:820px){.home-hero .hero-mascot img{right:76px}}
 @media(max-width:560px){.home-hero .hero-mascot img{right:64px}}
 </style></head>`);
@@ -433,6 +438,7 @@ async function runQa() {
   let runError = null;
   const runtimeErrors = [];
   const homeViewportEvidence = [];
+  const homeBoundaryEvidence = [];
   const learnViewportEvidence = [];
   const gatewayViewportEvidence = [];
   let screenshotCount = 0;
@@ -1103,6 +1109,63 @@ async function runQa() {
     }
   }
 
+  if (!mutationMode) {
+    for (const [width, height] of homeBoundaryViewports) {
+      await page.setViewportSize({ width, height });
+      await page.goto(`${base}/index.html`, { waitUntil: 'domcontentloaded' });
+      await page.waitForTimeout(500);
+      const boundary = await page.evaluate(() => {
+        const rect = (node) => node?.getBoundingClientRect().toJSON() ?? null;
+        const overlap = (left, right) => Boolean(left && right
+          && left.right > right.left && right.right > left.left
+          && left.bottom > right.top && right.bottom > left.top);
+        const lineCount = (node) => {
+          if (!node) return 0;
+          const range = document.createRange();
+          range.selectNodeContents(node);
+          return new Set([...range.getClientRects()].map(({ top }) => Math.round(top * 2) / 2)).size;
+        };
+        const title = document.querySelector('.home-hero .bh-left h1');
+        const subtitle = document.querySelector('.home-hero .bh-subtitle');
+        const copy = document.querySelector('.home-hero .bh-left');
+        const image = document.querySelector('.home-hero .hero-mascot img');
+        const shortcut = document.querySelector('.home-hero .hero-xiaoa-entry');
+        const imageRect = rect(image);
+        const faceSafeRect = imageRect ? {
+          left: imageRect.left + imageRect.width * .16,
+          right: imageRect.left + imageRect.width * .77,
+          top: imageRect.top + imageRect.height * .01,
+          bottom: imageRect.top + imageRect.height * .63,
+        } : null;
+        return {
+          width: innerWidth,
+          scrollWidth: document.documentElement.scrollWidth,
+          titleLines: lineCount(title),
+          subtitleLines: lineCount(subtitle),
+          titleRect: rect(title),
+          subtitleRect: rect(subtitle),
+          copyRect: rect(copy),
+          imageRect,
+          shortcutRect: rect(shortcut),
+          faceSafeRect,
+          copyImageOverlap: overlap(rect(copy), imageRect),
+          shortcutCopyOverlap: overlap(rect(shortcut), rect(copy)),
+          shortcutFaceOverlap: overlap(rect(shortcut), faceSafeRect),
+        };
+      });
+      expect(boundary.titleLines === 1, `index ${width}px boundary: home H1 must remain on one line (${boundary.titleLines})`);
+      expect(boundary.subtitleLines === 1, `index ${width}px boundary: home subtitle must remain on one line (${boundary.subtitleLines})`);
+      expect(boundary.scrollWidth <= width + 1, `index ${width}px boundary: horizontal overflow ${boundary.scrollWidth}/${width}`);
+      expect(boundary.copyRect.left >= -1 && boundary.copyRect.right <= width + 1, `index ${width}px boundary: Hero copy overflows the viewport`);
+      expect(boundary.faceSafeRect.left >= -1 && boundary.faceSafeRect.right <= width + 1, `index ${width}px boundary: mascot face-safe rectangle overflows the viewport`);
+      expect(boundary.shortcutRect.left >= -1 && boundary.shortcutRect.right <= width + 1, `index ${width}px boundary: Xiao A shortcut overflows the viewport`);
+      expect(!boundary.copyImageOverlap, `index ${width}px boundary: mascot image overlaps Hero copy`);
+      expect(!boundary.shortcutCopyOverlap, `index ${width}px boundary: Xiao A shortcut overlaps Hero copy`);
+      expect(!boundary.shortcutFaceOverlap, `index ${width}px boundary: Xiao A shortcut overlaps mascot face-safe rectangle`);
+      homeBoundaryEvidence.push(boundary);
+    }
+  }
+
   const expectedHomeViewportCount = mutationMode && activeMutationPages.includes('index') ? 1 : (mutationMode ? 0 : focusedViewports.length);
   const expectedLearnViewportCount = mutationMode && activeMutationPages.includes('learn') ? 1 : (mutationMode ? 0 : focusedViewports.length);
   const expectedGatewayViewportCount = mutationMode && activeMutationPages.includes('resources') ? 1 : (mutationMode ? 0 : allViewports.length);
@@ -1282,11 +1345,13 @@ async function runQa() {
   if (failures.length) {
     console.error(failures.map((failure) => `FAIL: ${failure}`).join('\n'));
     if (homeViewportEvidence.length) console.error(`HOME HERO: ${JSON.stringify(homeViewportEvidence)}`);
+    if (homeBoundaryEvidence.length) console.error(`HOME BOUNDARY: ${JSON.stringify(homeBoundaryEvidence)}`);
     if (learnViewportEvidence.length) console.error(`LEARN HERO: ${JSON.stringify(learnViewportEvidence)}`);
     process.exitCode = 1;
     return;
   }
   console.log(`HOME HERO: ${JSON.stringify(homeViewportEvidence)}`);
+  console.log(`HOME BOUNDARY: ${JSON.stringify(homeBoundaryEvidence)}`);
   console.log(`LEARN HERO: ${JSON.stringify(learnViewportEvidence)}`);
   console.log(`GATEWAY ANCHOR: ${JSON.stringify(gatewayViewportEvidence)}`);
   console.log(`PASS: Task 8 browser QA (${checks} checks, ${screenshotCount} screenshots at ${output})`);
