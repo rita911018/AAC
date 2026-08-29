@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 
 const portalUrl = 'https://portal.amersports.cn/portal/indexs';
@@ -12,7 +15,116 @@ const retiredHomeCopy = [
 ];
 const approvedFooterDescription = '由 Amersports AI Community 维护的内部学习平台，帮助每一位员工从 AI 新手成长为高效使用者。';
 const retiredFooterDescription = '由亚玛芬体育 AI 赋能计划维护的内部学习平台，帮助每一位员工从 AI 新手成长为高效使用者。';
-const siteRoot = resolve(process.argv[2] || 'site/knowledge-base');
+const staticSelfTestMode = process.argv.includes('--self-test');
+const siteArgument = process.argv.slice(2).find((argument) => !argument.startsWith('--'));
+const siteRoot = resolve(siteArgument || 'site/knowledge-base');
+
+function editFixtureFile(root, relativePath, editor) {
+  const file = join(root, relativePath);
+  const before = readFileSync(file, 'utf8');
+  const after = editor(before);
+  assert.notEqual(after, before, `${relativePath} fixture edit must change the file`);
+  writeFileSync(file, after);
+}
+
+function prepareStaticGoodFixture(root) {
+  for (const fileName of ['index.html', 'learn.html', 'video.html', 'resources.html', 'progress.html', 'detail.html']) {
+    const file = join(root, fileName);
+    const html = readFileSync(file, 'utf8').replaceAll(retiredFooterDescription, approvedFooterDescription);
+    writeFileSync(file, html);
+  }
+
+  const indexFile = join(root, 'index.html');
+  let index = readFileSync(indexFile, 'utf8');
+  index = index
+    .replace(`<p>${retiredHomeCopy[0]}</p>`, '')
+    .replace(`<p class="desc">${retiredHomeCopy[1]}</p>`, '');
+  const iconMarkup = [
+    ['01 / LEARN', 'learn', '<path d="M4 5h7v14H4zM13 5h7v14h-7z"/>'],
+    ['02 / WATCH', 'watch', '<rect x="3" y="4" width="18" height="14"/><path d="m10 8 5 3-5 3z"/>'],
+    ['03 / EXPLORE', 'resources', '<path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/>'],
+  ];
+  for (const [number, marker, graphic] of iconMarkup) {
+    if (!index.includes(`data-entry-icon="${marker}"`)) {
+      index = index.replace(
+        `<span class="ec-num">${number}</span>`,
+        `<span class="ec-top"><span class="ec-num">${number}</span><span class="ec-icon"><svg data-entry-icon="${marker}" aria-hidden="true" viewBox="0 0 24 24">${graphic}</svg></span></span>`,
+      );
+    }
+  }
+  index = index.replace(
+    /(<span class="ec-link">\s*进入板块\s*<svg)(?![^>]*\baria-hidden=)([^>]*>)/g,
+    '$1 aria-hidden="true"$2',
+  );
+  index = index.replace(
+    '</main>',
+    `</main><!-- STATIC_SELF_TEST_DECOYS --><!-- ${retiredHomeCopy[0]} --><script>const retiredCopy=${JSON.stringify(retiredHomeCopy[1])}</script><style>.retired::before{content:${JSON.stringify(retiredHomeCopy[0])}}</style><p hidden>${retiredHomeCopy[1]}</p>`,
+  );
+  writeFileSync(indexFile, index);
+}
+
+function runStaticVerifier(root) {
+  return spawnSync(process.execPath, [fileURLToPath(import.meta.url), root], {
+    encoding: 'utf8',
+    env: { ...process.env, KB_HOME_STATIC_SELF_TEST_CHILD: '1' },
+  });
+}
+
+function mutateFirstEntryCard(html, editor) {
+  return html.replace(
+    /(<a class="entry-card" href="learn\.html">)([\s\S]*?)(<\/a>)/,
+    (match, open, body, close) => `${open}${editor(body)}${close}`,
+  );
+}
+
+function runStaticSelfTest() {
+  const temporaryRoot = mkdtempSync(join(tmpdir(), 'kb-home-static-self-test-'));
+  try {
+    const goodRoot = join(temporaryRoot, 'good');
+    cpSync(siteRoot, goodRoot, { recursive: true });
+    prepareStaticGoodFixture(goodRoot);
+    const green = runStaticVerifier(goodRoot);
+    assert.equal(green.status, 0, `valid static fixture must pass:\n${green.stdout}\n${green.stderr}`);
+
+    const mutations = [
+      ['retired-hero-visible', (html) => html.replace('</main>', `<p>${retiredHomeCopy[0]}</p></main>`)],
+      ['retired-section-visible', (html) => html.replace('</main>', `<p>${retiredHomeCopy[1]}</p></main>`)],
+      ['retired-aria-hidden-visible', (html) => html.replace('</main>', `<p aria-hidden="true">${retiredHomeCopy[0]}</p></main>`)],
+      ['footer-old-owner', null, (html) => html.replace(approvedFooterDescription, retiredFooterDescription)],
+      ['footer-description-hidden', null, (html) => html.replace('class="f-desc"', 'class="f-desc" hidden')],
+      ['footer-ancestor-hidden', null, (html) => html.replace('class="footer-grid"', 'class="footer-grid" hidden')],
+      ['footer-description-missing', null, (html) => html.replace(approvedFooterDescription, '')],
+      ['entry-icon-missing', (html) => mutateFirstEntryCard(html, (card) => card.replace(/<svg data-entry-icon="learn"[\s\S]*?<\/svg>/, ''))],
+      ['entry-icon-duplicate-marker', (html) => html.replace('data-entry-icon="watch"', 'data-entry-icon="learn"')],
+      ['entry-icon-hidden', (html) => html.replace('data-entry-icon="learn"', 'data-entry-icon="learn" style="display:none"')],
+      ['entry-icon-aria', (html) => html.replace('data-entry-icon="learn" aria-hidden="true"', 'data-entry-icon="learn" aria-hidden="false"')],
+      ['entry-third-svg', (html) => mutateFirstEntryCard(html, (card) => `${card}<svg aria-hidden="true"><path d="M0 0h1"/></svg>`) ],
+      ['entry-extra-data-icon', (html) => mutateFirstEntryCard(html, (card) => card.replace('<svg aria-hidden="true" viewBox=', '<svg aria-hidden="true" data-entry-icon="rogue" viewBox='))],
+      ['entry-external-image', (html) => mutateFirstEntryCard(html, (card) => card.replace('</span></span>', '<img src="external.svg" alt=""/></span></span>'))],
+      ['entry-arrow-missing', (html) => mutateFirstEntryCard(html, (card) => card.replace(/<svg aria-hidden="true" viewBox="0 0 24 24"[\s\S]*?<path d="M5 12h14M12 5l7 7-7 7"\/><\/svg>/, ''))],
+      ['entry-arrow-aria', (html) => mutateFirstEntryCard(html, (card) => card.replace('<svg aria-hidden="true" viewBox="0 0 24 24"', '<svg aria-hidden="false" viewBox="0 0 24 24"'))],
+      ['entry-arrow-path', (html) => mutateFirstEntryCard(html, (card) => card.replace('M5 12h14M12 5l7 7-7 7', 'M5 12h10'))],
+    ];
+
+    for (const [name, indexEditor, footerEditor] of mutations) {
+      const mutationRoot = join(temporaryRoot, name);
+      cpSync(goodRoot, mutationRoot, { recursive: true });
+      if (indexEditor) editFixtureFile(mutationRoot, 'index.html', indexEditor);
+      if (footerEditor) editFixtureFile(mutationRoot, 'index.html', footerEditor);
+      const result = runStaticVerifier(mutationRoot);
+      assert.notEqual(result.status, 0, `${name} mutation must be detected`);
+      console.log(`DETECTED static mutation: ${name}`);
+    }
+    console.log(`PASS static homepage contract self-test (valid fixture + ${mutations.length} mutations)`);
+    return 0;
+  } finally {
+    rmSync(temporaryRoot, { recursive: true, force: true });
+  }
+}
+
+if (staticSelfTestMode && process.env.KB_HOME_STATIC_SELF_TEST_CHILD !== '1') {
+  process.exit(runStaticSelfTest());
+}
 
 const files = {
   index: readFileSync(join(siteRoot, 'index.html'), 'utf8'),
@@ -540,7 +652,6 @@ function assertSafeExternalLink(element, expectedHref, label) {
 function isLocallyHidden(element) {
   const classTokens = new Set((element.attributes.get('class') ?? '').split(/\s+/).filter(Boolean));
   return element.attributes.has('hidden')
-    || element.attributes.get('aria-hidden')?.toLowerCase() === 'true'
     || /(?:display\s*:\s*none|visibility\s*:\s*hidden)/i.test(element.attributes.get('style') ?? '')
     || ['hidden', 'sr-only', 'visually-hidden'].some((className) => classTokens.has(className));
 }
@@ -762,6 +873,7 @@ homeEntryCards.forEach((entry, index) => {
   const entryElements = parseHtmlElements(entry.innerHtml, `home entry-card ${index + 1}`);
   const entryTops = entryElements.filter((element) => hasClass(element, 'ec-top'));
   const entryIcons = entryElements.filter((element) => hasClass(element, 'ec-icon'));
+  const entryLinks = entryElements.filter((element) => hasClass(element, 'ec-link'));
   assertVisiblyRendered(entry, `home entry-card ${index + 1}`);
   assertVisiblyRendered(entryTitle, `home entry-card ${index + 1} title`);
   assertVisiblyRendered(entryDescription, `home entry-card ${index + 1} description`);
@@ -791,6 +903,26 @@ homeEntryCards.forEach((entry, index) => {
   );
   assert.equal(findElementsByTag(entry.innerHtml, 'img', `home entry-card ${index + 1}`).length, 0,
     `home entry-card ${index + 1} must not use an external image for its icon`);
+  const entrySvgs = extractSvgElements(entry.innerHtml);
+  assert.equal(entrySvgs.length, 2, `home entry-card ${index + 1} must contain exactly its entry icon and arrow SVG`);
+  assert.equal(
+    entrySvgs.filter(({ attributes }) => attributes.has('data-entry-icon')).length,
+    1,
+    `home entry-card ${index + 1} must contain exactly one data-entry-icon SVG`,
+  );
+  assert.equal(entryLinks.length, 1, `home entry-card ${index + 1} must contain exactly one .ec-link action`);
+  assertVisiblyRendered(entryLinks[0], `home entry-card ${index + 1} .ec-link action`);
+  const entryArrowSvgs = extractSvgElements(entryLinks[0].innerHtml);
+  assert.equal(entryArrowSvgs.length, 1, `home entry-card ${index + 1} .ec-link must contain exactly one inline arrow SVG`);
+  assert.equal(entryArrowSvgs[0].attributes.get('aria-hidden'), 'true', `home entry-card ${index + 1} arrow SVG must use aria-hidden=true`);
+  assert.ok(!entryArrowSvgs[0].attributes.has('data-entry-icon'), `home entry-card ${index + 1} arrow SVG must not carry data-entry-icon`);
+  const arrowGraphics = findOpeningTags(entryArrowSvgs[0].innerHtml);
+  assert.equal(arrowGraphics.length, 1, `home entry-card ${index + 1} arrow SVG must contain exactly one path`);
+  assert.ok(
+    arrowGraphics[0].tagName === 'path'
+      && normalizedPathData(arrowGraphics[0].attributes.get('d') ?? '') === normalizedPathData('M5 12h14M12 5l7 7-7 7'),
+    `home entry-card ${index + 1} must retain the approved arrow path`,
+  );
   assert.equal(
     normalizedVisibleText(entryTitle.innerHtml, `home entry-card ${index + 1} title`),
     approvedHomeEntries[index].title,

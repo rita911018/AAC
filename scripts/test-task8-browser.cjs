@@ -1,6 +1,8 @@
-const { mkdirSync } = require('node:fs');
-const { execFileSync } = require('node:child_process');
-const { resolve } = require('node:path');
+const { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } = require('node:fs');
+const { execFileSync, spawn } = require('node:child_process');
+const { createServer } = require('node:http');
+const { tmpdir } = require('node:os');
+const { extname, join, resolve, sep } = require('node:path');
 let playwright;
 try {
   playwright = require('playwright');
@@ -14,6 +16,8 @@ const base = process.argv[2] || 'http://127.0.0.1:4173';
 const output = resolve(process.argv[3] || '/private/tmp/knowledge-base-qa');
 const mutation = process.env.KB_QA_MUTATION || '';
 const mutationMode = mutation.length > 0;
+const browserSelfTestMode = process.env.KB_QA_SELF_TEST === '1'
+  && process.env.KB_QA_SELF_TEST_CHILD !== '1';
 const cleanupTrace = process.env.KB_QA_CLEANUP_TRACE === '1';
 mkdirSync(output, { recursive: true });
 
@@ -26,6 +30,53 @@ let checks = 0;
 function expect(condition, message) {
   checks += 1;
   if (!condition) failures.push(message);
+}
+
+async function readFocusedOutlineMetrics(page, expectedClass, clipSelector) {
+  return page.evaluate(({ expectedClass, clipSelector }) => {
+    const node = document.activeElement;
+    if (!node?.classList.contains(expectedClass)) return null;
+    const style = getComputedStyle(node);
+    const bounds = node.getBoundingClientRect();
+    const clip = node.closest(clipSelector)?.getBoundingClientRect();
+    const parseColor = (value) => {
+      const channels = value.match(/[\d.]+/g)?.map(Number) ?? [];
+      return { red: channels[0] ?? 0, green: channels[1] ?? 0, blue: channels[2] ?? 0, alpha: channels[3] ?? 1 };
+    };
+    const luminance = ({ red, green, blue }) => {
+      const channels = [red, green, blue].map((channel) => {
+        const normalized = channel / 255;
+        return normalized <= .03928 ? normalized / 12.92 : ((normalized + .055) / 1.055) ** 2.4;
+      });
+      return .2126 * channels[0] + .7152 * channels[1] + .0722 * channels[2];
+    };
+    const contrast = (left, right) => {
+      const leftLuminance = luminance(left);
+      const rightLuminance = luminance(right);
+      return (Math.max(leftLuminance, rightLuminance) + .05) / (Math.min(leftLuminance, rightLuminance) + .05);
+    };
+    const outlineWidth = Number.parseFloat(style.outlineWidth) || 0;
+    const outlineOffset = Number.parseFloat(style.outlineOffset) || 0;
+    const outlineColor = parseColor(style.outlineColor);
+    const backgroundColor = parseColor(style.backgroundColor);
+    const externalExtent = Math.max(0, outlineWidth + outlineOffset);
+    return {
+      href: node.getAttribute('href'),
+      focusVisible: node.matches(':focus-visible'),
+      outlineStyle: style.outlineStyle,
+      outlineWidth,
+      outlineAlpha: outlineColor.alpha,
+      contrastRatio: contrast(outlineColor, backgroundColor),
+      ring: {
+        left: bounds.left - externalExtent,
+        right: bounds.right + externalExtent,
+        top: bounds.top - externalExtent,
+        bottom: bounds.bottom + externalExtent,
+      },
+      clip: clip?.toJSON() ?? null,
+      viewport: { left: 0, top: 0, right: innerWidth, bottom: innerHeight },
+    };
+  }, { expectedClass, clipSelector });
 }
 
 async function waitForScrollPositionToSettle(page, {
@@ -78,12 +129,16 @@ const mutationDefinitions = {
   'fixture-learn-1440': { page: 'learn', viewport: [1440, 1100], css: '' },
   'fixture-learn-1236': { page: 'learn', viewport: [1236, 1050], css: '' },
   'fixture-learn-390': { page: 'learn', viewport: [390, 844], css: '' },
-  'entry-icon-hidden': { page: 'index', viewport: [1440, 1100], css: '.entry-card .ec-icon{visibility:hidden!important}' },
-  'entry-title-weak': { page: 'index', viewport: [1440, 1100], css: '.entry-card h3{font-size:20px!important}' },
-  'entry-description-large': { page: 'index', viewport: [1440, 1100], css: '.entry-card p{font-size:22px!important;font-weight:800!important;color:rgb(15,23,42)!important}' },
-  'face-safe-overlap': { page: 'index', viewport: [390, 844], css: '.home-hero .hero-xiaoa-entry{right:72px!important}' },
-  'learn-240': { page: 'learn', viewport: [1440, 1100], css: '.learn-hero .hero-mascot,.learn-hero .hero-mascot picture,.learn-hero .hero-mascot img{width:240px!important;height:240px!important;max-width:240px!important;max-height:240px!important}' },
-  'learn-wrap': { page: 'learn', viewport: [1236, 1050], css: '.learn-hero .bh-left{max-width:620px!important}.learn-hero .bh-left>p:first-of-type{white-space:normal!important;max-width:500px!important}' },
+  'entry-icon-hidden': { page: 'index', viewport: [1440, 1100], css: '.entry-card .ec-icon{visibility:hidden!important}', expectedFailure: 'every entry icon must be visible' },
+  'entry-focus-none': { page: 'index', viewport: [1440, 1100], css: '.entry-card:focus,.entry-card:focus-visible{outline:none!important;box-shadow:none!important}', expectedFailure: 'focus outline must be opaque and at least 3px' },
+  'entry-title-weak': { page: 'index', viewport: [1440, 1100], css: '.entry-card h3{font-size:20px!important}', expectedFailure: 'entry titles must be at least 26px' },
+  'entry-description-large': { page: 'index', viewport: [1440, 1100], css: '.entry-card p{font-size:22px!important;font-weight:800!important;color:rgb(15,23,42)!important}', expectedFailure: 'entry title weight must remain stronger' },
+  'entry-description-red': { page: 'index', viewport: [1440, 1100], css: '.entry-card p{color:#3b0000!important}', expectedFailure: 'descriptions need 4.5:1 contrast' },
+  'face-safe-overlap': { page: 'index', viewport: [390, 844], css: '.home-hero .hero-xiaoa-entry{right:72px!important}', expectedFailure: 'overlaps the mascot face-safe rectangle' },
+  'learn-240': { page: 'learn', viewport: [1440, 1100], css: '.learn-hero .hero-mascot,.learn-hero .hero-mascot picture,.learn-hero .hero-mascot img{width:240px!important;height:240px!important;max-width:240px!important;max-height:240px!important}', expectedFailure: 'must be at least 300px tall' },
+  'learn-wrap': { page: 'learn', viewport: [1236, 1050], css: '.learn-hero .bh-left{max-width:620px!important}.learn-hero .bh-left>p:first-of-type{white-space:normal!important;max-width:500px!important}', expectedFailure: 'must remain on one line' },
+  'learn-cover': { page: 'learn', viewport: [1440, 1100], css: '.learn-hero .hero-mascot img{object-fit:cover!important;object-position:center center!important}', expectedFailure: 'must use object-fit:contain' },
+  'learn-mobile-horizontal': { page: 'learn', viewport: [390, 844], css: '.learn-hero .lesson-primary-action,.learn-hero .learning-session-summary{display:inline-flex!important;margin-top:0!important;margin-right:16px!important;vertical-align:top!important}', expectedFailure: 'must stack vertically' },
 };
 const activeMutation = mutationDefinitions[mutation] ?? null;
 if (mutationMode && !activeMutation) throw new Error(`Unknown KB_QA_MUTATION: ${mutation}`);
@@ -98,7 +153,126 @@ const learningChapters = [
   ['ai-workflow', '从对话走向工作流'],
 ];
 
-(async () => {
+function prepareBrowserGoodFixture(sourceRoot, targetRoot) {
+  cpSync(sourceRoot, targetRoot, { recursive: true });
+  const indexFile = join(targetRoot, 'index.html');
+  let index = readFileSync(indexFile, 'utf8')
+    .replace('<p>从入门、录播到工具实践，在清晰的知识路径里找到所需内容。</p>', '')
+    .replace('<p class="desc">每个板块都是独立的完整页面，点击进入后内部还有细分目录。</p>', '');
+  for (const [number, marker, graphic] of [
+    ['01 / LEARN', 'learn', '<path d="M4 5h7v14H4zM13 5h7v14h-7z"/>'],
+    ['02 / WATCH', 'watch', '<rect x="3" y="4" width="18" height="14"/><path d="m10 8 5 3-5 3z"/>'],
+    ['03 / EXPLORE', 'resources', '<path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/>'],
+  ]) {
+    if (!index.includes(`data-entry-icon="${marker}"`)) {
+      index = index.replace(
+        `<span class="ec-num">${number}</span>`,
+        `<span class="ec-top"><span class="ec-num">${number}</span><span class="ec-icon"><svg data-entry-icon="${marker}" aria-hidden="true" viewBox="0 0 24 24">${graphic}</svg></span></span>`,
+      );
+    }
+  }
+  index = index.replace('</head>', `<style data-browser-self-test-fixture>
+.entry-card{height:320px;display:flex;flex-direction:column;background:#fff}
+.entry-card .ec-top{display:flex}.entry-card .ec-icon{width:72px;height:72px;background:#2563eb;color:#fff}
+.entry-card .ec-icon svg{width:36px;height:36px;fill:none;stroke:currentColor}
+.entry-card h3{font-size:28px;font-weight:800;color:#0e2144}.entry-card p{color:#60728d;font-size:17px;font-weight:400}
+.entry-card .ec-link{margin-top:auto}.home-hero .hero-mascot img{right:78.5px}
+@media(max-width:820px){.home-hero .hero-mascot img{right:76px}}
+@media(max-width:560px){.home-hero .hero-mascot img{right:64px}}
+</style></head>`);
+  writeFileSync(indexFile, index);
+
+  const learnFile = join(targetRoot, 'learn.html');
+  let learn = readFileSync(learnFile, 'utf8');
+  learn = learn.replace('</head>', `<style data-browser-self-test-fixture>
+@media(min-width:1236px){.learn-hero .container{grid-template-columns:minmax(0,1fr) 300px;gap:24px}.learn-hero .bh-left>p:first-of-type{max-width:none;white-space:nowrap}.learn-hero .hero-mascot,.learn-hero .hero-mascot picture,.learn-hero .hero-mascot img{width:300px;height:333px;max-width:300px;max-height:333px}}
+.learn-hero .lesson-primary-action{margin-right:16px;vertical-align:top}.learn-hero .learning-session-summary{min-height:48px;margin:0;vertical-align:top}
+@media(max-width:820px){.learn-hero .hero-mascot,.learn-hero .hero-mascot picture,.learn-hero .hero-mascot img{width:190px;height:210px;max-width:190px;max-height:210px}}
+@media(max-width:560px){.learn-hero .lesson-primary-action,.learn-hero .learning-session-summary{display:flex;width:max-content;margin-right:0}.learn-hero .learning-session-summary{margin-top:8px}}
+</style></head>`);
+  writeFileSync(learnFile, learn);
+}
+
+function startFixtureServer(root) {
+  const contentTypes = new Map([
+    ['.html', 'text/html; charset=utf-8'], ['.css', 'text/css; charset=utf-8'],
+    ['.js', 'text/javascript; charset=utf-8'], ['.webp', 'image/webp'], ['.png', 'image/png'],
+  ]);
+  const server = createServer((request, response) => {
+    try {
+      const pathname = decodeURIComponent(new URL(request.url, 'http://127.0.0.1').pathname);
+      const relativePath = pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, '');
+      const file = resolve(root, relativePath);
+      if (file !== root && !file.startsWith(`${root}${sep}`)) throw new Error('path traversal');
+      response.writeHead(200, { 'Content-Type': contentTypes.get(extname(file)) ?? 'application/octet-stream' });
+      response.end(readFileSync(file));
+    } catch {
+      response.writeHead(404);
+      response.end('Not found');
+    }
+  });
+  return new Promise((resolveServer, rejectServer) => {
+    server.once('error', rejectServer);
+    server.listen(0, '127.0.0.1', () => resolveServer(server));
+  });
+}
+
+function runBrowserSelfTestChild(mode, childBase, childOutput) {
+  return new Promise((resolveChild) => {
+    const child = spawn(process.execPath, [__filename, childBase, childOutput], {
+      env: {
+        ...process.env,
+        KB_QA_MUTATION: mode,
+        KB_QA_SELF_TEST: '0',
+        KB_QA_SELF_TEST_CHILD: '1',
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (chunk) => { stdout += chunk; });
+    child.stderr.on('data', (chunk) => { stderr += chunk; });
+    child.on('close', (status) => resolveChild({ status, stdout, stderr }));
+  });
+}
+
+async function runBrowserSelfTest() {
+  const temporaryRoot = mkdtempSync(join(tmpdir(), 'kb-browser-self-test-'));
+  let server = null;
+  try {
+    const fixtureRoot = join(temporaryRoot, 'site');
+    prepareBrowserGoodFixture(resolve(process.env.KB_QA_SELF_TEST_SITE || 'site/knowledge-base'), fixtureRoot);
+    server = await startFixtureServer(fixtureRoot);
+    const address = server.address();
+    const childBase = `http://127.0.0.1:${address.port}`;
+
+    for (const mode of ['fixture-index-1440', 'fixture-index-390', 'fixture-learn-1236', 'fixture-learn-390']) {
+      const result = await runBrowserSelfTestChild(mode, childBase, join(temporaryRoot, `green-${mode}`));
+      if (result.status !== 0) throw new Error(`valid browser fixture ${mode} must pass:\n${result.stdout}\n${result.stderr}`);
+      console.log(`GREEN browser fixture: ${mode}`);
+    }
+
+    for (const mode of [
+      'entry-icon-hidden', 'entry-focus-none', 'entry-title-weak', 'entry-description-large',
+      'entry-description-red', 'face-safe-overlap', 'learn-240', 'learn-wrap', 'learn-cover',
+      'learn-mobile-horizontal',
+    ]) {
+      const result = await runBrowserSelfTestChild(mode, childBase, join(temporaryRoot, `mutation-${mode}`));
+      if (result.status === 0) throw new Error(`${mode} browser mutation must be detected`);
+      if (!/^FAIL:/m.test(result.stderr)) throw new Error(`${mode} must fail through a contract assertion:\n${result.stdout}\n${result.stderr}`);
+      if (!result.stderr.includes(mutationDefinitions[mode].expectedFailure)) {
+        throw new Error(`${mode} did not hit its targeted assertion “${mutationDefinitions[mode].expectedFailure}”:\n${result.stderr}`);
+      }
+      console.log(`DETECTED browser mutation: ${mode}`);
+    }
+    console.log('PASS browser homepage contract self-test (4 valid fixtures + 10 mutations)');
+  } finally {
+    if (server) await new Promise((resolveClose) => server.close(resolveClose));
+    rmSync(temporaryRoot, { recursive: true, force: true });
+  }
+}
+
+async function runQa() {
   let browser = null;
   let runError = null;
   const runtimeErrors = [];
@@ -122,12 +296,37 @@ const learningChapters = [
       if (activeMutation?.css) await page.addStyleTag({ content: activeMutation.css });
       await page.waitForTimeout(500);
       let homeShortcutReachedByTab = false;
+      let homeShortcutKeyboardFocus = null;
+      const homeEntryKeyboardFocus = [];
       if (name === 'index') {
-        for (let step = 0; step < 30; step += 1) {
+        const focusedEntryHrefs = new Set();
+        for (let step = 0; step < 60; step += 1) {
           await page.keyboard.press('Tab');
-          homeShortcutReachedByTab = await page.evaluate(() => document.activeElement?.classList.contains('hero-xiaoa-cta'));
-          if (homeShortcutReachedByTab) break;
+          const activeClass = await page.evaluate(() => ({
+            shortcut: document.activeElement?.classList.contains('hero-xiaoa-cta') || false,
+            entry: document.activeElement?.classList.contains('entry-card') || false,
+            href: document.activeElement?.getAttribute('href') || '',
+          }));
+          if (activeClass.shortcut) {
+            homeShortcutReachedByTab = true;
+            homeShortcutKeyboardFocus = await readFocusedOutlineMetrics(page, 'hero-xiaoa-cta', '.home-hero');
+          }
+          if (activeClass.entry && !focusedEntryHrefs.has(activeClass.href)) {
+            focusedEntryHrefs.add(activeClass.href);
+            await page.evaluate(() => document.activeElement.scrollIntoView({ block: 'center', inline: 'nearest' }));
+            await waitForScrollPositionToSettle(page);
+            homeEntryKeyboardFocus.push(await readFocusedOutlineMetrics(page, 'entry-card', 'section'));
+          }
+          if (homeShortcutReachedByTab && homeEntryKeyboardFocus.length === 3) break;
         }
+        const previousScrollBehavior = await page.evaluate(() => {
+          const previous = document.documentElement.style.scrollBehavior;
+          document.documentElement.style.scrollBehavior = 'auto';
+          scrollTo(0, 0);
+          return previous;
+        });
+        await waitForScrollPositionToSettle(page);
+        await page.evaluate((previous) => { document.documentElement.style.scrollBehavior = previous; }, previousScrollBehavior);
       }
       const metrics = await page.evaluate(({ oldStarPath, portalUrl }) => {
         const bodyStyle = getComputedStyle(document.body);
@@ -154,6 +353,41 @@ const learningChapters = [
           const horizontal = Math.max(a.left - b.right, b.left - a.right, 0);
           const vertical = Math.max(a.top - b.bottom, b.top - a.bottom, 0);
           return Math.hypot(horizontal, vertical);
+        };
+        const parseColor = (value) => {
+          const channels = String(value ?? '').match(/[\d.]+/g)?.map(Number) ?? [];
+          return { red: channels[0] ?? 0, green: channels[1] ?? 0, blue: channels[2] ?? 0, alpha: channels[3] ?? 1 };
+        };
+        const compositeColor = (foreground, background) => ({
+          red: foreground.red * foreground.alpha + background.red * (1 - foreground.alpha),
+          green: foreground.green * foreground.alpha + background.green * (1 - foreground.alpha),
+          blue: foreground.blue * foreground.alpha + background.blue * (1 - foreground.alpha),
+          alpha: 1,
+        });
+        const effectiveBackground = (node) => {
+          const layers = [];
+          let current = node;
+          while (current) {
+            layers.push(parseColor(getComputedStyle(current).backgroundColor));
+            current = current.parentElement;
+          }
+          return layers.reverse().reduce((background, layer) => compositeColor(layer, background), {
+            red: 255, green: 255, blue: 255, alpha: 1,
+          });
+        };
+        const relativeLuminance = ({ red, green, blue }) => {
+          const channels = [red, green, blue].map((channel) => {
+            const normalized = channel / 255;
+            return normalized <= .03928 ? normalized / 12.92 : ((normalized + .055) / 1.055) ** 2.4;
+          });
+          return .2126 * channels[0] + .7152 * channels[1] + .0722 * channels[2];
+        };
+        const contrastRatio = (foreground, background) => {
+          const compositedForeground = compositeColor(foreground, background);
+          const foregroundLuminance = relativeLuminance(compositedForeground);
+          const backgroundLuminance = relativeLuminance(background);
+          return (Math.max(foregroundLuminance, backgroundLuminance) + .05)
+            / (Math.min(foregroundLuminance, backgroundLuminance) + .05);
         };
         const focusRingMetrics = (node, clipNode) => {
           if (!node || !clipNode) return null;
@@ -229,6 +463,7 @@ const learningChapters = [
           const action = card.querySelector('.ec-link');
           const titleStyle = title ? getComputedStyle(title) : null;
           const descriptionStyle = description ? getComputedStyle(description) : null;
+          const cardBackground = effectiveBackground(card);
           return {
             href: card.getAttribute('href'),
             rect: rect(card),
@@ -244,9 +479,11 @@ const learningChapters = [
             titleFontSize: Number.parseFloat(titleStyle?.fontSize) || 0,
             titleFontWeight: Number.parseFloat(titleStyle?.fontWeight) || 0,
             titleColor: titleStyle?.color || '',
+            titleContrast: contrastRatio(parseColor(titleStyle?.color), cardBackground),
             descriptionFontSize: Number.parseFloat(descriptionStyle?.fontSize) || 0,
             descriptionFontWeight: Number.parseFloat(descriptionStyle?.fontWeight) || 0,
             descriptionColor: descriptionStyle?.color || '',
+            descriptionContrast: contrastRatio(parseColor(descriptionStyle?.color), cardBackground),
             titleDescriptionOverlap: overlap(rect(title), rect(description)),
             titleActionOverlap: overlap(rect(title), rect(action)),
             descriptionActionOverlap: overlap(rect(description), rect(action)),
@@ -261,6 +498,7 @@ const learningChapters = [
         const learnMeta = learnHero?.querySelector('.bh-meta') ?? null;
         const learnMascot = learnHero?.querySelector('.hero-mascot') ?? null;
         const learnImage = learnMascot?.querySelector('img') ?? null;
+        const learnImageStyle = learnImage ? getComputedStyle(learnImage) : null;
         const learnDescriptionRange = learnDescription ? document.createRange() : null;
         if (learnDescriptionRange) learnDescriptionRange.selectNodeContents(learnDescription);
         const learnDescriptionLineTops = learnDescriptionRange
@@ -366,6 +604,8 @@ const learningChapters = [
           learnImageCurrentSrc: learnImage?.currentSrc || '',
           learnImageFallbackSrc: learnImage?.getAttribute('src') || '',
           learnImageAlt: learnImage?.getAttribute('alt') || '',
+          learnImageObjectFit: learnImageStyle?.objectFit || '',
+          learnImageObjectPosition: learnImageStyle?.objectPosition || '',
           learnImageTitleOverlap: overlap(rect(learnImage), rect(learnTitle)),
           learnImageDescriptionOverlap: overlap(rect(learnImage), rect(learnDescription)),
           learnImageActionOverlap: overlap(rect(learnImage), rect(learnAction)),
@@ -464,15 +704,28 @@ const learningChapters = [
         expect(!metrics.homeShortcutTitleOverlap && !metrics.homeShortcutSubtitleOverlap, `index ${width}px: Xiao A shortcut overlaps the Hero title or subtitle`);
         expect(metrics.homeShortcutRect && metrics.homeShortcutRect.left >= -.5 && metrics.homeShortcutRect.right <= metrics.viewportRect.right + .5 && metrics.homeShortcutRect.top >= -.5 && metrics.homeShortcutRect.bottom <= metrics.viewportRect.bottom + .5, `index ${width}px: Xiao A shortcut leaves the viewport`);
         expect(metrics.homeShortcutCtaRect && metrics.homeShortcutCtaRect.width >= 44 && metrics.homeShortcutCtaRect.height >= 44, `index ${width}px: Xiao A CTA is below 44x44 (${metrics.homeShortcutCtaRect?.width || 0}x${metrics.homeShortcutCtaRect?.height || 0})`);
-        expect(metrics.homeShortcutFocus?.focusVisible, `index ${width}px: Xiao A CTA does not enter :focus-visible state`);
-        expect(metrics.homeShortcutFocus?.outlineStyle !== 'none' && metrics.homeShortcutFocus?.outlineWidth >= 3, `index ${width}px: Xiao A CTA focus ring is under 3px (${metrics.homeShortcutFocus?.outlineWidth || 0})`);
-        expect(metrics.homeShortcutFocus?.contrastRatio >= 3, `index ${width}px: Xiao A CTA focus ring contrast is too low (${metrics.homeShortcutFocus?.contrastRatio?.toFixed(2) || 0}:1)`);
-        expect(metrics.homeShortcutFocus && metrics.homeShortcutFocus.ring.left >= -.5 && metrics.homeShortcutFocus.ring.right <= metrics.viewportRect.right + .5 && metrics.homeShortcutFocus.ring.top >= -.5 && metrics.homeShortcutFocus.ring.bottom <= metrics.viewportRect.bottom + .5,
+        expect(homeShortcutKeyboardFocus?.focusVisible, `index ${width}px: Xiao A CTA does not enter :focus-visible state`);
+        expect(homeShortcutKeyboardFocus?.outlineStyle !== 'none' && homeShortcutKeyboardFocus?.outlineWidth >= 3 && homeShortcutKeyboardFocus?.outlineAlpha > 0,
+          `index ${width}px: Xiao A CTA focus ring must be opaque and at least 3px (${homeShortcutKeyboardFocus?.outlineWidth || 0})`);
+        expect(homeShortcutKeyboardFocus?.contrastRatio >= 3, `index ${width}px: Xiao A CTA focus ring contrast is too low (${homeShortcutKeyboardFocus?.contrastRatio?.toFixed(2) || 0}:1)`);
+        expect(homeShortcutKeyboardFocus && homeShortcutKeyboardFocus.ring.left >= -.5 && homeShortcutKeyboardFocus.ring.right <= metrics.viewportRect.right + .5 && homeShortcutKeyboardFocus.ring.top >= -.5 && homeShortcutKeyboardFocus.ring.bottom <= metrics.viewportRect.bottom + .5,
           `index ${width}px: Xiao A CTA focus ring is clipped by the viewport`);
-        expect(metrics.homeShortcutFocus && metrics.homeShortcutFocus.ring.left >= metrics.homeShortcutFocus.clip.left - .5 && metrics.homeShortcutFocus.ring.right <= metrics.homeShortcutFocus.clip.right + .5 && metrics.homeShortcutFocus.ring.top >= metrics.homeShortcutFocus.clip.top - .5 && metrics.homeShortcutFocus.ring.bottom <= metrics.homeShortcutFocus.clip.bottom + .5,
+        expect(homeShortcutKeyboardFocus && homeShortcutKeyboardFocus.clip && homeShortcutKeyboardFocus.ring.left >= homeShortcutKeyboardFocus.clip.left - .5 && homeShortcutKeyboardFocus.ring.right <= homeShortcutKeyboardFocus.clip.right + .5 && homeShortcutKeyboardFocus.ring.top >= homeShortcutKeyboardFocus.clip.top - .5 && homeShortcutKeyboardFocus.ring.bottom <= homeShortcutKeyboardFocus.clip.bottom + .5,
           `index ${width}px: Xiao A CTA focus ring is clipped by the Hero`);
         expect(metrics.homeEntryCards.length === 3 && metrics.homeEntryCards.every((card) => card.visible), `index ${width}px: expected three visible entry-card links`);
         expect(JSON.stringify(metrics.homeEntryCards.map(({ href }) => href)) === JSON.stringify(['learn.html', 'video.html', 'resources.html']), `index ${width}px: entry-card link order changed`);
+        expect(JSON.stringify(homeEntryKeyboardFocus.map(({ href }) => href)) === JSON.stringify(['learn.html', 'video.html', 'resources.html']),
+          `index ${width}px: each whole entry card must receive real keyboard focus in approved order (${homeEntryKeyboardFocus.map(({ href }) => href).join('/')})`);
+        for (const cardFocus of homeEntryKeyboardFocus) {
+          expect(cardFocus.focusVisible, `index ${width}px ${cardFocus.href}: entry card does not enter :focus-visible`);
+          expect(cardFocus.outlineStyle !== 'none' && cardFocus.outlineWidth >= 3 && cardFocus.outlineAlpha > 0,
+            `index ${width}px ${cardFocus.href}: focus outline must be opaque and at least 3px`);
+          expect(cardFocus.contrastRatio >= 3, `index ${width}px ${cardFocus.href}: focus outline contrast is too low (${cardFocus.contrastRatio.toFixed(2)}:1)`);
+          expect(cardFocus.ring.left >= cardFocus.viewport.left - .5 && cardFocus.ring.right <= cardFocus.viewport.right + .5 && cardFocus.ring.top >= cardFocus.viewport.top - .5 && cardFocus.ring.bottom <= cardFocus.viewport.bottom + .5,
+            `index ${width}px ${cardFocus.href}: focus ring is clipped by the viewport (${JSON.stringify(cardFocus.ring)} / ${JSON.stringify(cardFocus.viewport)})`);
+          expect(cardFocus.clip && cardFocus.ring.left >= cardFocus.clip.left - .5 && cardFocus.ring.right <= cardFocus.clip.right + .5 && cardFocus.ring.top >= cardFocus.clip.top - .5 && cardFocus.ring.bottom <= cardFocus.clip.bottom + .5,
+            `index ${width}px ${cardFocus.href}: focus ring is clipped by the entry section`);
+        }
         expect(metrics.homeEntryCards.every(({ iconVisible, iconRect }) => iconVisible && iconRect?.width >= 64 && iconRect?.height >= 64),
           `index ${width}px: every entry icon must be visible and at least 64x64 (${metrics.homeEntryCards.map(({ iconRect }) => `${iconRect?.width || 0}x${iconRect?.height || 0}`).join(', ')})`);
         expect(JSON.stringify(metrics.homeEntryCards.map(({ iconMarker }) => iconMarker)) === JSON.stringify(['learn', 'watch', 'resources']),
@@ -483,11 +736,13 @@ const learningChapters = [
           `index ${width}px: entry-card title, description, and action must not overlap`);
         const entryHeights = metrics.homeEntryCards.map(({ rect: cardRect }) => cardRect?.height || 0);
         expect(Math.max(...entryHeights) - Math.min(...entryHeights) <= 2, `index ${width}px: entry cards must be equal height within 2px (${entryHeights.join('/')})`);
+        expect(metrics.homeEntryCards.every(({ titleContrast, descriptionContrast }) => descriptionContrast >= 4.5 && titleContrast - descriptionContrast >= 1.5),
+          `index ${width}px: descriptions need 4.5:1 contrast while titles remain at least 1.5 stronger (${metrics.homeEntryCards.map(({ titleContrast, descriptionContrast }) => `${titleContrast.toFixed(2)}/${descriptionContrast.toFixed(2)}`).join(', ')})`);
+        expect(metrics.homeEntryCards.every(({ titleFontWeight, descriptionFontWeight }) => titleFontWeight > descriptionFontWeight),
+          `index ${width}px: entry title weight must remain stronger than description weight`);
         if (width > 820) {
           expect(metrics.homeEntryCards.every(({ titleFontSize, descriptionFontSize }) => titleFontSize >= 26 && titleFontSize - descriptionFontSize >= 8),
             `index ${width}px: entry titles must be at least 26px and 8px larger than descriptions (${metrics.homeEntryCards.map(({ titleFontSize, descriptionFontSize }) => `${titleFontSize}/${descriptionFontSize}`).join(', ')})`);
-          expect(metrics.homeEntryCards.every(({ titleFontWeight, descriptionFontWeight, titleColor, descriptionColor }) => titleFontWeight > descriptionFontWeight && titleColor !== descriptionColor),
-            `index ${width}px: entry descriptions must be quieter in weight and color than titles`);
         }
         expect(Math.abs(metrics.homeHeroRect.bottom - metrics.homeSectionRect.bottom) <= 3.1, `index ${width}px: mascot crop boundary is not aligned to Hero bottom (${metrics.homeHeroRect.bottom}/${metrics.homeSectionRect.bottom})`);
         expect(metrics.homeImageRect.top >= metrics.homeHeroRect.top - 1, `index ${width}px: mascot rises above Hero (${metrics.homeImageRect.top}/${metrics.homeHeroRect.top})`);
@@ -526,6 +781,9 @@ const learningChapters = [
         if (width >= 1236) expect(metrics.learnImageRect?.width >= 260, `learn ${width}px: reading Xiao A must be at least 260px wide (${metrics.learnImageRect?.width || 0})`);
         expect(metrics.learnImageCurrentSrc.endsWith('/img/xiaoa-learn-480.webp'), `learn ${width}px: browser did not select the WebP reading mascot (${metrics.learnImageCurrentSrc})`);
         expect(metrics.learnImageFallbackSrc === 'img/xiaoa-learn.png' && metrics.learnImageAlt === '正在阅读学习的小A AI 助手', `learn ${width}px: reading mascot fallback or alt changed`);
+        expect(metrics.learnImageObjectFit === 'contain', `learn ${width}px: reading mascot must use object-fit:contain (${metrics.learnImageObjectFit})`);
+        expect(/(?:bottom|(?:^|\s)100%(?:\s|$))/i.test(metrics.learnImageObjectPosition),
+          `learn ${width}px: reading mascot object-position must stay bottom-aligned (${metrics.learnImageObjectPosition})`);
         expect(metrics.learnHeroRect && metrics.learnImageRect && metrics.learnImageRect.left >= metrics.learnHeroRect.left - .5 && metrics.learnImageRect.right <= metrics.learnHeroRect.right + .5 && metrics.learnImageRect.top >= metrics.learnHeroRect.top - .5 && metrics.learnImageRect.bottom <= metrics.learnHeroRect.bottom + .5,
           `learn ${width}px: reading Xiao A leaves the Hero bounds`);
         expect(!metrics.learnImageTitleOverlap && !metrics.learnImageDescriptionOverlap && !metrics.learnImageActionOverlap && !metrics.learnImageSummaryOverlap && !metrics.learnImageMetaOverlap,
@@ -542,14 +800,12 @@ const learningChapters = [
             && Math.abs(metrics.learnActionRect.top - metrics.learnSummaryRect.top) <= 2
             && metrics.learnSummaryRect.left - metrics.learnActionRect.right >= 12),
             `learn ${width}px: action and session summary must form a horizontal group with at least 12px gap`);
-        } else if (metrics.learnActionRect && metrics.learnSummaryRect) {
-          if (Math.abs(metrics.learnActionRect.top - metrics.learnSummaryRect.top) <= 2) {
-            expect(metrics.learnSummaryRect.left - metrics.learnActionRect.right >= 12,
-              `learn ${width}px: horizontal action and session summary need at least 12px gap`);
-          } else {
-            expect(Math.abs(metrics.learnSummaryRect.left - learnCopyLeft) <= 2,
-              `learn ${width}px: vertically stacked session summary must align with copy left edge (${metrics.learnSummaryRect.left}/${learnCopyLeft})`);
-          }
+        } else {
+          expect(Boolean(metrics.learnActionRect && metrics.learnSummaryRect
+            && metrics.learnSummaryRect.top >= metrics.learnActionRect.bottom + 8),
+            `learn ${width}px: action and session summary must stack vertically with at least 8px gap`);
+          expect(Math.abs((metrics.learnSummaryRect?.left ?? -100) - learnCopyLeft) <= 2,
+            `learn ${width}px: stacked session summary must align with copy left edge (${metrics.learnSummaryRect?.left}/${learnCopyLeft})`);
         }
         learnViewportEvidence.push({
           width,
@@ -835,7 +1091,9 @@ const learningChapters = [
   console.log(`LEARN HERO: ${JSON.stringify(learnViewportEvidence)}`);
   console.log(`GATEWAY ANCHOR: ${JSON.stringify(gatewayViewportEvidence)}`);
   console.log(`PASS: Task 8 browser QA (${checks} checks, ${screenshotCount} screenshots at ${output})`);
-})().catch((error) => {
+}
+
+(browserSelfTestMode ? runBrowserSelfTest() : runQa()).catch((error) => {
   console.error(error);
   process.exitCode = 1;
 });
