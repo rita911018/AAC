@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>内容页 · 亚玛芬 AI 知识库</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="learning-experience.css">
+<style>
+/* 视频列表骨架专用 */
+.sk-vlist{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
+.sk-vcard{background:#fff;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.sk-vcard .sk-thumb{position:relative;aspect-ratio:16/9;background:#163059;display:grid;place-items:center}
+.sk-vcard .sk-thumb::before{content:"";position:absolute;inset:12px;border:1px solid rgba(255,255,255,.12)}
+.sk-vcard .sk-thumb .play{position:relative;z-index:2;width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,.9);display:grid;place-items:center}
+.sk-vcard .sk-thumb .play svg{width:17px;height:17px;fill:#0E2144;margin-left:2px}
+.sk-vcard .sk-thumb .sk-dur{position:absolute;z-index:2;right:12px;bottom:12px;width:42px;height:18px;border-radius:6px;background:rgba(8,18,38,.5)}
+.sk-vcard .sk-body{padding:16px 18px 18px}
+.sk-vcard .sk-body .sk{margin-bottom:10px}
+/* ===== 真实内容排版（简约） ===== */
+.rt-sec{margin-bottom:30px}
+.rt-sec:last-child{margin-bottom:0}
+.rt-sec h3{font-size:17px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:10px}
+.rt-sec h3::before{content:"";width:4px;height:16px;border-radius:2px;background:var(--accent,#2563EB)}
+.rt-sec p{font-size:14px;color:var(--ink-700);line-height:1.75;margin-bottom:10px}
+.rt-ul{margin:8px 0 14px}
+.rt-ul li{position:relative;padding-left:18px;font-size:14px;color:var(--ink-700);line-height:1.7;margin-bottom:6px}
+.rt-ul li::before{content:"";position:absolute;left:2px;top:11px;width:6px;height:6px;border-radius:50%;background:var(--accent,#2563EB)}
+.rt-ul li b{color:var(--ink-900)}
+.rt-code{background:#0E2144;color:#DBE7FA;border-radius:10px;padding:16px 18px;font-family:var(--font-mono);font-size:12.5px;line-height:1.7;white-space:pre-wrap;margin:12px 0 6px}
+.rt-table{width:100%;border-collapse:collapse;font-size:13.5px;margin:12px 0 6px}
+.rt-table th{text-align:left;font-weight:600;color:var(--ink-400);font-size:12px;padding:8px 12px;border-bottom:2px solid var(--line)}
+.rt-table td{padding:10px 12px;border-bottom:1px solid var(--line);color:var(--ink-700);vertical-align:top;line-height:1.55}
+.rt-table td:first-child{font-weight:600;color:var(--ink-900);white-space:nowrap}
+.tl-year{font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--accent,#2563EB);margin-bottom:4px}
+.tl-body b{display:block;font-size:14.5px;font-weight:700;color:var(--ink-900);margin-bottom:3px}
+.tl-body p{font-size:13px;color:var(--ink-500);line-height:1.6}
+/* 真实视频卡 */
+.rv-title{display:block;font-size:14px;font-weight:700;color:var(--ink-900);line-height:1.45;margin-bottom:8px}
+.rv-meta{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--ink-400);margin-bottom:10px}
+.rv-tagrow{display:flex;gap:6px;flex-wrap:wrap}
+.rv-tagrow span{font-size:11px;color:var(--blue-600);background:var(--blue-50);border:1px solid var(--blue-100);padding:2px 9px;border-radius:99px}
+.rv-badge-demo{position:absolute;z-index:2;top:12px;left:12px;font-size:11px;font-weight:600;color:#fff;background:rgba(8,18,38,.55);border:1px solid rgba(255,255,255,.25);padding:3px 10px;border-radius:99px}
+.rv-badge-real{background:var(--blue-600);border-color:transparent}
+.rv-real{display:block;text-decoration:none;color:inherit;transition:transform .25s,box-shadow .25s,border-color .25s}
+.rv-real:hover{transform:translateY(-4px);box-shadow:var(--shadow-hover);border-color:var(--blue-500)}
+.rv-dur-txt{position:absolute;z-index:2;right:12px;bottom:12px;font-family:var(--font-mono);font-size:11px;font-weight:600;color:#fff;background:rgba(8,18,38,.6);padding:2px 8px;border-radius:6px}
+/* ===== 知识卡片组件（概念卡 / 步骤 / 术语 / 时代 / 金句） ===== */
+.kb-quote{position:relative;background:var(--blue-50);border:1px solid var(--blue-100);border-left:4px solid var(--accent,#2563EB);border-radius:10px;padding:16px 18px;margin:14px 0;font-size:14px;color:var(--ink-700);line-height:1.7}
+.kb-quote .kq-note{display:block;margin-top:6px;font-size:12px;color:var(--ink-400)}
+.kb-cards{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin:12px 0}
+.kb-cards.cols3{grid-template-columns:repeat(3,1fr)}
+.kb-card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px;transition:border-color .2s,box-shadow .2s}
+.kb-card:hover{border-color:var(--accent,#2563EB);box-shadow:var(--shadow-hover)}
+.kb-card .kc-tag{display:inline-block;font-family:var(--font-mono);font-size:10.5px;font-weight:600;color:var(--accent,#2563EB);background:var(--blue-50);border:1px solid var(--blue-100);padding:1px 8px;border-radius:99px;margin-bottom:8px}
+.kb-card b{display:block;font-size:14.5px;font-weight:700;margin-bottom:4px}
+.kb-card p{font-size:12.5px;color:var(--ink-500);line-height:1.55;margin:0}
+.kb-steps{margin:12px 0}
+.kb-step{display:flex;gap:14px;padding:12px 0;border-bottom:1px dashed var(--line)}
+.kb-step:last-child{border-bottom:none}
+.kb-step .ks-num{flex:none;width:28px;height:28px;border-radius:8px;background:var(--blue-50);border:1px solid var(--blue-100);color:var(--accent,#2563EB);font-family:var(--font-mono);font-size:13px;font-weight:700;display:grid;place-items:center}
+.kb-step b{display:block;font-size:14px;font-weight:700;margin-bottom:3px}
+.kb-step p{font-size:13px;color:var(--ink-500);line-height:1.6;margin:0}
+.kb-terms{display:grid;grid-template-columns:1fr;gap:14px;margin:12px 0}
+.kb-term{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+.kb-term .kt-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.kb-term .kt-head b{font-size:15px;font-weight:700}
+.kb-term .kt-head .kt-tag{font-size:11px;font-weight:600;color:var(--accent,#2563EB);background:var(--blue-50);border:1px solid var(--blue-100);padding:1px 9px;border-radius:99px}
+.kb-term .kt-row{font-size:13px;color:var(--ink-700);line-height:1.65;margin-bottom:6px}
+.kb-term .kt-row:last-child{margin-bottom:0}
+.kb-term .kt-row b{color:var(--ink-900);margin-right:4px}
+.kb-eras{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin:12px 0}
+.kb-era{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px;border-top:3px solid var(--accent,#2563EB)}
+.kb-era .ke-year{font-family:var(--font-mono);font-size:12px;font-weight:700;color:var(--accent,#2563EB);letter-spacing:.04em;margin-bottom:6px}
+.kb-era b{display:block;font-size:14.5px;font-weight:700;margin-bottom:4px}
+.kb-era .ke-key{font-size:12.5px;color:var(--ink-700);line-height:1.55;margin-bottom:6px}
+.kb-era .ke-key em{font-style:normal;font-weight:700;color:var(--accent,#2563EB)}
+.kb-era p{font-size:12px;color:var(--ink-400);line-height:1.5;margin:0}
+</style>
+</head>
+<body>
+
+<!-- ========== 顶部导航（active 由 JS 设置） ========== -->
+<header class="topbar" id="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="index.html">
+      <span class="logo"><svg data-brand-icon="knowledge-book" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 5.5c3.1-.8 5.6-.2 7.5 1.5v12c-1.9-1.7-4.4-2.3-7.5-1.5z"/><path d="M19.5 5.5c-3.1-.8-5.6-.2-7.5 1.5v12c1.9-1.7 4.4-2.3 7.5-1.5z"/></svg></span>
+      亚玛芬 AI 知识库<small>PREVIEW</small>
+    </a>
+    <button class="nav-toggle" type="button" aria-label="打开主导航" aria-expanded="false" aria-controls="primaryNav">
+      <span></span><span></span><span></span><span class="sr-only">打开导航</span>
+    </button>
+    <nav class="nav-links" id="primaryNav">
+      <a href="index.html">首页</a>
+      <a href="learn.html" data-nav="learn">AI 新手入门</a>
+      <a href="video.html" data-nav="video">录播回放</a>
+      <a href="resources.html" data-nav="resources">AI 工具与资源</a>
+    </nav>
+    <div class="nav-right">
+      <div class="search-wrap" id="searchWrap">
+        <div class="search-box" id="searchBox">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input id="searchInput" type="text" aria-label="搜索课程、工具和文章" placeholder="搜索课程、工具、文章…" autocomplete="off">
+          <span class="kbd">⌘K</span>
+        </div>
+        <div class="search-drop" id="searchDrop"></div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ========== 面包屑（JS 渲染） ========== -->
+<nav class="crumb" id="crumb"></nav>
+
+<!-- ========== 子板块 Hero（accent 配色由 JS 注入） ========== -->
+<section class="detail-hero" id="detailHero">
+  <div class="container">
+    <div class="dh-tag" id="dhTag"></div>
+    <h1 id="dhTitle"></h1>
+    <p class="desc" id="dhDesc"></p>
+    <div class="dh-meta" id="dhMeta"></div>
+  </div>
+</section>
+
+<!-- ========== 内容骨架 ========== -->
+<section class="detail-body">
+  <div class="container reading-shell">
+    <div class="detail-card">
+      <div class="dc-head">
+        <span class="dot"></span>
+        <b id="dcTitle">内容</b>
+        <span class="tag-note" id="dcNote"></span>
+      </div>
+      <div class="dc-body" id="dcBody"></div>
+    </div>
+    <div class="placeholder-note" id="phNoteBox" style="display:none">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+      <p id="phNote"></p>
+    </div>
+  </div>
+</section>
+
+<!-- ========== 页脚 ========== -->
+<footer class="footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div>
+        <div class="f-brand">
+          <span class="logo"><svg data-brand-icon="knowledge-book" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 5.5c3.1-.8 5.6-.2 7.5 1.5v12c-1.9-1.7-4.4-2.3-7.5-1.5z"/><path d="M19.5 5.5c-3.1-.8-5.6-.2-7.5 1.5v12c1.9-1.7 4.4-2.3 7.5-1.5z"/></svg></span>
+          亚玛芬 AI 知识库
+        </div>
+        <p class="f-desc">由亚玛芬体育 AI 赋能计划维护的内部学习平台，帮助每一位员工从 AI 新手成长为高效使用者。</p>
+      </div>
+      <div>
+        <h2 class="footer-heading">内容板块</h2>
+        <ul>
+          <li><a href="learn.html">AI 新手入门</a></li>
+          <li><a href="video.html">录播回放</a></li>
+          <li><a href="resources.html">AI 工具与资源</a></li>
+        </ul>
+      </div>
+      <div>
+        <h2 class="footer-heading">快速入口</h2>
+        <ul>
+          <li><a href="learn.html">我的学习进度</a></li>
+          <li><a href="video.html">热门课程 TOP 10</a></li>
+          <li><a href="resources.html">资源推荐清单</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2026 Amer Sports · AI 赋能计划</span>
+      <span>v0.4 · Editorial AI</span>
+    </div>
+  </div>
+</footer>
+
+<script src="learning-experience.js"></script>
+<script>
+/* ================= 子板块配置（含各自 accent 配色） ================= */
+var CONFIG = {
+  learn: {
+    nav: 'learn', title: 'AI 新手入门', crumb: 'AI 新手入门', num: '01 · LEARN',
+    subs: {
+      'ai-basics':       { name:'认识 AI',             accent:'#2563EB', structure:'learning', desc:'理解 AI、生成式 AI、大模型与 Agent 的关系。', meta:['概念','轻实操','约 8 分钟'] },
+      'ai-boundaries':   { name:'看清边界',           accent:'#2563EB', structure:'learning', desc:'看懂 AI 擅长什么，为什么流畅回答仍可能出错。', meta:['判断','案例','约 7 分钟'] },
+      'ai-delegation':   { name:'学会分工',           accent:'#2563EB', structure:'learning', desc:'判断任务应交给 AI、人机协作，还是由人负责。', meta:['分工','练习','约 8 分钟'] },
+      'ai-prompting':    { name:'把需求说清楚',       accent:'#2563EB', structure:'learning', desc:'用四要素把提示词变成可执行的工作 brief。', meta:['表达','实操','约 10 分钟'] },
+      'ai-verification': { name:'验证结果',           accent:'#2563EB', structure:'learning', desc:'区分事实、推论和观点，把关键结论连回证据。', meta:['验证','练习','约 9 分钟'] },
+      'ai-workflow':     { name:'从对话走向工作流', accent:'#2563EB', structure:'learning', desc:'把一次成功对话沉淀为可复用的流程。', meta:['工作流','沉淀','约 8 分钟'] },
+      'ai-companies':    { name:'AI 公司与资源',     accent:'#2563EB', structure:'learning', desc:'该内容已移至 AI 工具与资源。', meta:['内容迁移'] },
+      'ai-models':       { name:'AI 模型与工具',     accent:'#2563EB', structure:'learning', desc:'该内容已移至 AI 工具与资源。', meta:['内容迁移'] }
+    }
+  },
+  video: {
+    nav: 'video', title: '录播回放', crumb: '录播回放', num: '02 · WATCH',
+    subs: {
+      'ai-training': { name:'AI 培训',         accent:'#2563EB', structure:'video-list', desc:'面向全员的基础与进阶培训：工具使用、办公提效、最佳实践。', meta:['18 期','更新至 2026-07'] },
+      'share':       { name:'AI 分享会',       accent:'#1D4FD7', structure:'video-list', desc:'同事与嘉宾的经验分享：真实案例、踩坑记录、效率心得。', meta:['32 期','更新至 2026-07'] },
+      'course':      { name:'专题课程',        accent:'#3B82F6', structure:'video-list', desc:'围绕单一主题的深度课程：Prompt、数据分析、Agent 等。', meta:['24 期','更新至 2026-07'] },
+      'lecture':     { name:'内部讲座',        accent:'#3B82F6', structure:'video-list', desc:'邀请内外部专家带来的主题讲座：趋势、视野、前沿话题。', meta:['15 期','更新至 2026-06'] },
+      'webinar':     { name:'Webinar / Workshop', accent:'#60A5FA', structure:'video-list', desc:'线上研讨会与动手工作坊：边看边练，跟着做一遍。', meta:['20 期','更新至 2026-07'] }
+    }
+  },
+  resources: {
+    nav: 'resources', title: 'AI 工具与资源', crumb: 'AI 工具与资源', num: '03 · EXPLORE',
+    subs: {
+      'tools':    { name:'AI 工具',         accent:'#2563EB', structure:'list', desc:'好用的 AI 工具清单：海外 / 国内 / 公司内部，附使用建议。', meta:['24 个','按类别筛选'] },
+      'courses':  { name:'课程推荐',        accent:'#1D4FD7', structure:'list', desc:'精选外部优质课程：入门、提示词、Agent，附难度与时长。', meta:['12 门','按难度筛选'] },
+      'creators': { name:'博主 / 内容创作者', accent:'#3B82F6', structure:'list', desc:'AI 领域值得关注的创作者：产品 / 技术 / 行业视角全覆盖。', meta:['16 位','按方向筛选'] },
+      'reading':  { name:'论文 / 阅读材料',  accent:'#3B82F6', structure:'list', desc:'经典论文、行业报告与推荐阅读，从深度内容延伸学习。', meta:['28 篇','按类型筛选'] }
+    }
+  }
+};
+
+/* ================= 真实内容数据 ================= */
+var CONTENT = {
+
+/* ---------- 01 LEARN · 文章类 ---------- */
+'ai-what': { type:'article', secs:[
+  { h:'一个不严谨但好用的定义', ps:[
+    '人工智能（Artificial Intelligence，AI）：让机器完成「通常需要人类智能才能完成」的任务——理解语言、识别图像、推理决策、生成内容。它不是一项单一技术，而是一个不断演进的技术族群：从早期的规则系统，到机器学习，再到今天的深度学习和大模型。',
+    '一句话理解今天的主流 AI：它不是「查数据库」，而是基于海量数据学到的统计规律，对「下一个最合适的词 / 像素 / 动作」做预测。预测足够好，看起来就像「智能」。'
+  ]},
+  { h:'三个经常被混用的层次', cards:[
+    { tag:'NARROW AI', t:'弱人工智能', d:'只擅长特定任务的 AI：下棋、翻译、推荐、画图。我们今天用到的所有 AI 都属于这一类，包括 ChatGPT 和大模型——强大但没有自我意识。' },
+    { tag:'AGI', t:'强人工智能', d:'假想中能像人一样跨领域学习、推理、解决任意问题的通用智能。目前仍是研究与争论的目标，定义和实现时间分歧很大。' },
+    { tag:'ASI', t:'超级智能', d:'假想中全面超越人类智能的形态，属于哲学与前瞻讨论范畴，也是 AI 安全与治理研究关注的长期议题。' }
+  ]},
+  { h:'四个词，层层嵌套', ps:['AI、机器学习、深度学习、大模型常被混用，其实是层层包含的关系，从外到内：'], cards:[
+    { tag:'最外层', t:'人工智能 AI', d:'1956 年提出 · 让机器完成智能任务的总称' },
+    { tag:'第 2 层', t:'机器学习 ML', d:'不写死规则，让机器从数据中自己学规律' },
+    { tag:'第 3 层', t:'深度学习 DL', d:'用多层神经网络学习，2012 年起爆发' },
+    { tag:'最内层', t:'大模型 / 生成式 AI', d:'Transformer + 海量数据 · ChatGPT 以来的主流范式' }
+  ]},
+  { h:'三要素：数据、算力、算法', cards:[
+    { tag:'燃料', t:'数据', d:'互联网文本、图片、视频、代码是训练大模型的原料，规模与质量直接决定能力上限。' },
+    { tag:'引擎', t:'算力', d:'训练一次前沿大模型需数千张 GPU/加速卡连续工作数周，这也是英伟达成为 AI 核心供应商的原因。' },
+    { tag:'配方', t:'算法', d:'Transformer 架构 + 预训练 + 对齐微调是当前「标准配方」，算法创新（MoE、推理链）持续降本增效。' }
+  ]},
+  { h:'大语言模型怎么工作：五步看懂', steps:[
+    { t:'收集语料', d:'用互联网上万亿级别的文字、代码、书籍作为学习材料。' },
+    { t:'切成 Token', d:'文本被拆成小单元（token），模型只认识数字化的 token 序列。' },
+    { t:'预测下一个词', d:'Transformer 结构反复练习「根据前文猜下一个词」，学到语言与世界知识。' },
+    { t:'对齐与调优', d:'通过人类反馈（RLHF 等）让回答更安全、有用、符合指令。' },
+    { t:'推理与工具', d:'上线后结合搜索、代码执行、图片理解等工具，成为全能助手。' }
+  ]},
+  { h:'为什么它有时「一本正经地胡说八道」？', ps:[
+    '因为模型的本质是概率预测，而不是「检索事实」。当训练数据不足或问题含糊时，它会生成看起来通顺但错误的回答，业内称之为幻觉（Hallucination）。所以重要信息一定要让它给出来源、或人工复核。'
+  ], quote:'AI 像一个记忆力超强、但偶尔说梦话的天才实习生——好用，但不能完全信。', quoteNote:'—— 关于「幻觉」最常被引用的一句比喻'},
+  { h:'三句话带走', ul:[
+    '今天的 AI 是「从数据中学规律的统计机器」，强大但没有自我意识；',
+    'AI 76 年走了「三起两落」，这一轮浪潮的根基是数据、算力、算法三要素同时成熟；',
+    '大模型的本质是「预测下一个词」，用好它的关键是理解它的能力边界。'
+  ]}
+]},
+
+'prompt-basics': { type:'article', secs:[
+  { h:'为什么提示词这么重要？', ps:[
+    '问完 AI 拿到一个看起来完整、但完全用不上的答案，问题往往不在 AI，在提示词。提示词是「你和 AI 之间的接口」——同样的模型，提示词写得好不好，产出质量可以差出 10 倍。',
+    '下面 5 个方法是公认的「能立刻见效」的写法，按推荐顺序掌握就能覆盖 80% 的日常场景。'
+  ]},
+
+  { h:'方法一 · 说清楚要什么，别让 AI 猜', ps:[
+    '这是最简单、也最容易被忽视的一条。AI 会尽力「推测」你的意图，但推测出来的结果往往不是你想要的。',
+    '把你对结果的四个维度写完整 —— <b>格式、长度、受众、语气</b>，AI 才能交出能用的东西。'
+  ], cards:[
+    { tag:'含糊', t:'「帮我整理一下今天的会议内容。」', d:'AI 只能给出一份通用版纪要，可能格式不是你想要的、长短失控、要点模糊。' },
+    { tag:'清晰', t:'明确格式 / 长度 / 受众 / 语气', d:'「根据以下会议记录整理成纪要。格式：【会议结论】【待办事项（含负责人和截止时间）】【下次议题】，300 字以内，语言简洁。」' }
+  ], ps2:['Anthropic 的黄金法则：把提示词给一个完全不了解这件事的同事看，问他能不能照着做。如果他会懵，AI 也会懵。']},
+
+  { h:'方法二 · 给背景，让 AI 真正理解你的处境', ps:[
+    '同样是「写一封邮件」，发给老板和发给供应商完全是两种写法。AI 不了解你的处境，就只能给你一个「通用版」—— 看起来没毛病，但哪里都不对味。',
+    '关键技巧：告诉 AI <b>「为什么」</b>，比告诉它「做什么」更有效。「我需要正式一点，因为对方是甲方高层」比「写正式一点」效果好得多。'
+  ], cards:[
+    { tag:'无背景', t:'「帮我写一封催款邮件。」', d:'AI 只能给一份「礼貌但空」的通用模板，缺少关键信息。' },
+    { tag:'有背景', t:'说明金额、关系、态度、底线', d:'「催款邮件。背景：合作 3 年的老客户，账期超 30 天，金额 5 万，关系不错不想伤和气，但必须让他重视这件事。语气：委婉但明确，给对方留个台阶下。」' }
+  ], ps2:['OpenAI 推荐的提示词四层结构：', '身份 Identity（扮演什么角色） + 指令 Instructions（做什么、遵守什么规则） + 示例 Examples（期望的输出长什么样） + 上下文 Context（背景、素材、文档）']},
+
+  { h:'方法三 · 给例子，让 AI 直接照着学', ps:[
+    '有一个规律：你用一千字描述想要什么格式，不如直接给 AI 一个例子看。AI 会从例子里自动归纳出规律，然后照着来。这叫 <b>Few-Shot（少样本）提示</b>，是 Anthropic 和 OpenAI 都重点推荐的技巧。'
+  ], code:
+'任务：把下面的事务性通知改写成我们团队的风格。\n\n我们的风格是这样的——\n【示例1】\n原文：请大家于周五前提交本月报销。\n改写：📝 提醒！本月报销截止周五，需要报销的同学记得提交，有问题找小林。\n\n【示例2】\n原文：明天上午10点有全员会议，请准时参加。\n改写：📢 明天10:00 全员大会，3楼会议室，不见不散～\n\n现在请改写：\n原文：下周一起，停车场B区暂停使用，请各位改停A区或C区。',
+  ul:[
+    '<b>给 3-5 个例子</b>效果最好，太少学不到规律，太多反而让 AI 注意力分散',
+    '<b>例子要多样</b>，避免让 AI 学到「无意间的规律」（比如你给的例子全都以 emoji 开头，AI 可能会以为这是固定格式）'
+  ]},
+
+  { h:'方法四 · 给 AI 一个角色，让它换身份说话', ps:[
+    '同一个问题，问「一个 AI」和问「一位从业 10 年的职场老鸟」，得到的答案完全不同。角色设定会让 AI 自动切换视角、语气和知识深度，一句话就能生效。'
+  ], cards:[
+    { tag:'无角色', t:'「帮我分析这个方案的风险。」', d:'AI 给你一份万金油式的通用风险清单，谁看都挑不出毛病，但也没人用得上。' },
+    { tag:'有角色', t:'具体身份 + 行为倾向', d:'「你是一位负责过 50+ 项目的风控经理，专门挑方案里的坑。分析这个方案，不废话，直接说最可能出问题的 3 个点。」' }
+  ], ps2:['四个最好用的职场角色模板：']},
+  { h:'', cards:[
+    { tag:'严格编辑', t:'资深商业文案编辑', d:'识别空话、废话、夸大表述和逻辑漏洞。审阅以下文字，直接指出哪里要改，不用客气。' },
+    { tag:'挑剔甲方', t:'见过太多 PPT 的甲方总监', d:'对套话免疫，只关注实际价值和落地可行性。评价以下方案哪里说服不了你。' },
+    { tag:'对方律师', t:'谈判对方的律师', d:'找出我方合同中对我们不利的条款和模糊之处，逐条分析。' },
+    { tag:'新员工', t:'刚入职 3 个月的新员工', d:'指出操作手册里你看不懂、按说明操作可能会出错的地方。' }
+  ], ps2:['进阶技巧：如果你经常用某个角色，可以把它存在「系统提示（System Prompt）」里，AI 在整个对话中始终保持这个身份，不用每次重复设定。']},
+
+  { h:'方法五 · 让 AI 先拆解再回答，复杂问题别直接问', ps:[
+    '遇到复杂问题，很多人直接问 AI「你觉得怎么办」——AI 会给你一个听起来完整、但实际上是拍脑袋得出的答案。',
+    '更好的做法是：让 AI <b>先把问题拆开、一步步推理，最后才给结论</b>。这叫思维链（Chain of Thought），会让 AI 像一个认真思考的人，而不是快速拍脑袋的机器。'
+  ], cards:[
+    { tag:'直接问结论', t:'「我们该不该接这个客户？」', d:'AI 随机给你「可以接」或「建议谨慎」，没依据、没逻辑。' },
+    { tag:'逐步分析', t:'要求分步骤输出', d:'「请先分析这个客户的优势和风险，结合我们目前的资源情况，最后给出建议和理由。」' }
+  ], code:
+'请帮我分析以下决策，按顺序来：\n第一步：列出接这个项目的理由（机会点）\n第二步：列出不接的理由（风险点）\n第三步：结合我的资源限制评估可行性\n第四步：给出你的最终建议和核心理由\n\n项目情况：[描述项目]\n我们的资源限制：[人力、时间、预算]\n客户特点：[描述客户背景]',
+  ul:[
+    '<b>不要滥用：</b>简单任务不需要这个方法。问「帮我把这段话翻译成英文」，不需要让 AI 先分析翻译策略再翻。',
+    '<b>自我验证：</b>在最后加一句「完成前，请检查你的答案是否符合 [某个标准]」—— 让 AI 做一次自我验证，进一步降低出错的概率。'
+  ]},
+
+  { h:'五大方法快速对照', table:{
+    head:['方法','最适合场景','核心动作'],
+    rows:[
+      ['说清楚要什么','所有场景，基础必备','明确格式、长度、受众、语气'],
+      ['给背景','邮件、方案、沟通脚本','说清「为什么这样做」'],
+      ['给例子','有固定格式/风格要求时','直接给 3-5 个输入输出示例'],
+      ['给角色','需要专业视角或特定语气','设定具体身份和行为倾向'],
+      ['先拆解再回答','复杂决策、风险分析、困难沟通','要求逐步推理，分步骤输出']
+    ]
+  }},
+  { h:'万能模板 · 直接可抄', code:
+'你是一位【角色】。\n背景：【情况说明，包含关键信息】。\n任务：【具体动作】。\n要求：【格式、长度、语气、受众等约束】。\n参考示例：【如有，附 1-2 个输入输出示例】。\n请分步骤思考后回答。'},
+  { h:'现在就练一招', ps:[
+    '打开公司内部的「小A」（见上方 AI 工具与资源板块的「小A」卡片，直接打开内部入口），挑一个你本周真实的工作任务（比如写周报、整理纪要、催办邮件），用上面的任一方法改写提示词。',
+    '同一个任务对比「普通提问」和「按方法改写后」的输出，你会直观感受到差距。'
+  ]}
+]},
+
+'ai-companies': { type:'article', secs:[
+  { h:'海外主要玩家', table:{
+    head:['公司','代表产品','特点速览'],
+    rows:[
+      ['OpenAI','ChatGPT / GPT 系列','大模型时代开创者，综合能力标杆，生态最成熟'],
+      ['Google DeepMind','Gemini','搜索与安卓生态深度整合，多模态能力强'],
+      ['Anthropic','Claude','以安全和长文本著称，写作与编程体验口碑好'],
+      ['Meta','Llama 系列','开源路线代表，全球大量二次开发生态'],
+      ['xAI / Mistral 等','Grok / Mixtral','新贵与欧洲开源力量，迭代速度快']
+    ]}},
+  { h:'国内主要玩家', table:{
+    head:['公司','代表产品','特点速览'],
+    rows:[
+      ['DeepSeek 深度求索','DeepSeek 系列','开源+低价，推理能力出圈，2025 年起全球关注'],
+      ['阿里巴巴','通义千问 Qwen','开源模型家族完整，企业服务接入广'],
+      ['字节跳动','豆包','C 端体验好，语音与多模态活跃'],
+      ['月之暗面','Kimi','长文本处理见长，适合读报告读论文'],
+      ['腾讯','混元 / 元宝','与微信、企业微信生态结合紧密'],
+      ['百度','文心一言','国内最早发布，搜索场景结合深']
+    ]}, ps2:['提示：公司内部场景请优先使用「小A」，它基于公司许可的模型能力并接入内部数据，安全合规。']}
+]},
+
+/* ---------- 01 LEARN · 发展史（全面版） ---------- */
+'ai-history': { type:'article', secs:[
+  { h:'总览：三次浪潮，两次寒冬', ps:[
+    '从 1950 年图灵提出「机器能思考吗」，到 2026 年每个人手机里的智能助手——AI 已经走过了 76 年。它并非一路高歌，而是经历了「三起两落」：两次因为过度承诺、技术跟不上预期而陷入寒冬，又两次因为技术与条件的成熟而重新崛起。',
+    '看懂这条历史曲线，你就能理解：今天这轮大模型浪潮，不是凭空出现，而是数据、算力、算法三要素熬了半个多世纪后同时成熟的必然结果。'
+  ]},
+  { h:'八个时代，各记住一件事', eras:[
+    { y:'1950s', t:'概念诞生', key:'1956 年「人工智能」一词正式出现。', d:'图灵测试 + 达特茅斯会议，AI 成为一门独立学科。' },
+    { y:'1960s', t:'早期探索', key:'人类第一次幻想并尝试「造出会说话的机器」。', d:'感知机、ELIZA 聊天程序相继出现，热情高涨。' },
+    { y:'1974', t:'第一次寒冬', key:'过度承诺是 AI 泡沫破裂的经典剧本。', d:'效果不及预期，研究经费断崖式下降。' },
+    { y:'1980s', t:'专家系统', key:'AI 第一次大规模商业化。', d:'把专家知识写成规则卖给企业，一度炙手可热。' },
+    { y:'1987', t:'第二次寒冬', key:'靠人工堆规则的路走不通。', d:'规则维护成本失控，市场崩盘。' },
+    { y:'1990s-2000s', t:'机器学习崛起', key:'让机器从数据里学，而不是人写规则。', d:'深蓝战胜棋王，统计学习方法普及。' },
+    { y:'2012', t:'深度学习爆发', key:'GPU + 大数据让神经网络脱胎换骨。', d:'AlexNet、AlphaGo、Transformer 相继问世。' },
+    { y:'2022-', t:'大模型时代', key:'AI 从实验室走进每个人的日常工作。', d:'ChatGPT 引爆全球，多模态、推理模型、智能体接连登场。' }
+  ]},
+  { h:'完整时间线（1950 – 今天）', timeline:[
+    { y:'1950', t:'图灵之问', d:'艾伦·图灵发表《计算机器与智能》，提出「机器能思考吗」与图灵测试。' },
+    { y:'1956', t:'达特茅斯会议', d:'「人工智能」一词首次提出，AI 正式成为一门学科。' },
+    { y:'1966', t:'ELIZA 诞生', d:'第一个聊天程序 ELIZA 问世，人类开始幻想「会说话的机器」。' },
+    { y:'1974', t:'第一次 AI 寒冬', d:'早期过度承诺无法兑现，经费大幅削减，研究陷入低谷。' },
+    { y:'1980s', t:'专家系统商业化', d:'把专家知识写成规则卖给企业，AI 首次大规模落地。' },
+    { y:'1987', t:'第二次 AI 寒冬', d:'规则维护成本失控，市场崩盘，行业再次遇冷。' },
+    { y:'1997', t:'深蓝战胜棋王', d:'IBM 深蓝击败国际象棋世界冠军卡斯帕罗夫。' },
+    { y:'2012', t:'深度学习爆发', d:'AlexNet 在图像识别竞赛中大幅领先，「大数据 + 神经网络 + GPU」被验证。' },
+    { y:'2016', t:'AlphaGo 震动世界', d:'DeepMind 的 AlphaGo 战胜围棋世界冠军李世石。' },
+    { y:'2017', t:'Transformer 问世', d:'Google 论文《Attention Is All You Need》发表，成为所有大模型的「祖传引擎」。' },
+    { y:'2020', t:'GPT-3 发布', d:'1750 亿参数，验证「规模即能力」，提示词工程的理论起点。' },
+    { y:'2022.11', t:'ChatGPT 发布', d:'上线 2 个月用户破亿，大模型时代正式开启。' },
+    { y:'2023', t:'GPT-4 / Claude / Gemini', d:'多模态与长上下文能力爆发，AI 进入日常工作流。' },
+    { y:'2024', t:'GPT-4o / Sora / o1', d:'原生多模态、视频生成、推理模型接连发布。' },
+    { y:'2025', t:'DeepSeek-R1 / GPT-5 / Gemini 3', d:'国产模型全球出圈，推理与 Agent 能力成为竞争焦点。' },
+    { y:'2026', t:'AI Agent 时代', d:'智能体从「会聊天」进化到「会干活」，AI 成为真正的生产力工具。' }
+  ], quoteNote:'※ 泳道划分为主流科技史叙述的常见分期，个别事件的归类存在不同口径。'}
+]},
+
+/* ---------- 01 LEARN · 模型清单 ---------- */
+'ai-models': { type:'list', chips:['全部','海外','国内'], groups:[
+  { name:'海外模型', items:[
+    { logo:'G', name:'GPT 系列（OpenAI）', desc:'综合能力标杆，生态与插件最丰富，ChatGPT 背后的模型', badge:'海外' },
+    { logo:'C', name:'Claude（Anthropic）', desc:'长文写作、代码与严谨推理口碑好，语气自然', badge:'海外' },
+    { logo:'Ge', name:'Gemini（Google）', desc:'多模态能力强，与 Google 搜索/办公套件深度整合', badge:'海外' },
+    { logo:'L', name:'Llama（Meta）', desc:'开源阵营代表，可私有化部署，二次开发生态大', badge:'海外·开源' }
+  ]},
+  { name:'国内模型', items:[
+    { logo:'DS', name:'DeepSeek V4 Pro', desc:'最新 V4 Pro 推理能力突出，开源且成本极低，持续现象级出圈', badge:'国内·开源' },
+    { logo:'Q', name:'通义千问 Qwen 3.8 Max（阿里）', desc:'最新 3.8 Max，开源家族完整，企业级服务与钉钉生态整合好', badge:'国内' },
+    { logo:'智', name:'智谱 GLM 5.3', desc:'智谱 AI 出品，最新 GLM 5.3，开源与闭源并行，Agent 能力突出', badge:'国内·开源' },
+    { logo:'K', name:'Kimi K3（月之暗面）', desc:'最新 K3，超长文本与推理能力突出，适合读长篇报告与论文', badge:'国内' },
+    { logo:'豆', name:'豆包（字节跳动）', desc:'C 端体验流畅，语音对话与多模态玩法丰富', badge:'国内' },
+    { logo:'混', name:'混元 / 元宝（腾讯）', desc:'与微信、企业微信、腾讯文档生态结合紧密', badge:'国内' }
+  ]},
+  { name:'怎么选（经验法则）', items:[
+    { logo:'写', name:'写长文 / 改文案', desc:'Claude、Kimi、GPT 系列都可以，重点是把背景给足', badge:'场景' },
+    { logo:'算', name:'逻辑推理 / 数据分析', desc:'优先带推理模式的模型（DeepSeek V4 Pro、GPT o 系列）', badge:'场景' },
+    { logo:'内', name:'涉及公司数据', desc:'一律使用公司内部工具「小A」，合规且能读内部资料', badge:'合规' }
+  ]}
+]},
+
+/* ---------- 01 LEARN · 术语速查（12 词完整版） ---------- */
+'ai-other': { type:'article', secs:[
+  { h:'基础概念（先看这 6 个）', terms:[
+    { t:'Token · 词元', tag:'Token', what:'大模型不是「看字」，而是「看数字」。把一句话切成若干 token，每个 token 映射到一个数字，再喂给模型。中文一般 1 个字 = 1~2 个 token，英文 1 个单词 ≈ 1 个 token。', why:'① 决定一次能喂多少字（上下文窗口按 token 算）；② 决定 API 计费；③ 模型处理长文本的「内存压力」也按 token 衡量。', eg:'句子「AI 改变工作方式」≈ 8 个 token；一段 3000 字的报告 ≈ 4500 token。' },
+    { t:'Transformer · 注意力架构', tag:'Transformer', what:'谷歌 2017 年论文《Attention Is All You Need》提出的架构，核心是「自注意力机制」——模型在读一句话时，每个字都能同时关注其他所有字，因此擅长理解长距离语义关系。', why:'之前的 RNN/LSTM 必须逐字顺序读，速度慢、记不住长文；Transformer 可并行训练、能处理长文本，从此打开「大模型时代」。GPT、Claude、Gemini、Qwen、DeepSeek 全是基于 Transformer。', one:'今天所有主流大模型，本质都是「Transformer 家族的孩子」。' },
+    { t:'预训练 · Pretraining', tag:'Pretraining', what:'第一阶段训练：把互联网上的书、新闻、代码、维基百科等数千亿 token 喂给模型，让它学会「下一个字该是什么」。这一阶段学到的是通用语言能力和基础知识。', why:'训练一次的成本可达数百万到数千万美元，主要花在 GPU 算力上，所以大厂都是「一次预训练、多次微调」。', one:'预训练是「读万卷书」，给模型打底。' },
+    { t:'微调 · SFT', tag:'Fine-tuning', what:'第二阶段训练：用人工写好的「问题-好答案」成对数据继续训练，让模型从「会接龙」变成「会按指令干活」。客服、法律咨询等场景都靠 SFT 调出「专业话术」。', why:'相比预训练，SFT 需要的样本量小得多（几千到几万条），但能让模型行为更专业、更可控。', one:'预训练是「读万卷书」，SFT 是「拜师学艺」。' },
+    { t:'上下文窗口 · Context Window', tag:'Context', what:'单次对话里，模型能读多少字（输入 + 输出），单位是 token。早期 GPT-3 只有 4K token（约 2~3 页 A4）；2026 年 Claude Opus 4.8 已支持 1M token（一整本小说）。', why:'窗口越长，能喂的参考材料越多：长合同、长代码库、长会议记录都能一次性丢进去。评估模型时，它是和「智能水平」并列的核心指标。', one:'窗口决定一次能「记住」多少。' },
+    { t:'幻觉 · Hallucination', tag:'Hallucination', what:'大模型的本质是「预测最可能的下一个词」，不是「查数据库」。当训练数据不足、问题模糊或被诱导时，它会一本正经地编造数据、引文、人名。', why:'应对方法：① 重要事实人工复核；② 让模型给出来源/链接；③ 用联网搜索模式；④ 用 RAG 给模型喂真实文档。', one:'AI 像一个记忆力强但偶尔说梦话的天才实习生——好用，但不能完全信。' }
+  ]},
+  { h:'进阶概念（想深入再看这 6 个）', terms:[
+    { t:'RLHF · 人类反馈强化学习', tag:'RLHF', what:'Reinforcement Learning from Human Feedback。SFT 之后再做一轮「评分训练」：让人类对模型多个回答排序，模型就学会「什么是更好的回答」。', why:'显著降低胡说八道、减少有害输出、提升指令遵循度。今天主流大模型几乎都用 RLHF（或它的变体 DPO、RLAIF）。', one:'用人类偏好给模型「对齐价值观」。' },
+    { t:'MoE · 混合专家', tag:'MoE', what:'Mixture of Experts。一个 MoE 模型内部有几十个「专家子模型」，每次只激活其中 2~4 个来处理当前输入。', why:'总参数可能几千亿，但每次推理只调用一小部分，速度快、成本低。DeepSeek V4、Qwen 3.8、Mixtral 都用了 MoE。代价是显存占用仍是大头，适合大厂部署。', one:'模型拆成多个专家，按需激活。' },
+    { t:'多模态 · Multimodal', tag:'Multimodal', what:'单模态 = 只能处理文字；多模态 = 文字、图片、音频、视频都能看懂/生成。GPT-4o、Claude Opus 4.8、Gemini 3.x 都是原生多模态模型。', why:'拍照提问、识图翻译、视频生成、语音对话、AI 看 X 光片……背后都是多模态能力。', one:'让 AI 不止会读字，还会看图听声。' },
+    { t:'推理模型 · Reasoning Model', tag:'Reasoning', what:'代表模型：GPT-o 系列、DeepSeek V4 Pro、Claude 的 Extended Thinking、Qwen 3.8 Max 推理版、Gemini 2.5 Reasoning。它们在给出最终答案前会「自言自语」式拆解问题、写草稿、验算。', why:'数学题、代码调试、逻辑分析、多步推演——推理模型明显更强。代价是更慢、更贵。日常聊天、翻译、写作，普通模型就够了。', one:'会「先想后答」的慢思考模型。' },
+    { t:'Agent · 智能体', tag:'Agent', what:'普通 AI = 你问它答；Agent = 你给它一个目标，它自己拆步骤、调工具（搜索、代码、API、文件、浏览器）、遇到问题自己修，最终把活干完。', why:'2025-2026 典型代表：编程方向有 OpenAI Codex、Claude Code；通用方向有 ChatGPT Agent、Manus、AutoGPT；办公方向有豆包 Agent、Kimi Agent。', one:'如果说 ChatGPT 是「会聊天的 AI」，Agent 就是「会干活的 AI 员工」。' },
+    { t:'开源模型 · Open-Weight Model', tag:'Open-Weight', what:'权重公开、可私有化部署的模型。代表：Meta Llama 系列、阿里 Qwen 系列、DeepSeek 系列、Mistral、智谱 GLM、月之暗面 Kimi K2。', why:'① 数据不出公司（合规）；② 可在自有服务器/GPU 上跑；③ 可深度微调适配业务；④ 长期成本低于调用闭源 API。代价是需要懂部署、有 GPU 资源、自己做运维。', one:'中小公司往往直接调用云 API 更划算。' },
+    { t:'Harness · Agent 驾驭框架', tag:'Harness', what:'2025 年下半年开始流行的概念。指一套约束、监控、审计 Agent 行为的工程框架 —— 就像给自动驾驶的「规则系统 + 黑匣子」。', why:'Agent 一旦能调工具、动文件、扣钱、出邮件，就需要 Harness 来限制可操作范围、记录决策链路、加上人工审核节点（Human-in-the-loop），避免 Agent 「跑偏」。Anthropic、OpenAI、LangChain 都在推自己的 Harness 方案。', one:'Agent 越强，Harness 越重要。' }
+  ]}
+]},
+
+/* ---------- 03 RESOURCES ---------- */
+'tools': { type:'list', chips:['全部','海外','国内','编程开发','公司内部'], groups:[
+  { name:'公司内部（优先推荐）', items:[
+    { logo:'小A', name:'小A · 公司内部 AI 助手', desc:'接入公司数据与系统的内部 AI 助手，日常问答、写稿、翻译、总结首选。进入 Portal 后，点击右侧「小A智助」打开助手', badge:'公司内部', url:'https://portal.amersports.cn/portal/indexs' }
+  ]},
+  { name:'海外工具', items:[
+    { logo:'G', name:'ChatGPT', desc:'OpenAI 出品，综合能力全面，插件与生态最成熟', badge:'海外', url:'https://chatgpt.com' },
+    { logo:'C', name:'Claude', desc:'长文写作与编程体验优秀，支持超长上下文', badge:'海外', url:'https://claude.ai' },
+    { logo:'Ge', name:'Gemini', desc:'Google 出品，与搜索、Gmail、Docs 深度联动', badge:'海外', url:'https://gemini.google.com' },
+    { logo:'P', name:'Perplexity', desc:'AI 搜索，回答附引用来源，适合查证资料', badge:'海外', url:'https://www.perplexity.ai' }
+  ]},
+  { name:'国内工具', items:[
+    { logo:'DS', name:'DeepSeek V4 Pro', desc:'最新 V4 Pro 推理能力强、免费额度友好，网页版与 App 均有', badge:'国内', url:'https://chat.deepseek.com' },
+    { logo:'K', name:'Kimi', desc:'长文档阅读利器，丢给它 PDF 直接提问', badge:'国内', url:'https://kimi.moonshot.cn' },
+    { logo:'豆', name:'豆包', desc:'字节出品，语音对话与写作功能易上手', badge:'国内', url:'https://www.doubao.com' },
+    { logo:'通', name:'通义千问 Qwen 3.8 Max', desc:'阿里最新 3.8 Max，与钉钉文档场景结合紧密', badge:'国内', url:'https://tongyi.aliyun.com' }
+  ]},
+  { name:'编程 / 开发 Agent', items:[
+    { logo:'Cx', name:'OpenAI Codex', desc:'OpenAI 的编程 Agent，能读整个代码库、自动改代码、跑测试', badge:'编程', url:'https://openai.com/codex/' },
+    { logo:'CC', name:'Claude Code', desc:'Anthropic 的终端编程 CLI，在命令行里写代码、重构、排查', badge:'编程', url:'https://www.anthropic.com/claude-code' },
+    { logo:'WB', name:'WorkBuddy（小布）', desc:'通用 AI 助手，写代码、做文档、跑命令、自动化一条龙，就在本工作台里', badge:'编程·办公' }
+  ]}
+]},
+
+'courses': { type:'list', chips:['全部','入门','Prompt','进阶'], groups:[
+  { name:'零基础入门', items:[
+    { logo:'吴', name:'AI For Everyone（吴恩达）', desc:'DeepLearning.AI · 非技术背景最佳入门课，约 6 小时', badge:'入门·免费', url:'https://www.coursera.org/learn/ai-for-everyone' },
+    { logo:'李', name:'机器学习经典合集（B 站）', desc:'B 站机器学习 / 深度学习经典课程合集（李宏毅/吴恩达系列等）', badge:'入门·免费', url:'https://www.bilibili.com/v/tech/ai/' }
+  ]},
+  { name:'Prompt 专项', items:[
+    { logo:'P', name:'ChatGPT Prompt Engineering（DeepLearning.AI）', desc:'吴恩达与 OpenAI 合著短课，1.5 小时掌握提示词核心方法', badge:'Prompt·免费', url:'https://www.deeplearning.ai/short-courses/chatgpt-prompt-engineering-for-developers/' },
+    { logo:'O', name:'OpenAI 官方 Prompt 指南', desc:'官方文档 · 六大策略与大量示例，随时查阅', badge:'Prompt·文档', url:'https://platform.openai.com/docs/guides/prompt-engineering' }
+  ]},
+  { name:'进阶深入', items:[
+    { logo:'ML', name:'Machine Learning Specialization（吴恩达）', desc:'Coursera · 系统学习机器学习原理，适合想理解底层的人', badge:'进阶', url:'https://www.coursera.org/specializations/machine-learning-introduction' },
+    { logo:'Ag', name:'Agent / 大模型应用开发（DeepLearning.AI 短课系列）', desc:'多门 1~2 小时短课：RAG、Agent、函数调用等', badge:'进阶', url:'https://www.deeplearning.ai/short-courses/' }
+  ]}
+]},
+
+'creators': { type:'list', chips:['全部','技术','产品/行业','资讯媒体','学习','播客'], groups:[
+  { name:'技术深度', items:[
+    { logo:'AK', name:'Andrej Karpathy', desc:'前 OpenAI/Tesla AI 负责人 · YouTube 大模型科普系列，深入浅出', badge:'技术', url:'https://www.youtube.com/@AndrejKarpathy' },
+    { logo:'沐', name:'李沐（跟李沐学 AI）', desc:'亚马逊首席科学家 · B 站/知乎论文精读与动手教程', badge:'技术', url:'https://space.bilibili.com/1567748478' }
+  ]},
+  { name:'产品与行业视角', items:[
+    { logo:'宝', name:'宝玉 xp', desc:'高频翻译与点评海外 AI 动态，信息密度高', badge:'行业', url:'https://x.com/dotey' },
+    { logo:'F', name:'Founder Park（极客公园）', desc:'播客/网站 · AI 产品与创业深度访谈', badge:'行业', url:'https://www.geekpark.net/' },
+    { logo:'数', name:'数字生命卡兹克', desc:'AI 写作/数字生命方向，视角独特 · 微信公众号（在微信搜一搜关注）', badge:'行业·公众号' },
+    { logo:'阑', name:'阑夕', desc:'互联网/科技/产品评论，文笔老练 · 微信公众号（在微信搜一搜关注）', badge:'行业·公众号' }
+  ]},
+  { name:'资讯媒体', items:[
+    { logo:'机', name:'机器之心', desc:'论文与新模型报道快，附中文解读', badge:'资讯', url:'https://www.jiqizhixin.com/' },
+    { logo:'量', name:'量子位 QbitAI', desc:'追踪 AI 行业新闻与产品动态', badge:'资讯', url:'https://www.qbitai.com/' },
+    { logo:'新', name:'新智元', desc:'AI 产业新闻 · 上市公司关联 · 微信公众号（在微信搜一搜关注）', badge:'资讯·公众号' },
+    { logo:'A', name:'APPSO', desc:'爱范儿旗下 · 关注 AI/产品/科技应用', badge:'资讯', url:'https://www.appso.com.cn/' },
+    { logo:'雷', name:'雷锋网', desc:'老牌科技/AI 资讯 · 产业深度报道', badge:'资讯', url:'https://www.leiphone.com/' },
+    { logo:'智', name:'智东西', desc:'智能硬件 + AI 产业 · 产业链视角', badge:'资讯', url:'https://zhidx.com/' },
+    { logo:'D', name:'DeepTech 深科技', desc:'MIT Technology Review 中国版 · 深度科技报道 · 微信公众号（在微信搜一搜关注）', badge:'资讯·公众号' },
+    { logo:'少', name:'少数派 · AI 效率', desc:'网站/App · 偏工具实操与效率玩法', badge:'资讯', url:'https://sspai.com/' }
+  ]},
+  { name:'AI 学习与工程', items:[
+    { logo:'Dw', name:'Datawhale', desc:'国内知名 AI 学习社区 · 免费教程/组队学习', badge:'学习', url:'https://www.datawhale.cn/' },
+    { logo:'禅', name:'赛博禅心', desc:'LLM 工程化 / 提示词 / Agent 实操 · 微信公众号（在微信搜一搜关注）', badge:'学习·公众号' }
+  ]},
+  { name:'技术播客', items:[
+    { logo:'T', name:'OnePod · 技术播客', desc:'AI 与技术主题的播客节目，持续更新中', badge:'播客', url:'https://onepod.site/' }
+  ]}
+]},
+
+'reading': { type:'list', chips:['全部','经典论文','行业报告','近期动态'], groups:[
+  { name:'经典论文（按影响力排序）', items:[
+    { logo:'17', name:'Attention Is All You Need（2017）', desc:'Transformer 开山之作，今天所有大模型的技术地基', badge:'必读', url:'https://arxiv.org/abs/1706.03762' },
+    { logo:'18', name:'BERT（2018, Google）', desc:'预训练+微调范式的代表，理解「预训练模型」概念', badge:'经典', url:'https://arxiv.org/abs/1810.04805' },
+    { logo:'20', name:'GPT-3: Language Models are Few-Shot Learners（2020）', desc:'验证「规模即能力」，提示词工程的理论起点', badge:'经典', url:'https://arxiv.org/abs/2005.14165' },
+    { logo:'22', name:'Chain-of-Thought Prompting（2022）', desc:'思维链提示，让模型「一步步想」的方法来源', badge:'方法', url:'https://arxiv.org/abs/2201.11903' }
+  ]},
+  { name:'行业报告（每年更新）', items:[
+    { logo:'AI', name:'斯坦福 AI Index Report', desc:'斯坦福 HAI 年度发布 · 全球 AI 发展最全数据报告', badge:'年度', url:'https://aiindex.stanford.edu/' },
+    { logo:'McK', name:'McKinsey: The State of AI', desc:'麦肯锡年度调研 · 企业 AI 应用现状与趋势', badge:'年度', url:'https://www.mckinsey.com/capabilities/quantumblack/our-insights/the-state-of-ai' },
+    { logo:'CB', name:'中国互联网协会 · 大模型发展报告', desc:'国内视角的产业与监管动态', badge:'年度', url:'https://www.isc.org.cn/' }
+  ]},
+  { name:'AI 行业动态（2025-2026 · 简报）', items:[
+    { logo:'O1', name:'OpenAI o 系列 / DeepSeek V4 Pro', desc:'推理模型让 AI 在数学、代码、逻辑题上显著提升，开启「慢思考」范式', badge:'2025', url:'https://openai.com/index/learning-to-reason-with-llms/' },
+    { logo:'AG', name:'AI Agent · Harness 框架', desc:'AI 自主规划+执行任务；Harness 是治理/驾驭 Agent 行为的工程框架，让 Agent 更可控可审计', badge:'2025-2026', url:'https://www.anthropic.com/engineering/building-effective-agents' },
+    { logo:'EM', name:'具身智能（Embodied AI）', desc:'人形机器人（Figure / Tesla Optimus / 宇树）+ VLA 模型，让 AI 操控物理世界成为现实', badge:'2025-2026', url:'https://www.figure.ai/' },
+    { logo:'OS', name:'开源大模型崛起', desc:'DeepSeek V4、Llama 4、Qwen 3.8 等开源模型在能力上逼近闭源，推动「模型即商品」', badge:'2025-2026', url:'https://huggingface.co/spaces/open-llm-leaderboard/open_llm_leaderboard' },
+    { logo:'MM', name:'原生多模态成熟', desc:'GPT-4o、Gemini 3、Claude Opus 4.8：文字/图像/语音/视频统一理解与生成成为标配', badge:'2025', url:'https://openai.com/index/hello-gpt-4o/' },
+    { logo:'CO', name:'AI 监管与安全', desc:'欧盟 AI Act 生效、各国模型安全评估；Agent 工具调用风险与对齐研究成新焦点', badge:'2025-2026', url:'https://artificialintelligenceact.eu/' },
+    { logo:'CU', name:'Computer Use / GUI Agent', desc:'AI 直接操控电脑界面（OpenAI Operator、Claude Computer Use）打开自动化新场景', badge:'2025', url:'https://openai.com/index/introducing-operator/' }
+  ]}
+]}
+};
+
+/* ================= 视频列表示例数据（待接入内部真实清单） ================= */
+var VIDEO_DEMO = {
+  'ai-training': ['小A 上手第一课：从注册到日常问答','AI 办公提效实战：邮件/纪要/周报','Excel × AI：数据处理提速 10 倍','AI 培训：门店运营场景专场','AI 培训：商品文案批量生产','AI 安全与合规必修课'],
+  'share': ['设计团队的 AI 工作流分享','供应链同事的数据分析实践','我的 Prompt 踩坑记录（第 2 期）','市场部：AI 做竞品周报的经验','财务共享中心的 AI 探索','HR：用 AI 做简历初筛的边界'],
+  'course': ['Prompt 工程专题 · 第 1 讲：四要素','Prompt 工程专题 · 第 2 讲：迭代优化','数据分析专题 · 第 1 讲：让 AI 读表','Agent 专题 · 入门篇','AI 绘图专题 · 商品图实战','大模型原理通识 · 第 1 讲'],
+  'lecture': ['大模型趋势与零售行业的机会','AI 时代的品牌与消费者洞察','嘉宾讲座：从搜索到 Agent','AI 合规与数据安全红线','运动品牌 × AI 创新案例','年度 AI 趋势盘点'],
+  'webinar': ['AI 工具上手 Workshop（第 3 期）','Prompt 实战演练 Webinar','小A 新功能发布会 · 回放','AI 绘图 Workshop：商品场景','数据分析 Workshop：从 0 到 1','新人专场：AI 工具 30 分钟上手']
+};
+var VIDEO_TEACHERS = ['AI 赋能小组','内部讲师','特邀嘉宾'];
+
+/* 真实录播链接（AI 赋能小组提供，点击跳转 SharePoint） */
+var VIDEO_REAL = {
+  'ai-training': [
+    { title:'Copilot 高阶培训录播', url:'https://amersportsonline.sharepoint.com/sites/amersportsaicommunity/SitePages/Copilot%E9%AB%98%E9%98%B6%E5%9F%B9%E8%AE%AD%E5%BD%95%E6%92%AD.aspx', tag:'Copilot' },
+    { title:'Copilot 财务专场培训', url:'https://amersportsonline.sharepoint.com/sites/amersportsaicommunity/SitePages/Copilot%E8%B4%A2%E5%8A%A1%E4%B8%93%E5%9C%BA%E5%9F%B9%E8%AE%AD.aspx', tag:'Copilot · 财务' },
+    { title:'Copilot 线上精选课程', url:'https://amersportsonline.sharepoint.com/sites/amersportsaicommunity/SitePages/Copilot%E7%BA%BF%E4%B8%8A%E7%B2%BE%E9%80%89%E8%AF%BE%E7%A8%8B.aspx', tag:'Copilot · 精选' }
+  ]
+};
+
+/* ================= 工具函数 ================= */
+function qs(name){
+  var m = location.search.match(new RegExp('[?&]' + name + '=([^&]*)'));
+  if(!m) return '';
+  try {
+    return decodeURIComponent(m[1]);
+  } catch(error) {
+    return '';
+  }
+}
+function esc(s){
+  var entities = {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};
+  return String(s).replace(/[&<>"']/g,function(character){ return entities[character]; });
+}
+function safeOwnGet(object, key){
+  if(!object || (typeof object !== 'object' && typeof object !== 'function') || typeof key !== 'string') return undefined;
+  try {
+    return Object.prototype.hasOwnProperty.call(object, key) ? object[key] : undefined;
+  } catch(error) {
+    return undefined;
+  }
+}
+function sanitizeInlineRichText(value){
+  var template = document.createElement('template');
+  template.innerHTML = String(value);
+  function clean(nodes){
+    var html = '';
+    for(var i=0;i<nodes.length;i++){
+      var node = nodes[i];
+      if(node.nodeType === 3){
+        html += esc(node.data);
+      } else if(node.nodeType === 1){
+        var inner = clean(node.childNodes);
+        var tag = node.tagName.toLowerCase();
+        html += (tag === 'b' || tag === 'strong') ? '<' + tag + '>' + inner + '</' + tag + '>' : inner;
+      }
+    }
+    return html;
+  }
+  return clean(template.content.childNodes);
+}
+function safeHttpUrl(value){
+  try{
+    var url = new URL(String(value),document.baseURI);
+    if(url.protocol === 'http:' || url.protocol === 'https:') return url.href;
+  }catch(e){}
+  return '';
+}
+function syncTableScrollState(){
+  var tables = document.querySelectorAll('.rt-table[data-scroll-label]');
+  for(var i=0;i<tables.length;i++){
+    var table = tables[i];
+    if(table.scrollWidth > table.clientWidth + 1){
+      table.setAttribute('tabindex','0');
+      table.setAttribute('aria-label',table.getAttribute('data-scroll-label'));
+    } else {
+      table.removeAttribute('tabindex');
+      table.removeAttribute('aria-label');
+    }
+  }
+}
+window.addEventListener('resize',syncTableScrollState);
+
+/* ================= 内容渲染器 ================= */
+function renderTimelineItems(items){
+  var html = '<div class="sk-timeline">';
+  for(var i=0;i<items.length;i++){
+    var it = items[i];
+    html += '<div class="sk-tl-item"><div class="tl-year">' + esc(it.y) + '</div>' +
+      '<div class="tl-body"><b>' + esc(it.t) + '</b><p>' + esc(it.d) + '</p></div></div>';
+  }
+  return html + '</div>';
+}
+
+function renderArticle(c){
+  var html = '';
+  for(var i=0;i<c.secs.length;i++){
+    var s = c.secs[i];
+    html += '<div class="rt-sec">';
+    if(s.h) html += '<h3>' + esc(s.h) + '</h3>';
+    if(s.ps) for(var a=0;a<s.ps.length;a++) html += '<p>' + esc(s.ps[a]) + '</p>';
+    if(s.ul){ html += '<ul class="rt-ul">'; for(var b=0;b<s.ul.length;b++) html += '<li>' + sanitizeInlineRichText(s.ul[b]) + '</li>'; html += '</ul>'; }
+    if(s.code) html += '<div class="rt-code">' + esc(s.code) + '</div>';
+    if(s.table){
+      html += '<table class="rt-table" data-scroll-label="' + esc('横向滚动查看「' + (s.h || '详情内容') + '」数据表') + '"><tr>'; for(var h=0;h<s.table.head.length;h++) html += '<th scope="col">' + esc(s.table.head[h]) + '</th>'; html += '</tr>';
+      for(var r=0;r<s.table.rows.length;r++){ html += '<tr>'; for(var d=0;d<s.table.rows[r].length;d++) html += '<td>' + esc(s.table.rows[r][d]) + '</td>'; html += '</tr>'; }
+      html += '</table>';
+    }
+    // 概念卡网格
+    if(s.cards){
+      html += '<div class="kb-cards' + (s.cards.length===3?' cols3':'') + '">';
+      for(var c1=0;c1<s.cards.length;c1++){
+        var cd = s.cards[c1];
+        html += '<div class="kb-card">' + (cd.tag?'<span class="kc-tag">'+esc(cd.tag)+'</span>':'') +
+          '<b>'+esc(cd.t)+'</b><p>'+esc(cd.d)+'</p></div>';
+      }
+      html += '</div>';
+    }
+    // 步骤
+    if(s.steps){
+      html += '<div class="kb-steps">';
+      for(var st=0;st<s.steps.length;st++){
+        html += '<div class="kb-step"><span class="ks-num">'+(st+1)+'</span><div><b>'+esc(s.steps[st].t)+'</b><p>'+esc(s.steps[st].d)+'</p></div></div>';
+      }
+      html += '</div>';
+    }
+    // 术语卡
+    if(s.terms){
+      html += '<div class="kb-terms">';
+      for(var t1=0;t1<s.terms.length;t1++){
+        var tm = s.terms[t1];
+        html += '<div class="kb-term"><div class="kt-head"><b>'+esc(tm.t)+'</b>'+(tm.tag?'<span class="kt-tag">'+esc(tm.tag)+'</span>':'')+'</div>' +
+          (tm.what?'<div class="kt-row"><b>是什么</b>'+esc(tm.what)+'</div>':'') +
+          (tm.why?'<div class="kt-row"><b>为什么重要</b>'+esc(tm.why)+'</div>':'') +
+          (tm.eg?'<div class="kt-row"><b>例子</b>'+esc(tm.eg)+'</div>':'') +
+          (tm.one?'<div class="kt-row"><b>一句话</b>'+esc(tm.one)+'</div>':'') +
+          '</div>';
+      }
+      html += '</div>';
+    }
+    // 时代卡
+    if(s.eras){
+      html += '<div class="kb-eras">';
+      for(var e1=0;e1<s.eras.length;e1++){
+        var er = s.eras[e1];
+        html += '<div class="kb-era"><div class="ke-year">'+esc(er.y)+'</div><b>'+esc(er.t)+'</b>' +
+          '<div class="ke-key"><em>记住：</em>'+esc(er.key)+'</div><p>'+esc(er.d)+'</p></div>';
+      }
+      html += '</div>';
+    }
+    // 内嵌时间线
+    if(s.timeline) html += renderTimelineItems(s.timeline);
+    // 金句
+    if(s.quote) html += '<div class="kb-quote">' + esc(s.quote) + (s.quoteNote?'<span class="kq-note">'+esc(s.quoteNote)+'</span>':'') + '</div>';
+    if(s.ps2) for(var e2=0;e2<s.ps2.length;e2++) html += '<p>' + esc(s.ps2[e2]) + '</p>';
+    html += '</div>';
+  }
+  return html;
+}
+
+function renderTimeline(c){
+  return renderTimelineItems(c.items);
+}
+
+function renderList(c){
+  var fragment = document.createDocumentFragment();
+  if(c.chips){
+    var chips = document.createElement('div');
+    chips.className = 'filter-chips';
+    for(var i=0;i<c.chips.length;i++){
+      var chip = document.createElement('span');
+      chip.className = 'chip' + (i===0 ? ' active' : '');
+      chip.textContent = c.chips[i];
+      chips.appendChild(chip);
+    }
+    fragment.appendChild(chips);
+  }
+  for(var g=0;g<c.groups.length;g++){
+    var grp = c.groups[g];
+    var section = document.createElement('div');
+    section.className = 'rt-sec';
+    section.setAttribute('data-key',grp.name);
+    section.style.marginBottom = '22px';
+    var heading = document.createElement('h3');
+    heading.textContent = grp.name;
+    section.appendChild(heading);
+    var card = document.createElement('div');
+    card.className = 'detail-card';
+    card.style.boxShadow = 'none';
+    for(var j=0;j<grp.items.length;j++){
+      var it = grp.items[j];
+      var safeUrl = it.url ? safeHttpUrl(it.url) : '';
+      var row = document.createElement(safeUrl ? 'a' : 'div');
+      row.className = 'p-row' + (safeUrl ? ' p-link' : '');
+      row.style.borderBottom = j < grp.items.length-1 ? '1px dashed var(--line)' : 'none';
+      if(safeUrl){
+        row.href = safeUrl;
+        row.target = '_blank';
+        row.rel = 'noopener';
+      }
+      var logo = document.createElement('span');
+      logo.className = 'p-logo' + (j%2 ? ' alt' : '');
+      logo.textContent = it.logo;
+      var info = document.createElement('div');
+      info.className = 'p-info';
+      var title = document.createElement('b');
+      title.appendChild(document.createTextNode(it.name + ' '));
+      var badge = document.createElement('span');
+      badge.className = 'p-badge';
+      badge.textContent = it.badge;
+      title.appendChild(badge);
+      var desc = document.createElement('small');
+      desc.textContent = it.desc;
+      info.appendChild(title);
+      info.appendChild(desc);
+      row.appendChild(logo);
+      row.appendChild(info);
+      if(safeUrl){
+        var arrow = document.createElement('span');
+        arrow.className = 'p-arrow';
+        arrow.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8"/></svg>';
+        row.appendChild(arrow);
+      }
+      card.appendChild(row);
+    }
+    section.appendChild(card);
+    fragment.appendChild(section);
+  }
+  return fragment;
+}
+
+function initListFilter(){
+  var body = document.getElementById('dcBody');
+  if(!body) return;
+  var chips = body.querySelectorAll('.filter-chips .chip');
+  var secs = body.querySelectorAll('.rt-sec[data-key]');
+  if(chips.length < 2 || !secs.length) return;
+  for(var i=0;i<chips.length;i++){
+    chips[i].style.cursor = 'pointer';
+    chips[i].addEventListener('click', function(){
+      var me = this;
+      for(var j=0;j<chips.length;j++) chips[j].classList.remove('active');
+      me.classList.add('active');
+      var key = me.textContent.trim();
+      // 支持「/」分隔的多关键字（如「产品/行业」匹配「产品与行业视角」）
+      var keys = key.split('/');
+      for(var k=0;k<secs.length;k++){
+        var kk = secs[k].getAttribute('data-key') || '';
+        var hit = (key==='全部');
+        if(!hit){
+          for(var m=0;m<keys.length;m++){
+            if(keys[m] && kk.indexOf(keys[m].trim())>-1){ hit = true; break; }
+          }
+        }
+        secs[k].style.display = hit ? '' : 'none';
+      }
+    });
+  }
+}
+
+function renderVideoList(id){
+  var real = safeOwnGet(VIDEO_REAL, id) || [];
+  var thumbs = ['thumb-landscape','thumb-stars','thumb-aurora'];
+  if(!real.length){
+    var placeholder = document.createElement('div');
+    placeholder.className = 'placeholder-note';
+    placeholder.style.marginTop = '0';
+    placeholder.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg><p><b>暂无回放：</b>该分类还没有接入真实录播，敬请期待。</p>';
+    return placeholder;
+  }
+  var list = document.createElement('div');
+  list.className = 'sk-vlist';
+  for(var r=0;r<real.length;r++){
+    var it = real[r];
+    var safeUrl = safeHttpUrl(it.url);
+    var item = document.createElement(safeUrl ? 'a' : 'div');
+    item.className = 'sk-vcard rv-real';
+    if(safeUrl){
+      item.href = safeUrl;
+      item.target = '_blank';
+      item.rel = 'noopener';
+    }
+    var thumb = document.createElement('div');
+    thumb.className = 'sk-thumb ' + thumbs[r%3];
+    var tag = document.createElement('span');
+    tag.className = 'rv-badge-demo rv-badge-real';
+    tag.textContent = it.tag;
+    var play = document.createElement('span');
+    play.className = 'play';
+    play.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4l14 8-14 8V4z"/></svg>';
+    var duration = document.createElement('span');
+    duration.className = 'rv-dur-txt';
+    duration.textContent = '回放';
+    thumb.appendChild(tag);
+    thumb.appendChild(play);
+    thumb.appendChild(duration);
+    var itemBody = document.createElement('div');
+    itemBody.className = 'sk-body';
+    var itemTitle = document.createElement('b');
+    itemTitle.className = 'rv-title';
+    itemTitle.textContent = it.title;
+    var meta = document.createElement('div');
+    meta.className = 'rv-meta';
+    meta.innerHTML = '<span>AI 赋能小组</span><span>SharePoint 回放</span>';
+    var tagRow = document.createElement('div');
+    tagRow.className = 'rv-tagrow';
+    tagRow.innerHTML = '<span>点击观看 ↗</span>';
+    itemBody.appendChild(itemTitle);
+    itemBody.appendChild(meta);
+    itemBody.appendChild(tagRow);
+    item.appendChild(thumb);
+    item.appendChild(itemBody);
+    list.appendChild(item);
+  }
+  return list;
+}
+
+/* ================= 渲染主流程 ================= */
+(function(){
+  var type = qs('type'), id = qs('id');
+  var beginnerRuntime = safeOwnGet(window, 'AIBeginner');
+  var aliasMap = beginnerRuntime ? safeOwnGet(beginnerRuntime, 'aliases') : undefined;
+  var canonicalId = type === 'learn' ? safeOwnGet(aliasMap, id) : undefined;
+  if(typeof canonicalId === 'string'){
+    id = canonicalId;
+    try {
+      var canonicalUrl = new URL(window.location.href);
+      canonicalUrl.searchParams.set('type', 'learn');
+      canonicalUrl.searchParams.set('id', id);
+      var replaceState = history.replaceState;
+      if(typeof replaceState === 'function') replaceState.call(history, history.state || null, '', canonicalUrl.pathname + canonicalUrl.search + canonicalUrl.hash);
+    } catch(aliasError) {}
+  }
+  var board = safeOwnGet(CONFIG, type);
+  var subs = board ? safeOwnGet(board, 'subs') : undefined;
+  var sub = safeOwnGet(subs, id);
+  if(!sub){
+    if(type === 'learn'){
+      board = safeOwnGet(CONFIG, 'learn') || { nav:'learn', crumb:'AI 新手入门', num:'01 · LEARN' };
+      sub = { name:'暂未找到这一章', accent:'#2563EB', structure:'learning-unknown', desc:'返回 AI 新手入门，从六个章节中重新选择。', meta:['未找到章节'] };
+    } else {
+      type = 'learn';
+      board = safeOwnGet(CONFIG, 'learn') || { nav:'learn', crumb:'AI 新手入门', num:'404' };
+      sub = { name:'页面未找到', accent:'#2563EB', structure:'page-unknown', desc:'请返回 AI 新手入门继续浏览。', meta:['404'] };
+    }
+  }
+
+  var accent = sub.accent;
+
+  // 1) 导航高亮
+  var navLinks = document.querySelectorAll('.nav-links a[data-nav]');
+  for(var i=0;i<navLinks.length;i++){
+    if(navLinks[i].getAttribute('data-nav') === board.nav) navLinks[i].classList.add('active');
+  }
+
+  // 2) 面包屑
+  document.getElementById('crumb').innerHTML =
+    '<a href="index.html">首页</a>' +
+    '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>' +
+    '<a href="' + type + '.html">' + esc(board.crumb) + '</a>' +
+    '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>' +
+    '<span class="cur">' + esc(sub.name) + '</span>';
+
+  // 3) Hero
+  var hero = document.getElementById('detailHero');
+  hero.hidden = sub.structure === 'learning' || sub.structure === 'learning-unknown';
+  hero.style.setProperty('--accent', accent);
+  document.getElementById('dhTag').textContent = board.num + ' · ' + board.crumb + ' / ' + sub.name;
+  document.getElementById('dhTitle').textContent = sub.name;
+  document.getElementById('dhDesc').textContent = sub.desc;
+  var metaHtml = '';
+  for(var m=0;m<sub.meta.length;m++) metaHtml += '<span>' + esc(sub.meta[m]) + '</span>';
+  document.getElementById('dhMeta').innerHTML = metaHtml;
+
+  // 4) 内容
+  document.title = sub.name + ' · 亚玛芬 AI 知识库';
+  var bodyEl = document.getElementById('dcBody');
+  bodyEl.style.setProperty('--accent', accent);
+
+  var titleEl = document.getElementById('dcTitle');
+  var noteEl = document.getElementById('dcNote');
+  var phBox = document.getElementById('phNoteBox');
+  var phNote = document.getElementById('phNote');
+
+  var content = safeOwnGet(CONTENT, id);
+  switch(sub.structure){
+    case 'learning':
+      titleEl.textContent = '轻量学习'; noteEl.textContent = 'LEARN · TRY · REVIEW';
+      if(beginnerRuntime && typeof beginnerRuntime.renderChapter === 'function'){
+        beginnerRuntime.renderChapter(id, bodyEl);
+      } else {
+        bodyEl.textContent = '学习内容暂时无法加载，请返回 AI 新手入门重试。';
+      }
+      break;
+    case 'learning-unknown':
+      titleEl.textContent = '未找到章节'; noteEl.textContent = 'RETURN TO LEARN';
+      if(beginnerRuntime && typeof beginnerRuntime.renderChapter === 'function') beginnerRuntime.renderChapter(id, bodyEl);
+      else bodyEl.textContent = '暂未找到这一章。请返回 AI 新手入门。';
+      break;
+    case 'page-unknown':
+      titleEl.textContent = '页面未找到'; noteEl.textContent = '404';
+      var unknownMessage = document.createElement('p');
+      unknownMessage.textContent = '当前链接无法识别，请返回 AI 新手入门。';
+      var unknownReturn = document.createElement('a');
+      unknownReturn.className = 'lesson-primary-action';
+      unknownReturn.href = 'learn.html';
+      unknownReturn.textContent = '返回 AI 新手入门';
+      bodyEl.replaceChildren(unknownMessage, unknownReturn);
+      break;
+    case 'article':
+      titleEl.textContent = '正文'; noteEl.textContent = 'ARTICLE';
+      bodyEl.innerHTML = content ? renderArticle(content) : '';
+      break;
+    case 'timeline':
+      titleEl.textContent = '时间线'; noteEl.textContent = 'TIMELINE';
+      bodyEl.innerHTML = content ? renderTimeline(content) : '';
+      break;
+    case 'list':
+      titleEl.textContent = '清单'; noteEl.textContent = 'LIST';
+      if(content) bodyEl.replaceChildren(renderList(content)); else bodyEl.textContent = '';
+      initListFilter();
+      break;
+    case 'video-list':
+      titleEl.textContent = '课程回放'; noteEl.textContent = 'VIDEO LIST';
+      bodyEl.replaceChildren(renderVideoList(id));
+      var realVideos = safeOwnGet(VIDEO_REAL, id);
+      if(realVideos && realVideos.length){
+        phBox.style.display = 'flex';
+        phNote.innerHTML = '<b>点击卡片即可观看：</b>以下为已接入的真实录播，点击会跳转到公司 SharePoint 站点观看（需登录公司账号）。';
+      } else {
+        phBox.style.display = 'none';
+      }
+      break;
+  }
+  syncTableScrollState();
+})();
+
+</script>
+<script src="search.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

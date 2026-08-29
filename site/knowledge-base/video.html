@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>录播回放 · 亚玛芬 AI 知识库</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ========== 顶部导航 ========== -->
+<header class="topbar" id="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="index.html">
+      <span class="logo"><svg data-brand-icon="knowledge-book" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 5.5c3.1-.8 5.6-.2 7.5 1.5v12c-1.9-1.7-4.4-2.3-7.5-1.5z"/><path d="M19.5 5.5c-3.1-.8-5.6-.2-7.5 1.5v12c1.9-1.7 4.4-2.3 7.5-1.5z"/></svg></span>
+      亚玛芬 AI 知识库<small>PREVIEW</small>
+    </a>
+    <button class="nav-toggle" type="button" aria-label="打开主导航" aria-expanded="false" aria-controls="primaryNav">
+      <span></span><span></span><span></span><span class="sr-only">打开导航</span>
+    </button>
+    <nav class="nav-links" id="primaryNav">
+      <a href="index.html">首页</a>
+      <a href="learn.html">AI 新手入门</a>
+      <a href="video.html" class="active">录播回放</a>
+      <a href="resources.html">AI 工具与资源</a>
+    </nav>
+    <div class="nav-right">
+      <div class="search-wrap" id="searchWrap">
+        <div class="search-box" id="searchBox">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input id="searchInput" type="text" aria-label="搜索课程、工具和文章" placeholder="搜索课程、工具、文章…" autocomplete="off">
+          <span class="kbd">⌘K</span>
+        </div>
+        <div class="search-drop" id="searchDrop"></div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ========== 面包屑 ========== -->
+<nav class="crumb">
+  <a href="index.html">首页</a>
+  <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+  <span class="cur">录播回放</span>
+</nav>
+
+<!-- ========== 板块 Hero ========== -->
+<section class="board-hero video-hero">
+  <div class="container">
+    <div class="hero-grid" aria-hidden="true"></div>
+    <div class="bh-left reveal">
+      <div class="bh-tag">02 · WATCH 观看 / 学习课程</div>
+      <h1>录播回放</h1>
+      <p>公司内部已录制的 Copilot 培训回放，点击卡片直接跳转 SharePoint 观看（需登录公司账号）。</p>
+    </div>
+    <div class="bh-meta reveal">
+      <div class="bm"><b>3</b><span>课程回放</span></div>
+      <div class="bm"><b>Copilot</b><span>系列培训</span></div>
+      <div class="bm"><b>2026-08</b><span>最近更新</span></div>
+    </div>
+    <div class="hero-mascot reveal">
+      <picture>
+        <source srcset="img/xiaoa-video-480.webp" type="image/webp">
+        <img src="img/xiaoa-video.png" alt="正在观看录播的小A AI 助手" width="449" height="479" fetchpriority="high" decoding="async">
+      </picture>
+    </div>
+  </div>
+</section>
+
+<!-- ========== 课程回放 ========== -->
+<section class="section">
+  <div class="container">
+    <div class="section-head">
+      <div>
+        <div class="tag">COURSES · 课程回放</div>
+        <h2>Copilot 系列培训</h2>
+        <p class="desc">以下为已接入的真实录播，点击「观看回放」直达公司 SharePoint 站点。</p>
+      </div>
+    </div>
+
+    <div class="video-grid">
+      <a class="video-card reveal" href="https://amersportsonline.sharepoint.com/sites/amersportsaicommunity/SitePages/Copilot%E9%AB%98%E9%98%B6%E5%9F%B9%E8%AE%AD%E5%BD%95%E6%92%AD.aspx" target="_blank" rel="noopener">
+        <div class="video-thumb thumb-landscape">
+          <span class="v-badge">AI 培训</span>
+          <span class="play"><svg viewBox="0 0 24 24"><path d="M6 4l14 8-14 8V4z"/></svg></span>
+          <span class="v-dur">回放</span>
+        </div>
+        <div class="video-body">
+          <h3>Copilot 高阶培训录播</h3>
+          <div class="v-meta">
+            <span><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg>AI 赋能小组</span>
+            <span><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>SharePoint 回放</span>
+          </div>
+          <div class="v-tags"><span>Copilot</span><span>进阶</span></div>
+          <span class="v-btn" aria-hidden="true">观看回放<svg viewBox="0 0 24 24"><path d="M6 4l14 8-14 8V4z"/></svg></span>
+        </div>
+      </a>
+
+      <a class="video-card reveal" href="https://amersportsonline.sharepoint.com/sites/amersportsaicommunity/SitePages/Copilot%E8%B4%A2%E5%8A%A1%E4%B8%93%E5%9C%BA%E5%9F%B9%E8%AE%AD.aspx" target="_blank" rel="noopener">
+        <div class="video-thumb thumb-stars">
+          <span class="v-badge">AI 培训 · 财务专场</span>
+          <span class="play"><svg viewBox="0 0 24 24"><path d="M6 4l14 8-14 8V4z"/></svg></span>
+          <span class="v-dur">回放</span>
+        </div>
+        <div class="video-body">
+          <h3>Copilot 财务专场培训</h3>
+          <div class="v-meta">
+            <span><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg>AI 赋能小组</span>
+            <span><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>SharePoint 回放</span>
+          </div>
+          <div class="v-tags"><span>Copilot</span><span>财务场景</span></div>
+          <span class="v-btn" aria-hidden="true">观看回放<svg viewBox="0 0 24 24"><path d="M6 4l14 8-14 8V4z"/></svg></span>
+        </div>
+      </a>
+
+      <a class="video-card reveal" href="https://amersportsonline.sharepoint.com/sites/amersportsaicommunity/SitePages/Copilot%E7%BA%BF%E4%B8%8A%E7%B2%BE%E9%80%89%E8%AF%BE%E7%A8%8B.aspx" target="_blank" rel="noopener">
+        <div class="video-thumb thumb-aurora">
+          <span class="v-badge">专题课程</span>
+          <span class="play"><svg viewBox="0 0 24 24"><path d="M6 4l14 8-14 8V4z"/></svg></span>
+          <span class="v-dur">回放</span>
+        </div>
+        <div class="video-body">
+          <h3>Copilot 线上精选课程</h3>
+          <div class="v-meta">
+            <span><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg>AI 赋能小组</span>
+            <span><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>SharePoint 回放</span>
+          </div>
+          <div class="v-tags"><span>Copilot</span><span>精选</span></div>
+          <span class="v-btn" aria-hidden="true">观看回放<svg viewBox="0 0 24 24"><path d="M6 4l14 8-14 8V4z"/></svg></span>
+        </div>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- ========== 页脚 ========== -->
+<footer class="footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div>
+        <div class="f-brand">
+          <span class="logo"><svg data-brand-icon="knowledge-book" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 5.5c3.1-.8 5.6-.2 7.5 1.5v12c-1.9-1.7-4.4-2.3-7.5-1.5z"/><path d="M19.5 5.5c-3.1-.8-5.6-.2-7.5 1.5v12c1.9-1.7 4.4-2.3 7.5-1.5z"/></svg></span>
+          亚玛芬 AI 知识库
+        </div>
+        <p class="f-desc">由亚玛芬体育 AI 赋能计划维护的内部学习平台，帮助每一位员工从 AI 新手成长为高效使用者。</p>
+      </div>
+      <div>
+        <h2 class="footer-heading">内容板块</h2>
+        <ul>
+          <li><a href="learn.html">AI 新手入门</a></li>
+          <li><a href="video.html">录播回放</a></li>
+          <li><a href="resources.html">AI 工具与资源</a></li>
+        </ul>
+      </div>
+      <div>
+        <h2 class="footer-heading">快速入口</h2>
+        <ul>
+          <li><a href="learn.html">继续学习</a></li>
+          <li><a href="video.html">课程回放</a></li>
+          <li><a href="resources.html">资源推荐清单</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2026 Amer Sports · AI 赋能计划</span>
+      <span>v0.4 Preview · 编辑式科技版</span>
+    </div>
+  </div>
+</footer>
+
+<script src="search.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI 新手入门 · 亚玛芬 AI 知识库</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="learning-experience.css">
+</head>
+<body>
+
+<header class="topbar" id="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="index.html">
+      <span class="logo"><svg data-brand-icon="knowledge-book" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 5.5c3.1-.8 5.6-.2 7.5 1.5v12c-1.9-1.7-4.4-2.3-7.5-1.5z"/><path d="M19.5 5.5c-3.1-.8-5.6-.2-7.5 1.5v12c1.9-1.7 4.4-2.3 7.5-1.5z"/></svg></span>
+      亚玛芬 AI 知识库<small>PREVIEW</small>
+    </a>
+    <button class="nav-toggle" type="button" aria-label="打开主导航" aria-expanded="false" aria-controls="primaryNav">
+      <span></span><span></span><span></span><span class="sr-only">打开导航</span>
+    </button>
+    <nav class="nav-links" id="primaryNav">
+      <a href="index.html">首页</a>
+      <a href="learn.html" class="active">AI 新手入门</a>
+      <a href="video.html">录播回放</a>
+      <a href="resources.html">AI 工具与资源</a>
+    </nav>
+    <div class="nav-right">
+      <div class="search-wrap" id="searchWrap">
+        <div class="search-box" id="searchBox">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input id="searchInput" type="text" aria-label="搜索课程、工具和文章" placeholder="搜索课程、工具、文章…" autocomplete="off">
+          <span class="kbd">⌘K</span>
+        </div>
+        <div class="search-drop" id="searchDrop"></div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<nav class="crumb" aria-label="面包屑">
+  <a href="index.html">首页</a>
+  <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+  <span class="cur">AI 新手入门</span>
+</nav>
+
+<main>
+  <section class="board-hero learn-hero">
+    <div class="hero-grid" aria-hidden="true"></div>
+    <div class="container">
+      <div class="bh-left reveal">
+        <div class="bh-tag">01 · LEARN 学习 / 建立能力</div>
+        <h1>AI 新手入门</h1>
+        <p>从看懂 AI 到会协作，用六个轻量章节掌握分工、表达与判断。每章都有案例和小练习，无需技术背景。</p>
+        <a class="lesson-primary-action" data-learning-continue href="detail.html?type=learn&amp;id=ai-basics">继续学习</a>
+        <p class="learning-session-summary" data-learning-summary>已看 <span data-learning-seen-count>0</span> / 6</p>
+      </div>
+      <div class="hero-mascot reveal">
+        <picture>
+          <source srcset="img/xiaoa-learn-480.webp" type="image/webp">
+          <img src="img/xiaoa-learn.png" width="432" height="480" alt="正在阅读学习的小A AI 助手" fetchpriority="high" decoding="async">
+        </picture>
+      </div>
+      <div class="bh-meta" aria-label="学习体验概览">
+        <div class="bm"><b>6</b><span>轻量章节</span></div>
+        <div class="bm"><b>6</b><span>工作案例</span></div>
+        <div class="bm"><b>2–5</b><span>分钟小练习</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head">
+        <div>
+          <div class="tag">BEGINNER PATH · 六章轻学习</div>
+          <h2>选择一个章节，轻松开始</h2>
+          <p class="desc">不必一次看完。选一个当下最有用的章节，读案例、动手试一试，再带走一张可复用的方法卡。</p>
+        </div>
+      </div>
+
+      <div class="learning-hub" aria-label="AI 新手入门六章目录">
+        <a class="learning-card" id="chapter-ai-basics" data-chapter-id="ai-basics" href="detail.html?type=learn&amp;id=ai-basics">
+          <span class="ec-num">01 / UNDERSTAND</span><span class="learning-status">未看</span>
+          <h3>认识 AI</h3><p>理清 AI、生成式 AI、大模型与 Agent 的关系，用“预测下一个 Token”理解它如何工作。</p>
+          <span class="learning-card-action">开始学习</span>
+        </a>
+        <a class="learning-card" id="chapter-ai-boundaries" data-chapter-id="ai-boundaries" href="detail.html?type=learn&amp;id=ai-boundaries">
+          <span class="ec-num">02 / DISCERN</span><span class="learning-status">未看</span>
+          <h3>看清边界</h3><p>知道 AI 擅长什么、不擅长什么，理解为什么“说得像真的”不等于正确。</p>
+          <span class="learning-card-action">开始学习</span>
+        </a>
+        <a class="learning-card" id="chapter-ai-delegation" data-chapter-id="ai-delegation" href="detail.html?type=learn&amp;id=ai-delegation">
+          <span class="ec-num">03 / DELEGATE</span><span class="learning-status">未看</span>
+          <h3>学会分工</h3><p>判断一项工作应交给 AI、人机协作，还是必须由人负责，把 AI 当作协作对象。</p>
+          <span class="learning-card-action">开始学习</span>
+        </a>
+        <a class="learning-card" id="chapter-ai-prompting" data-chapter-id="ai-prompting" href="detail.html?type=learn&amp;id=ai-prompting">
+          <span class="ec-num">04 / EXPRESS</span><span class="learning-status">未看</span>
+          <h3>把需求说清楚</h3><p>用目标、背景、任务、输出要求四要素，把一次提问变成可迭代的工作 brief。</p>
+          <span class="learning-card-action">开始学习</span>
+        </a>
+        <a class="learning-card" id="chapter-ai-verification" data-chapter-id="ai-verification" href="detail.html?type=learn&amp;id=ai-verification">
+          <span class="ec-num">05 / VERIFY</span><span class="learning-status">未看</span>
+          <h3>验证结果</h3><p>区分事实、推论和观点，查来源、对原文，用明确标准检查 AI 结果。</p>
+          <span class="learning-card-action">开始学习</span>
+        </a>
+        <a class="learning-card" id="chapter-ai-workflow" data-chapter-id="ai-workflow" href="detail.html?type=learn&amp;id=ai-workflow">
+          <span class="ec-num">06 / REUSE</span><span class="learning-status">未看</span>
+          <h3>从对话走向工作流</h3><p>拆任务、定义输入输出、设置检查点，把一次成功对话沉淀为可复用方法。</p>
+          <span class="learning-card-action">开始学习</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section learning-toolkit" aria-labelledby="learningToolkitTitle">
+    <div class="container">
+      <div class="section-head">
+        <div>
+          <div class="tag">TAKEAWAY TOOLS · 随手复用</div>
+          <h2 id="learningToolkitTitle">带走四张可复制工具卡</h2>
+          <p class="desc">不用等到全部学完。遇到真实任务时，复制一张模板，边做边调整。</p>
+        </div>
+      </div>
+      <div class="learning-tool-grid">
+        <article class="learning-tool-card">
+          <h3>任务分工卡</h3>
+          <p>开始前先划清 AI 与人的职责，并留下人工检查点。</p>
+          <pre><code data-template-content>目标：
+AI负责：
+我负责：
+检查点：</code></pre>
+          <div class="learning-tool-actions"><button class="learning-tool-copy" type="button" data-copy-template>复制模板</button><span class="tool-copy-feedback" data-copy-feedback aria-live="polite"></span></div>
+        </article>
+        <article class="learning-tool-card">
+          <h3>四要素提问模板</h3>
+          <p>把模糊想法整理成清楚、可执行的任务说明。</p>
+          <pre><code data-template-content>目标：
+背景：
+任务：
+输出要求：</code></pre>
+          <div class="learning-tool-actions"><button class="learning-tool-copy" type="button" data-copy-template>复制模板</button><span class="tool-copy-feedback" data-copy-feedback aria-live="polite"></span></div>
+        </article>
+        <article class="learning-tool-card">
+          <h3>结果验证清单</h3>
+          <p>交付之前，把关键结论重新连回证据和风险。</p>
+          <pre><code data-template-content>事实：
+来源：
+推论：
+风险：</code></pre>
+          <div class="learning-tool-actions"><button class="learning-tool-copy" type="button" data-copy-template>复制模板</button><span class="tool-copy-feedback" data-copy-feedback aria-live="polite"></span></div>
+        </article>
+        <article class="learning-tool-card">
+          <h3>工作流拆解模板</h3>
+          <p>把一次有效对话拆成下次还能稳定复用的步骤。</p>
+          <pre><code data-template-content>输入：
+步骤：
+人工判断点：
+最终交付：</code></pre>
+          <div class="learning-tool-actions"><button class="learning-tool-copy" type="button" data-copy-template>复制模板</button><span class="tool-copy-feedback" data-copy-feedback aria-live="polite"></span></div>
+        </article>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div>
+        <div class="f-brand"><span class="logo"><svg data-brand-icon="knowledge-book" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 5.5c3.1-.8 5.6-.2 7.5 1.5v12c-1.9-1.7-4.4-2.3-7.5-1.5z"/><path d="M19.5 5.5c-3.1-.8-5.6-.2-7.5 1.5v12c1.9-1.7 4.4-2.3 7.5-1.5z"/></svg></span>亚玛芬 AI 知识库</div>
+        <p class="f-desc">由亚玛芬体育 AI 赋能计划维护的内部学习平台，帮助每一位员工从 AI 新手成长为高效使用者。</p>
+      </div>
+      <div>
+        <h2 class="footer-heading">内容板块</h2>
+        <ul><li><a href="learn.html">AI 新手入门</a></li><li><a href="video.html">录播回放</a></li><li><a href="resources.html">AI 工具与资源</a></li></ul>
+      </div>
+      <div>
+        <h2 class="footer-heading">快速入口</h2>
+        <ul><li><a href="learn.html">继续学习</a></li><li><a href="video.html">课程回放</a></li><li><a href="resources.html">资源推荐清单</a></li></ul>
+      </div>
+    </div>
+    <div class="footer-bottom"><span>© 2026 Amer Sports · AI 赋能计划</span><span>v0.4 Preview · 编辑式科技版</span></div>
+  </div>
+</footer>
+
+<script src="learning-experience.js"></script>
+<script>
+(function () {
+  function initLearningHub() {
+    if (window.AIBeginner) window.AIBeginner.initHub(document);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initLearningHub);
+  else initLearningHub();
+}());
+</script>
+<script src="search.js"></script>
+<script src="site.js"></script>
+</body>
+</html>
