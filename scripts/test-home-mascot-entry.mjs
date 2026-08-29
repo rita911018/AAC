@@ -1,19 +1,27 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import vm from 'node:vm';
 
 const portalUrl = 'https://portal.amersports.cn/portal/indexs';
 const oldUatUrl = 'ai-uat.amersports.cn:9093';
 const portalInstructions = '进入 Portal 后，点击右侧「小A智助」打开助手';
+const retiredHomeCopy = [
+  '从入门、录播到工具实践，在清晰的知识路径里找到所需内容。',
+  '每个板块都是独立的完整页面，点击进入后内部还有细分目录。',
+];
+const approvedFooterDescription = '由 Amersports AI Community 维护的内部学习平台，帮助每一位员工从 AI 新手成长为高效使用者。';
+const retiredFooterDescription = '由亚玛芬体育 AI 赋能计划维护的内部学习平台，帮助每一位员工从 AI 新手成长为高效使用者。';
+const siteRoot = resolve(process.argv[2] || 'site/knowledge-base');
 
 const files = {
-  index: readFileSync('site/knowledge-base/index.html', 'utf8'),
-  learn: readFileSync('site/knowledge-base/learn.html', 'utf8'),
-  video: readFileSync('site/knowledge-base/video.html', 'utf8'),
-  resources: readFileSync('site/knowledge-base/resources.html', 'utf8'),
-  progress: readFileSync('site/knowledge-base/progress.html', 'utf8'),
-  search: readFileSync('site/knowledge-base/search.js', 'utf8'),
-  detail: readFileSync('site/knowledge-base/detail.html', 'utf8'),
+  index: readFileSync(join(siteRoot, 'index.html'), 'utf8'),
+  learn: readFileSync(join(siteRoot, 'learn.html'), 'utf8'),
+  video: readFileSync(join(siteRoot, 'video.html'), 'utf8'),
+  resources: readFileSync(join(siteRoot, 'resources.html'), 'utf8'),
+  progress: readFileSync(join(siteRoot, 'progress.html'), 'utf8'),
+  search: readFileSync(join(siteRoot, 'search.js'), 'utf8'),
+  detail: readFileSync(join(siteRoot, 'detail.html'), 'utf8'),
 };
 
 const htmlFiles = new Map([
@@ -34,16 +42,19 @@ const upperRightArrowPath = 'M7 17L17 7M9 7h8v8';
 const approvedHomeEntries = [
   {
     href: 'learn.html',
+    icon: 'learn',
     title: 'AI 新手入门',
     description: '我是 AI 小白，想从零开始系统学习：是什么、怎么用、如何进阶。',
   },
   {
     href: 'video.html',
+    icon: 'watch',
     title: '录播回放',
     description: '回看公司内部 AI 培训、分享会与专题课程，随时补课不落进度。',
   },
   {
     href: 'resources.html',
+    icon: 'resources',
     title: 'AI 工具与资源',
     description: '找工具、课程、博主、论文 —— 一个资源导航，解决「从哪开始」。',
   },
@@ -534,6 +545,13 @@ function isLocallyHidden(element) {
     || ['hidden', 'sr-only', 'visually-hidden'].some((className) => classTokens.has(className));
 }
 
+function isLocallyVisuallyHidden(element) {
+  const classTokens = new Set((element.attributes.get('class') ?? '').split(/\s+/).filter(Boolean));
+  return element.attributes.has('hidden')
+    || /(?:display\s*:\s*none|visibility\s*:\s*hidden)/i.test(element.attributes.get('style') ?? '')
+    || ['hidden', 'sr-only', 'visually-hidden'].some((className) => classTokens.has(className));
+}
+
 function assertVisiblyRendered(element, label) {
   let current = element;
   while (current) {
@@ -573,11 +591,28 @@ function assertNoInternalMascotAttributes(element, label) {
   }
 }
 
+const visibleHomeText = normalizedVisibleText(files.index, 'home visible text');
+for (const retiredCopy of retiredHomeCopy) {
+  assert.ok(!visibleHomeText.includes(retiredCopy), `home must not visibly render retired copy: ${retiredCopy}`);
+}
+
 for (const [fileName, content] of htmlFiles) {
   const header = extractUniqueElementByClass(content, 'header', 'topbar', `${fileName} header`);
   const footer = extractUniqueElementByClass(content, 'footer', 'footer', `${fileName} footer`);
   assertVisiblyRendered(header, `${fileName} header`);
   assertVisiblyRendered(footer, `${fileName} footer`);
+  const footerDescriptions = findElementsByClass(footer.innerHtml, 'p', 'f-desc', `${fileName} footer description`);
+  assert.equal(footerDescriptions.length, 1, `${fileName} footer must contain exactly one p.f-desc`);
+  assertVisiblyRendered(footerDescriptions[0], `${fileName} footer description`);
+  assert.equal(
+    normalizedVisibleText(footerDescriptions[0].innerHtml, `${fileName} footer description`),
+    approvedFooterDescription,
+    `${fileName} footer must use the exact visible Amersports AI Community description`,
+  );
+  assert.ok(
+    !normalizedText(footer.innerHtml).includes(retiredFooterDescription),
+    `${fileName} footer must contain zero retired AI enablement owner descriptions`,
+  );
   const brandRegions = [header.innerHtml, footer.innerHtml];
   const brandIconCounts = brandRegions.map((region) => extractSvgElements(region).filter(
     ({ attributes }) => attributes.get('data-brand-icon') === 'knowledge-book',
@@ -649,13 +684,8 @@ assert.equal(
   'home subtitle must use the exact approved visible copy without extra whitespace',
 );
 const homeHeroParagraphs = findDirectChildrenByTag(homeHeroCopy.innerHtml, 'p', 'home hero copy');
-assert.equal(homeHeroParagraphs.length, 2, 'home hero copy must retain exactly its subtitle and description');
-assertVisiblyRendered(homeHeroParagraphs[1], 'home hero description');
-assert.equal(
-  normalizedVisibleText(homeHeroParagraphs[1].innerHtml, 'home hero description'),
-  '从入门、录播到工具实践，在清晰的知识路径里找到所需内容。',
-  'home hero must retain the exact approved visible description',
-);
+assert.ok(homeHeroParagraphs.some(({ innerHtml }) => normalizedVisibleText(innerHtml, 'home hero paragraph') === '一站式 AI 学习资源与实践指南'),
+  'home hero subtitle must remain a direct paragraph child');
 assert.equal(openingTagsByClass(homeHeroCopy.innerHtml, 'bh-tag').length, 0, 'home hero copy must not contain a bh-tag element');
 assert.equal(openingTagsByClass(homeHero.innerHtml, 'mascot-status').length, 0, 'home hero must not contain a mascot-status element');
 assert.ok(!normalizedText(homeHero.innerHtml).includes('AMER SPORTS · AI ENABLEMENT'), 'home hero must not contain the old eyebrow');
@@ -729,9 +759,38 @@ assert.deepEqual(
 homeEntryCards.forEach((entry, index) => {
   const entryTitle = extractUniqueElementByTag(entry.innerHtml, 'h3', `home entry-card ${index + 1} title`);
   const entryDescription = extractUniqueElementByTag(entry.innerHtml, 'p', `home entry-card ${index + 1} description`);
+  const entryElements = parseHtmlElements(entry.innerHtml, `home entry-card ${index + 1}`);
+  const entryTops = entryElements.filter((element) => hasClass(element, 'ec-top'));
+  const entryIcons = entryElements.filter((element) => hasClass(element, 'ec-icon'));
   assertVisiblyRendered(entry, `home entry-card ${index + 1}`);
   assertVisiblyRendered(entryTitle, `home entry-card ${index + 1} title`);
   assertVisiblyRendered(entryDescription, `home entry-card ${index + 1} description`);
+  assert.equal(
+    findElementsByTag(entry.innerHtml, 'a', `home entry-card ${index + 1}`).length,
+    0,
+    `home entry-card ${index + 1} must remain the only anchor for the whole card`,
+  );
+  assert.equal(entryTops.length, 1, `home entry-card ${index + 1} must contain exactly one .ec-top`);
+  assertVisiblyRendered(entryTops[0], `home entry-card ${index + 1} .ec-top`);
+  assert.equal(entryIcons.length, 1, `home entry-card ${index + 1} must contain exactly one .ec-icon`);
+  assertVisiblyRendered(entryIcons[0], `home entry-card ${index + 1} .ec-icon`);
+  assert.ok(entryTops[0].openStart <= entryIcons[0].openStart && entryIcons[0].closeEnd <= entryTops[0].closeEnd,
+    `home entry-card ${index + 1} .ec-icon must be inside its .ec-top`);
+  const entryIconChildren = parseHtmlElements(entryIcons[0].innerHtml, `home entry-card ${index + 1} .ec-icon`)
+    .filter(({ parent }) => parent === null);
+  assert.equal(entryIconChildren.length, 1, `home entry-card ${index + 1} .ec-icon must contain only its inline SVG`);
+  assert.equal(entryIconChildren[0].tagName, 'svg', `home entry-card ${index + 1} .ec-icon must not use external image markup`);
+  const entryIconSvgs = extractSvgElements(entryIcons[0].innerHtml);
+  assert.equal(entryIconSvgs.length, 1, `home entry-card ${index + 1} .ec-icon must contain one inline SVG`);
+  assert.ok(!isLocallyVisuallyHidden(entryIconSvgs[0]), `home entry-card ${index + 1} SVG icon must be visually rendered`);
+  assert.equal(entryIconSvgs[0].attributes.get('aria-hidden'), 'true', `home entry-card ${index + 1} SVG icon must use aria-hidden=true`);
+  assert.equal(
+    entryIconSvgs[0].attributes.get('data-entry-icon'),
+    approvedHomeEntries[index].icon,
+    `home entry-card ${index + 1} SVG icon must use its stable data-entry-icon marker`,
+  );
+  assert.equal(findElementsByTag(entry.innerHtml, 'img', `home entry-card ${index + 1}`).length, 0,
+    `home entry-card ${index + 1} must not use an external image for its icon`);
   assert.equal(
     normalizedVisibleText(entryTitle.innerHtml, `home entry-card ${index + 1} title`),
     approvedHomeEntries[index].title,
@@ -743,24 +802,18 @@ homeEntryCards.forEach((entry, index) => {
     `home entry-card ${index + 1} must retain its exact visible description`,
   );
 });
+assert.deepEqual(
+  homeEntryCards.map((entry) => extractSvgElements(entry.innerHtml)
+    .filter(({ attributes }) => attributes.has('data-entry-icon'))
+    .map(({ attributes }) => attributes.get('data-entry-icon'))),
+  approvedHomeEntries.map(({ icon }) => [icon]),
+  'home entry-card icons must be present once each and remain distinct in approved order',
+);
 const learningPathTitles = findElementsByTag(homeMainSections[1].innerHtml, 'h2', 'home learning-path region').filter(
   ({ innerHtml }) => normalizedVisibleText(innerHtml, 'home learning-path title') === '选择你的 AI 学习路径',
 );
 assert.equal(learningPathTitles.length, 1, 'home must contain exactly one visible h2 “选择你的 AI 学习路径”');
 assertVisiblyRendered(learningPathTitles[0], 'home learning-path title');
-const learningPathDescription = extractUniqueElementByClass(
-  homeMainSections[1].innerHtml,
-  'p',
-  'desc',
-  'home learning-path region description',
-);
-assertVisiblyRendered(learningPathDescription, 'home learning-path region description');
-assert.equal(
-  normalizedVisibleText(learningPathDescription.innerHtml, 'home learning-path region description'),
-  '每个板块都是独立的完整页面，点击进入后内部还有细分目录。',
-  'home learning-path region must retain its exact visible description',
-);
-
 assert.equal(
   homeElements.filter(({ tagName, attributes }) => tagName === 'section' && attributes.get('id') === 'xiaoa').length,
   0,
