@@ -31,12 +31,8 @@ cat > "$PROTECTION_FILE" <<EOF
   },
   "required_signatures": false,
   "restrictions": null,
-  "allow_force_pushes": {
-    "enabled": false
-  },
-  "allow_deletions": {
-    "enabled": false
-  },
+  "allow_force_pushes": false,
+  "allow_deletions": false,
   "required_linear_history": false,
   "allow_fork_syncing": true
 }
