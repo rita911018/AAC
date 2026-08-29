@@ -22,12 +22,7 @@ cat > "$PROTECTION_FILE" <<EOF
     "dismiss_stale_reviews": true,
     "require_code_owner_reviews": false,
     "required_approving_review_count": 1,
-    "require_last_push_approval": false,
-    "bypass_pull_request_allowances": {
-      "users": [],
-      "teams": [],
-      "apps": []
-    }
+    "require_last_push_approval": false
   },
   "required_signatures": false,
   "restrictions": null,
