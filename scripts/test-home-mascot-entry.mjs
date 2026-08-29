@@ -1160,50 +1160,10 @@ assert.deepEqual(
   'resources Xiao A capabilities must contain exactly the five approved normalized items',
 );
 
-const xiaoAVs = extractUniqueElementByClass(resourcesXiaoA.innerHtml, 'div', 'xa-vs', 'resources Xiao A comparison');
-assertVisiblyRendered(xiaoAVs, 'resources Xiao A comparison');
-const comparisonTitle = extractUniqueElementByTag(xiaoAVs.innerHtml, 'h3', 'resources Xiao A comparison title');
-assertVisiblyRendered(comparisonTitle, 'resources Xiao A comparison title');
-assert.equal(normalizedVisibleText(comparisonTitle.innerHtml, 'resources Xiao A comparison title'), '小A vs 微软 Copilot：什么时候用谁？', 'resources must retain the full visible comparison title');
-const comparisonScrollRegion = extractUniqueElementByClass(xiaoAVs.innerHtml, 'div', 'rt-table', 'resources comparison scroll region');
-assertVisiblyRendered(comparisonScrollRegion, 'resources comparison scroll region');
-assert.equal(comparisonScrollRegion.attributes.get('role'), 'region', 'resources comparison scroll region must retain role=region');
-assert.equal(comparisonScrollRegion.attributes.get('tabindex'), '0', 'resources comparison scroll region must retain tabindex=0');
 assert.equal(
-  comparisonScrollRegion.attributes.get('aria-label'),
-  '横向滚动查看小A与微软 Copilot 使用场景对比',
-  'resources comparison scroll region must retain its approved aria-label',
-);
-const comparisonTable = extractUniqueElementByTag(comparisonScrollRegion.innerHtml, 'table', 'resources Xiao A comparison table');
-assertVisiblyRendered(comparisonTable, 'resources Xiao A comparison table');
-assert.equal(
-  comparisonTable.attributes.get('aria-label'),
-  '小A 与微软 Copilot 使用场景对比',
-  'resources comparison table must retain its approved aria-label',
-);
-const comparisonRows = findElementsByTag(comparisonTable.innerHtml, 'tr', 'resources Xiao A comparison table').map((row, rowIndex) => {
-  assertVisiblyRendered(row, `resources Xiao A comparison row ${rowIndex + 1}`);
-  const cells = parseHtmlElements(row.innerHtml, 'resources Xiao A comparison row')
-    .filter(({ tagName }) => tagName === 'th' || tagName === 'td');
-  cells.forEach((cell, cellIndex) => assertVisiblyRendered(
-    cell,
-    `resources Xiao A comparison row ${rowIndex + 1} cell ${cellIndex + 1}`,
-  ));
-  return cells.map(({ innerHtml }, cellIndex) => normalizedVisibleText(
-    innerHtml,
-    `resources Xiao A comparison row ${rowIndex + 1} cell ${cellIndex + 1}`,
-  ));
-});
-assert.deepEqual(
-  comparisonRows,
-  [
-    ['场景', '推荐工具'],
-    ['查公司制度、报销、班车、采购、招投标', '小A公司内部'],
-    ['安排会议、写会议纪要、管理日程和邮件', 'Teams / Outlook 里的 Copilot微软'],
-    ['写邮件、改文档、做总结（公司外部数据）', '通用 AI（ChatGPT / Claude / 小A 都行）'],
-    ['创作、代码、学习、专业研究', '通用 AI（ChatGPT / Claude / DeepSeek 等）'],
-  ],
-  'resources must retain the complete approved Xiao A vs Microsoft Copilot table',
+  findElementsByClass(resourcesXiaoA.innerHtml, 'div', 'xa-vs', 'resources Xiao A comparison').length,
+  0,
+  'resources must remove the Xiao A vs Microsoft Copilot comparison block',
 );
 
 const externalTitle = extractUniqueElementByTag(externalResources.innerHtml, 'h2', 'resources external title');

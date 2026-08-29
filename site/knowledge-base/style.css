@@ -267,8 +267,8 @@ html.is-ready .reveal{animation:reveal-in 420ms ease both}
 .placeholder-note p,body .lp-tip p,body .pg-hint p{margin-bottom:0;color:var(--muted);font-size:14px;line-height:1.7}
 
 /* Knowledge content and prompt components */
-body .rt-sec h3,body .lp-sub,.xa-section-title,.xa-vs h3{position:relative;padding-left:14px;color:var(--ink);font-size:17px;font-weight:780}
-body .rt-sec h3::before,body .lp-sub::before,.xa-section-title::before,.xa-vs h3::before{content:"";position:absolute;left:0;width:3px;height:18px;border-radius:0;background:var(--blue)}
+body .rt-sec h3,body .lp-sub,.xa-section-title{position:relative;padding-left:14px;color:var(--ink);font-size:17px;font-weight:780}
+body .rt-sec h3::before,body .lp-sub::before,.xa-section-title::before{content:"";position:absolute;left:0;width:3px;height:18px;border-radius:0;background:var(--blue)}
 body .rt-sec p,body .rt-ul li,body .lp-lead{color:var(--muted);font-size:17px;line-height:1.8}
 body .lp-tl-item p,body .lp-step-panel p,body .lp-term .tr,body .kb-step p,body .tl-body p{color:var(--muted);font-size:17px;line-height:1.8}
 body .lp-guide .g-pick,body .lp-note,body .lp-noresult,body .qz-exp,body .qz-result p,body .kb-era .ke-key{font-size:14px;line-height:1.7}
@@ -279,8 +279,8 @@ body .rt-table{display:block;width:100%;max-width:100%;overflow-x:auto;border-co
 body .rt-table:focus-visible{outline:3px solid var(--blue);outline-offset:3px}
 body .rt-table>tbody{display:table;width:max(100%,620px);border-collapse:collapse;table-layout:auto}
 .xa-vs table{width:100%;border-collapse:collapse;font-size:14px}
-body .rt-table th,.xa-vs th{padding:10px 12px;border-bottom:2px solid var(--line);color:var(--muted);font:650 12px/1.5 var(--font-mono);text-align:left}
-body .rt-table td,.xa-vs td{padding:12px;border-bottom:1px solid var(--line);color:var(--muted);vertical-align:top}
+body .rt-table th{padding:10px 12px;border-bottom:2px solid var(--line);color:var(--muted);font:650 12px/1.5 var(--font-mono);text-align:left}
+body .rt-table td{padding:12px;border-bottom:1px solid var(--line);color:var(--muted);vertical-align:top}
 body .kb-quote,body .lp-quote{border:1px solid var(--line);border-left:3px solid var(--blue);border-radius:6px;background:var(--blue-soft);color:var(--muted);font-size:14px}
 body .kb-cards,body .kb-eras,body .lp-cards,body .lp-formula,body .lp-ent-grid{gap:16px}
 body .kb-card,body .kb-term,body .kb-era,body .lp-card,body .lp-ent,body .lp-blog-card,body .lp-quiz,body .lp-guide,body .lp-term,body .lp-step-panel,body .lp-fig,body .ls-card,body .sk-vcard{border:solid var(--line);border-width:1px 0;border-radius:0;background:var(--white);box-shadow:none}
@@ -382,11 +382,14 @@ body .xa-hero .xh-tag::before{background:var(--blue)}
 body .xa-hero h3{margin-bottom:12px;font-size:clamp(28px,3.2vw,38px);line-height:1.2}
 body .xa-hero p{max-width:580px;margin-bottom:22px;color:var(--on-navy);font-size:17px;line-height:1.8}
 body .xa-hero .xh-note{max-width:500px;margin:0 0 18px;color:var(--on-navy);font-size:15px;line-height:1.7}
-body .xa-hero .xh-side{position:relative;z-index:2;padding:18px 20px;border:1px solid rgba(255,255,255,.2);border-radius:7px;background:var(--navy-2);backdrop-filter:none}
-body .xa-hero .xh-side h4{margin-bottom:10px;color:var(--white);font-size:14px}
+body .xa-hero .xh-side{position:relative;z-index:2;padding:22px 24px 16px;border:1px solid rgba(255,255,255,.22);border-radius:12px;background:#172f56;box-shadow:inset 0 0 0 1px rgba(255,255,255,.04);backdrop-filter:none}
+body .xa-hero .xh-side h4{margin-bottom:12px;color:var(--white);font-size:22px;line-height:1.3}
 body .xa-hero .xh-side h4::before{background:var(--blue)}
-body .xa-hero .xh-side li{padding:7px 0;border-bottom:1px solid rgba(255,255,255,.14);color:var(--on-navy);font-size:14px}
-body .xa-hero .xh-side li b{color:var(--white)}
+body .xa-hero .xh-side ul{margin:0;padding:0;list-style:none;counter-reset:capability}
+body .xa-hero .xh-side li{counter-increment:capability;position:relative;display:flex;align-items:baseline;gap:12px;padding:12px 0;border-bottom:1px solid rgba(255,255,255,.14);color:var(--on-navy);font-size:16px;line-height:1.55}
+body .xa-hero .xh-side li:last-child{border-bottom:0;padding-bottom:4px}
+body .xa-hero .xh-side li::before{content:counter(capability,decimal-leading-zero);flex:none;color:#8fb4ff;font:700 12px/1 var(--font-mono);letter-spacing:.04em}
+body .xa-hero .xh-side li b{min-width:76px;color:var(--white);font-size:16px}
 .xa-section-title{margin:0 0 18px}
 .xa-section-title small{margin-left:6px;color:var(--quiet);font-size:14px;font-weight:500}
 .xa-qa-grid{margin-bottom:38px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 24px}
@@ -402,9 +405,6 @@ body .xa-hero .xh-side li b{color:var(--white)}
 .xa-qa .qa-go{margin-left:auto;color:var(--blue);transition:transform 160ms ease}
 .xa-qa:hover .qa-go{transform:translateX(3px)}
 .xa-qa .qa-go svg{width:15px;height:15px;stroke:currentColor}
-.xa-vs{padding:24px 0;overflow-x:auto;border:solid var(--line);border-width:1px 0;border-radius:0;background:var(--white);box-shadow:none}
-.xa-vs h3{margin-bottom:14px}
-
 /* AI gate links */
 .gate-home-card{min-height:84px;padding:18px 16px;display:flex;align-items:center;gap:14px}
 .gate-home-card .gh-icon{font-family:var(--font-mono);font-weight:750}
@@ -512,8 +512,7 @@ body .xa-hero .xh-side li b{color:var(--white)}
   .resource-directory .re-preview .p-row{padding-inline:10px}
   .resource-directory .re-preview .p-row + .p-row{border-top:1px solid var(--line);border-left:0}
   .detail-body{padding-block:40px 54px}.dc-head{padding-inline:16px}.dc-body{padding:18px 16px}
-  .xa-prompt-card{padding-inline:16px}.xa-prompt-card .xp-deco{width:100%}body .xa-hero{padding:24px 18px}body .xa-hero .xh-note{margin-bottom:16px;font-size:15px;line-height:1.65}.xa-vs{margin-inline:-16px;padding-inline:16px}
-  .xa-vs table{min-width:620px}.footer{padding-top:44px}.footer-grid{grid-template-columns:1fr;gap:26px}.footer-bottom{flex-direction:column}
+  .xa-prompt-card{padding-inline:16px}.xa-prompt-card .xp-deco{width:100%}body .xa-hero{padding:24px 18px}body .xa-hero .xh-note{margin-bottom:16px;font-size:15px;line-height:1.65}body .xa-hero .xh-side{padding:20px 18px 14px}body .xa-hero .xh-side h4{font-size:20px}body .xa-hero .xh-side li{font-size:15px;gap:10px}body .xa-hero .xh-side li b{min-width:72px;font-size:15px}.footer{padding-top:44px}.footer-grid{grid-template-columns:1fr;gap:26px}.footer-bottom{flex-direction:column}
   body .lp-anchor-inner,body .lp-shell{width:min(100% - 32px,var(--content))}body .lp-shell{padding-inline:0}body .lp-quiz{padding:20px 16px}
   body .lp-code{padding:64px 16px 18px;overflow-x:auto}body .lp-stats{flex-wrap:wrap}body .lp-stats .st{min-width:50%}body .lp-stats .st:nth-child(odd){border-left:0}body .lp-stats .st:nth-child(n+3){border-top:1px solid var(--line)}
   body .mod-item{align-items:flex-start;padding-inline:10px}body .mod-go{width:auto;min-width:44px;min-height:44px;padding-inline:8px;overflow:visible;white-space:nowrap}
@@ -553,6 +552,16 @@ body .xa-hero .xh-side li b{color:var(--white)}
   .learn-hero .hero-mascot,.learn-hero .hero-mascot picture{width:250px;height:250px}
 }
 
+/* Video and resource Heroes use the same clear main-visual scale as the learning Hero. */
+.video-hero .hero-mascot,.resources-hero .hero-mascot,
+.video-hero .hero-mascot picture,.resources-hero .hero-mascot picture{width:300px;height:300px;max-width:none;max-height:none;overflow:visible}
+.video-hero .hero-mascot img,.resources-hero .hero-mascot img{width:100%;height:100%;max-width:none;max-height:none;object-fit:contain;object-position:center bottom}
+
+@media(max-width:1080px){
+  .video-hero .hero-mascot,.resources-hero .hero-mascot,
+  .video-hero .hero-mascot picture,.resources-hero .hero-mascot picture{width:250px;height:250px}
+}
+
 @media(max-width:820px){
   .home-hero .container{min-height:0;padding-block:46px 0;grid-template-columns:1fr;align-items:start;gap:24px}
   .home-hero .bh-left{grid-column:1;grid-row:1;width:100%}
@@ -572,6 +581,8 @@ body .xa-hero .xh-side li b{color:var(--white)}
   .home-hero .hero-xiaoa-cta{padding-inline:12px}
   .home-hero .hero-mascot img{right:64px;bottom:-80px;height:330px}
   .learn-hero .hero-mascot,.learn-hero .hero-mascot picture{width:190px;height:190px}
+  .video-hero .hero-mascot,.resources-hero .hero-mascot,
+  .video-hero .hero-mascot picture,.resources-hero .hero-mascot picture{width:190px;height:190px}
   .learn-hero-actions{display:block}
   .learn-hero-actions .lesson-primary-action,.learn-hero-actions .learning-session-summary{display:flex;width:max-content}
   .learn-hero-actions .learning-session-summary{margin-top:8px}

@@ -597,6 +597,8 @@ async function runQa() {
         } : null;
 
         const mascotRect = rect(mascot);
+        const heroImage = document.querySelector('.board-hero .hero-mascot img');
+        const heroImageRect = rect(heroImage);
         const copyRect = rect(copy);
         const homeSectionRect = rect(document.querySelector('.home-hero'));
         const homeHeroRect = rect(document.querySelector('.home-hero .hero-mascot'));
@@ -704,6 +706,8 @@ async function runQa() {
             }).length,
           mascotCount: document.querySelectorAll('.hero-mascot').length,
           mascotCopyOverlap: overlap(mascotRect, copyRect),
+          heroImageRect,
+          heroImageVisible: isVisible(heroImage),
           brandHeight: document.querySelector('.brand')?.getBoundingClientRect().height || 0,
           navTargetHeights: [...document.querySelectorAll('.nav-links a')].map((node) => node.getBoundingClientRect().height),
           footerTargetHeights: [...document.querySelectorAll('.footer a')].map((node) => node.getBoundingClientRect().height),
@@ -1035,8 +1039,8 @@ async function runQa() {
         expect(JSON.stringify(metrics.resourcesInternalAbilityLabels) === JSON.stringify(['问流程', '查财务', '查系统', '连续追问', '看图表']), `resources ${width}px: Xiao A capability labels changed (${metrics.resourcesInternalAbilityLabels.join('/')})`);
         expect(metrics.resourcesInternalNote === '进入 Portal 后，点击右侧「小A智助」打开助手。', `resources ${width}px: Portal usage note changed (${metrics.resourcesInternalNote})`);
         expect(metrics.resourcesInternalPortal?.href === portalUrl && metrics.resourcesInternalPortal.target === '_blank' && metrics.resourcesInternalPortal.rel.split(/\s+/).includes('noopener'), `resources ${width}px: internal Xiao A Portal CTA is not a safe approved target`);
-        expect(metrics.resourcesComparisonVisible && metrics.resourcesComparisonTableVisible, `resources ${width}px: Xiao A comparison table is hidden or outside the internal section`);
-        expect(metrics.resourcesComparisonLabel === '横向滚动查看小A与微软 Copilot 使用场景对比' && metrics.resourcesComparisonTabIndex === '0', `resources ${width}px: Xiao A comparison table lost its accessible scrolling contract`);
+        expect(!metrics.resourcesComparisonVisible && !metrics.resourcesComparisonTableVisible, `resources ${width}px: removed Xiao A comparison table is still visible`);
+        expect(metrics.heroImageVisible && metrics.heroImageRect?.height >= (width >= 1236 ? 300 : width >= 820 ? 250 : 190), `resources ${width}px: hero mascot should use the enlarged learning-page scale (${metrics.heroImageRect?.height || 0}px)`);
         expect(metrics.visibleResourceEntryCount === 4, `resources ${width}px: expected four visible external resource entries (${metrics.visibleResourceEntryCount})`);
         expect(!metrics.externalText.includes('公司内部'), `resources ${width}px: external section contains company-internal copy`);
         expect(!metrics.externalText.includes('小A'), `resources ${width}px: external section contains Xiao A copy`);
@@ -1059,6 +1063,10 @@ async function runQa() {
           expect(exactLinks.length === 1 && exactLinks[0].visible, `resources ${width}px: selected-site link is hidden (${href})`);
           expect(exactLinks.length === 1 && exactLinks[0].target === '_blank' && exactLinks[0].rel.split(/\s+/).includes('noopener'), `resources ${width}px: selected-site link is not a safe new-tab target (${href})`);
         }
+      }
+
+      if (name === 'video') {
+        expect(metrics.heroImageVisible && metrics.heroImageRect?.height >= (width >= 1236 ? 300 : width >= 820 ? 250 : 190), `video ${width}px: hero mascot should use the enlarged learning-page scale (${metrics.heroImageRect?.height || 0}px)`);
       }
 
       if (name === 'learn') {

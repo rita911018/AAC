@@ -31,6 +31,11 @@ const css = readFileSync(resolve(root, 'style.css'), 'utf8');
 expect(/\.brand\s*\{[^}]*min-height\s*:\s*44px/is.test(css), 'brand link must expose a 44px minimum target');
 expect(/\.nav-toggle\s*\{[^}]*width\s*:\s*44px[^}]*height\s*:\s*44px/is.test(css), 'nav toggle must be a 44px target');
 expect(/@media\(max-width:820px\)[\s\S]*?\.(?:video|resources)-hero \.hero-mascot[^\{]*\{[^}]*?(?:width|max-width)\s*:\s*(?:2(?:0|1|2|3|4)\d|clamp\()/i.test(css), '820px video/resources mascots should be larger than the generic tablet mascot');
+expect(/\.video-hero \.hero-mascot[^\{]*\{[^}]*width\s*:\s*300px/is.test(css), 'video Hero mascot should match the enlarged learning Hero at desktop widths');
+expect(/\.resources-hero \.hero-mascot[^\{]*\{[^}]*width\s*:\s*300px/is.test(css), 'resources Hero mascot should match the enlarged learning Hero at desktop widths');
+expect(/@media\(max-width:1080px\)[\s\S]*?\.(?:video|resources)-hero \.hero-mascot[^\{]*\{[^}]*width\s*:\s*250px/is.test(css), 'video/resources mascots should use the learning Hero tablet size');
+expect(/@media\(max-width:560px\)[\s\S]*?\.(?:video|resources)-hero \.hero-mascot[^\{]*\{[^}]*width\s*:\s*190px/is.test(css), 'video/resources mascots should use the learning Hero mobile size');
+expect(!/\.xa-vs\s*\{/i.test(readFileSync(resolve(root, 'resources.html'), 'utf8')), 'resources must not render the removed comparison block');
 
 function verifierRejects(mutator, expectedText, description) {
   const fixture = mkdtempSync(join(tmpdir(), 'kb-task8-'));
