@@ -60,6 +60,31 @@ async function readFocusedOutlineMetrics(page, expectedClass, clipSelector) {
     const outlineColor = parseColor(style.outlineColor);
     const backgroundColor = parseColor(style.backgroundColor);
     const externalExtent = Math.max(0, outlineWidth + outlineOffset);
+    const clippingOverflow = /^(?:hidden|clip|auto|scroll)$/;
+    const clippingAncestors = [];
+    for (let ancestor = node.parentElement; ancestor; ancestor = ancestor.parentElement) {
+      const ancestorStyle = getComputedStyle(ancestor);
+      const clipsX = clippingOverflow.test(ancestorStyle.overflowX);
+      const clipsY = clippingOverflow.test(ancestorStyle.overflowY);
+      if (!clipsX && !clipsY) continue;
+      const ancestorBounds = ancestor.getBoundingClientRect();
+      const rootScroller = ancestor === document.body || ancestor === document.documentElement;
+      const left = rootScroller ? 0 : ancestorBounds.left + ancestor.clientLeft;
+      const top = rootScroller ? 0 : ancestorBounds.top + ancestor.clientTop;
+      clippingAncestors.push({
+        label: `${ancestor.tagName.toLowerCase()}${ancestor.id ? `#${ancestor.id}` : ''}${[...ancestor.classList].map((name) => `.${name}`).join('')}`,
+        overflowX: ancestorStyle.overflowX,
+        overflowY: ancestorStyle.overflowY,
+        clipsX,
+        clipsY,
+        visibleRect: {
+          left,
+          top,
+          right: rootScroller ? innerWidth : left + ancestor.clientWidth,
+          bottom: rootScroller ? innerHeight : top + ancestor.clientHeight,
+        },
+      });
+    }
     return {
       href: node.getAttribute('href'),
       focusVisible: node.matches(':focus-visible'),
@@ -74,6 +99,7 @@ async function readFocusedOutlineMetrics(page, expectedClass, clipSelector) {
         bottom: bounds.bottom + externalExtent,
       },
       clip: clip?.toJSON() ?? null,
+      clippingAncestors,
       viewport: { left: 0, top: 0, right: innerWidth, bottom: innerHeight },
     };
   }, { expectedClass, clipSelector });
@@ -131,6 +157,7 @@ const mutationDefinitions = {
   'fixture-learn-390': { page: 'learn', viewport: [390, 844], css: '' },
   'entry-icon-hidden': { page: 'index', viewport: [1440, 1100], css: '.entry-card .ec-icon{visibility:hidden!important}', expectedFailure: 'every entry icon must be visible' },
   'entry-focus-none': { page: 'index', viewport: [1440, 1100], css: '.entry-card:focus,.entry-card:focus-visible{outline:none!important;box-shadow:none!important}', expectedFailure: 'focus outline must be opaque and at least 3px' },
+  'entry-focus-clipped': { page: 'index', viewport: [1440, 1100], css: '.entry-row{overflow:hidden!important;padding:0!important}.entry-card:first-child{margin-left:0!important}', expectedFailure: 'focus ring is clipped by ancestor' },
   'entry-title-weak': { page: 'index', viewport: [1440, 1100], css: '.entry-card h3{font-size:20px!important}', expectedFailure: 'entry titles must be at least 26px' },
   'entry-description-large': { page: 'index', viewport: [1440, 1100], css: '.entry-card p{font-size:22px!important;font-weight:800!important;color:rgb(15,23,42)!important}', expectedFailure: 'entry title weight must remain stronger' },
   'entry-description-red': { page: 'index', viewport: [1440, 1100], css: '.entry-card p{color:#3b0000!important}', expectedFailure: 'descriptions need 4.5:1 contrast' },
@@ -138,6 +165,7 @@ const mutationDefinitions = {
   'learn-240': { page: 'learn', viewport: [1440, 1100], css: '.learn-hero .hero-mascot,.learn-hero .hero-mascot picture,.learn-hero .hero-mascot img{width:240px!important;height:240px!important;max-width:240px!important;max-height:240px!important}', expectedFailure: 'must be at least 300px tall' },
   'learn-wrap': { page: 'learn', viewport: [1236, 1050], css: '.learn-hero .bh-left{max-width:620px!important}.learn-hero .bh-left>p:first-of-type{white-space:normal!important;max-width:500px!important}', expectedFailure: 'must remain on one line' },
   'learn-cover': { page: 'learn', viewport: [1440, 1100], css: '.learn-hero .hero-mascot img{object-fit:cover!important;object-position:center center!important}', expectedFailure: 'must use object-fit:contain' },
+  'learn-ancestor-clip': { page: 'learn', viewport: [1440, 1100], css: '.learn-hero .hero-mascot{overflow:hidden!important}.learn-hero .hero-mascot img{transform:translateX(32px)!important}', expectedFailure: 'reading Xiao A is clipped by ancestor' },
   'learn-mobile-horizontal': { page: 'learn', viewport: [390, 844], css: '.learn-hero .lesson-primary-action,.learn-hero .learning-session-summary{display:inline-flex!important;margin-top:0!important;margin-right:16px!important;vertical-align:top!important}', expectedFailure: 'must stack vertically' },
 };
 const activeMutation = mutationDefinitions[mutation] ?? null;
@@ -246,17 +274,28 @@ async function runBrowserSelfTest() {
     const address = server.address();
     const childBase = `http://127.0.0.1:${address.port}`;
 
-    for (const mode of ['fixture-index-1440', 'fixture-index-390', 'fixture-learn-1236', 'fixture-learn-390']) {
+    const greenModes = ['fixture-index-1440', 'fixture-index-390', 'fixture-learn-1440', 'fixture-learn-1236', 'fixture-learn-390'];
+    const greenResults = new Map();
+    for (const mode of greenModes) {
       const result = await runBrowserSelfTestChild(mode, childBase, join(temporaryRoot, `green-${mode}`));
       if (result.status !== 0) throw new Error(`valid browser fixture ${mode} must pass:\n${result.stdout}\n${result.stderr}`);
+      greenResults.set(mode, result);
       console.log(`GREEN browser fixture: ${mode}`);
     }
 
-    for (const mode of [
-      'entry-icon-hidden', 'entry-focus-none', 'entry-title-weak', 'entry-description-large',
+    const mutationModes = [
+      'learn-ancestor-clip', 'entry-icon-hidden', 'entry-focus-none', 'entry-focus-clipped', 'entry-title-weak', 'entry-description-large',
       'entry-description-red', 'face-safe-overlap', 'learn-240', 'learn-wrap', 'learn-cover',
       'learn-mobile-horizontal',
-    ]) {
+    ];
+    for (const mode of mutationModes) {
+      const definition = mutationDefinitions[mode];
+      const baselineMode = `fixture-${definition.page}-${definition.viewport[0]}`;
+      const baseline = greenResults.get(baselineMode);
+      if (!baseline) throw new Error(`${mode} is missing its exact ${baselineMode} valid baseline`);
+      if (`${baseline.stdout}\n${baseline.stderr}`.includes(definition.expectedFailure)) {
+        throw new Error(`${mode} targeted failure already exists in valid baseline ${baselineMode}`);
+      }
       const result = await runBrowserSelfTestChild(mode, childBase, join(temporaryRoot, `mutation-${mode}`));
       if (result.status === 0) throw new Error(`${mode} browser mutation must be detected`);
       if (!/^FAIL:/m.test(result.stderr)) throw new Error(`${mode} must fail through a contract assertion:\n${result.stdout}\n${result.stderr}`);
@@ -265,7 +304,7 @@ async function runBrowserSelfTest() {
       }
       console.log(`DETECTED browser mutation: ${mode}`);
     }
-    console.log('PASS browser homepage contract self-test (4 valid fixtures + 10 mutations)');
+    console.log(`PASS browser homepage contract self-test (${greenModes.length} valid fixtures + ${mutationModes.length} mutations)`);
   } finally {
     if (server) await new Promise((resolveClose) => server.close(resolveClose));
     rmSync(temporaryRoot, { recursive: true, force: true });
@@ -353,6 +392,35 @@ async function runQa() {
           const horizontal = Math.max(a.left - b.right, b.left - a.right, 0);
           const vertical = Math.max(a.top - b.bottom, b.top - a.bottom, 0);
           return Math.hypot(horizontal, vertical);
+        };
+        const clippingAncestorsBetween = (node, inclusiveStop) => {
+          const clippingOverflow = /^(?:hidden|clip|auto|scroll)$/;
+          const ancestors = [];
+          for (let ancestor = node?.parentElement; ancestor; ancestor = ancestor.parentElement) {
+            const style = getComputedStyle(ancestor);
+            const clipsX = clippingOverflow.test(style.overflowX);
+            const clipsY = clippingOverflow.test(style.overflowY);
+            if (clipsX || clipsY) {
+              const bounds = ancestor.getBoundingClientRect();
+              const left = bounds.left + ancestor.clientLeft;
+              const top = bounds.top + ancestor.clientTop;
+              ancestors.push({
+                label: `${ancestor.tagName.toLowerCase()}${ancestor.id ? `#${ancestor.id}` : ''}${[...ancestor.classList].map((name) => `.${name}`).join('')}`,
+                overflowX: style.overflowX,
+                overflowY: style.overflowY,
+                clipsX,
+                clipsY,
+                visibleRect: {
+                  left,
+                  top,
+                  right: left + ancestor.clientWidth,
+                  bottom: top + ancestor.clientHeight,
+                },
+              });
+            }
+            if (ancestor === inclusiveStop) break;
+          }
+          return ancestors;
         };
         const parseColor = (value) => {
           const channels = String(value ?? '').match(/[\d.]+/g)?.map(Number) ?? [];
@@ -499,6 +567,7 @@ async function runQa() {
         const learnMascot = learnHero?.querySelector('.hero-mascot') ?? null;
         const learnImage = learnMascot?.querySelector('img') ?? null;
         const learnImageStyle = learnImage ? getComputedStyle(learnImage) : null;
+        const learnImageClippingAncestors = clippingAncestorsBetween(learnImage, learnHero);
         const learnDescriptionRange = learnDescription ? document.createRange() : null;
         if (learnDescriptionRange) learnDescriptionRange.selectNodeContents(learnDescription);
         const learnDescriptionLineTops = learnDescriptionRange
@@ -606,6 +675,7 @@ async function runQa() {
           learnImageAlt: learnImage?.getAttribute('alt') || '',
           learnImageObjectFit: learnImageStyle?.objectFit || '',
           learnImageObjectPosition: learnImageStyle?.objectPosition || '',
+          learnImageClippingAncestors,
           learnImageTitleOverlap: overlap(rect(learnImage), rect(learnTitle)),
           learnImageDescriptionOverlap: overlap(rect(learnImage), rect(learnDescription)),
           learnImageActionOverlap: overlap(rect(learnImage), rect(learnAction)),
@@ -723,6 +793,10 @@ async function runQa() {
           expect(cardFocus.contrastRatio >= 3, `index ${width}px ${cardFocus.href}: focus outline contrast is too low (${cardFocus.contrastRatio.toFixed(2)}:1)`);
           expect(cardFocus.ring.left >= cardFocus.viewport.left - .5 && cardFocus.ring.right <= cardFocus.viewport.right + .5 && cardFocus.ring.top >= cardFocus.viewport.top - .5 && cardFocus.ring.bottom <= cardFocus.viewport.bottom + .5,
             `index ${width}px ${cardFocus.href}: focus ring is clipped by the viewport (${JSON.stringify(cardFocus.ring)} / ${JSON.stringify(cardFocus.viewport)})`);
+          expect(cardFocus.clippingAncestors.every(({ clipsX, clipsY, visibleRect }) => (
+            (!clipsX || (cardFocus.ring.left >= visibleRect.left - .5 && cardFocus.ring.right <= visibleRect.right + .5))
+            && (!clipsY || (cardFocus.ring.top >= visibleRect.top - .5 && cardFocus.ring.bottom <= visibleRect.bottom + .5))
+          )), `index ${width}px ${cardFocus.href}: focus ring is clipped by ancestor (${JSON.stringify(cardFocus.clippingAncestors)})`);
           expect(cardFocus.clip && cardFocus.ring.left >= cardFocus.clip.left - .5 && cardFocus.ring.right <= cardFocus.clip.right + .5 && cardFocus.ring.top >= cardFocus.clip.top - .5 && cardFocus.ring.bottom <= cardFocus.clip.bottom + .5,
             `index ${width}px ${cardFocus.href}: focus ring is clipped by the entry section`);
         }
@@ -786,6 +860,10 @@ async function runQa() {
           `learn ${width}px: reading mascot object-position must stay bottom-aligned (${metrics.learnImageObjectPosition})`);
         expect(metrics.learnHeroRect && metrics.learnImageRect && metrics.learnImageRect.left >= metrics.learnHeroRect.left - .5 && metrics.learnImageRect.right <= metrics.learnHeroRect.right + .5 && metrics.learnImageRect.top >= metrics.learnHeroRect.top - .5 && metrics.learnImageRect.bottom <= metrics.learnHeroRect.bottom + .5,
           `learn ${width}px: reading Xiao A leaves the Hero bounds`);
+        expect(Boolean(metrics.learnImageRect && metrics.learnImageClippingAncestors.every(({ clipsX, clipsY, visibleRect }) => (
+          (!clipsX || (metrics.learnImageRect.left >= visibleRect.left - .5 && metrics.learnImageRect.right <= visibleRect.right + .5))
+          && (!clipsY || (metrics.learnImageRect.top >= visibleRect.top - .5 && metrics.learnImageRect.bottom <= visibleRect.bottom + .5))
+        ))), `learn ${width}px: reading Xiao A is clipped by ancestor (${JSON.stringify(metrics.learnImageClippingAncestors)})`);
         expect(!metrics.learnImageTitleOverlap && !metrics.learnImageDescriptionOverlap && !metrics.learnImageActionOverlap && !metrics.learnImageSummaryOverlap && !metrics.learnImageMetaOverlap,
           `learn ${width}px: reading Xiao A overlaps title, description, action, progress, or meta`);
         expect(metrics.learnActionVisible && metrics.learnSummaryVisible && metrics.learnMetaVisible,
