@@ -946,9 +946,29 @@
 
 .lesson-concept-scope {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, .8fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   align-items: stretch;
   gap: 10px;
+}
+
+.lesson-concept-scope > .lesson-concept-node-item:nth-child(1) {
+  grid-area: 1 / 1 / 2 / 3;
+}
+
+.lesson-concept-scope > .lesson-concept-node-item:nth-child(3) {
+  grid-area: 1 / 3 / 2 / 5;
+}
+
+.lesson-concept-scope > .lesson-concept-node-item:nth-child(5) {
+  grid-area: 1 / 5 / 2 / 7;
+}
+
+.lesson-concept-link[data-concept-link="scope"] {
+  grid-area: 2 / 1 / 3 / 4;
+}
+
+.lesson-concept-link[data-concept-link="foundation"] {
+  grid-area: 2 / 4 / 3 / 7;
 }
 
 .lesson-concept-node-item {
@@ -961,7 +981,7 @@
   place-items: center;
   min-width: 0;
   padding: 8px;
-  color: var(--learning-blue);
+  color: #1f56d8;
   font-size: 13px;
   line-height: 1.5;
   font-weight: 750;
@@ -1472,6 +1492,14 @@
 
   .lesson-concept-scope {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .lesson-concept-scope > .lesson-concept-node-item:nth-child(1),
+  .lesson-concept-scope > .lesson-concept-node-item:nth-child(3),
+  .lesson-concept-scope > .lesson-concept-node-item:nth-child(5),
+  .lesson-concept-link[data-concept-link] {
+    grid-column: 1 / -1;
+    grid-row: auto;
   }
 
   .lesson-concept-link {

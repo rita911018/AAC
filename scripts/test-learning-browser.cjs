@@ -169,6 +169,10 @@ function startServer() {
         changed = source.replace('agentRelation.textContent = exercise.relationshipLabels.agent;', "agentRelation.textContent = '';");
       } else if (mutation === 'beginner-linear-concept-map' && relative.endsWith('.css')) {
         changed = source + '\n.lesson-concept-scope,.lesson-agent-branch{display:contents!important}.lesson-concept-nodes{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important}.lesson-concept-link,.lesson-agent-connector,.lesson-agent-relation{display:none!important}\n';
+      } else if (mutation === 'beginner-concept-labels-narrow' && relative.endsWith('.css')) {
+        changed = source + '\n.lesson-concept-scope{grid-template-columns:minmax(0,1fr) minmax(0,.8fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr)!important}.lesson-concept-scope>*{grid-column:auto!important;grid-row:auto!important}\n';
+      } else if (mutation === 'beginner-relationship-label-low-contrast' && relative.endsWith('.css')) {
+        changed = source + '\n.lesson-concept-link,.lesson-agent-relation{color:#2f68ed!important;background:#edf4ff!important}\n';
       } else if (mutation === 'beginner-duplicate-judgment' && relative.endsWith('.js')) {
         changed = source.replace('conceptMap.appendChild(judgmentFieldset);', 'conceptMap.appendChild(judgmentFieldset); conceptMap.appendChild(judgmentFieldset.cloneNode(true));');
       } else if (mutation === 'beginner-punitive-feedback' && relative.endsWith('.js')) {
@@ -689,9 +693,34 @@ async function runBeginnerInteractionContract(browser, base) {
         const rect = node.getBoundingClientRect();
         return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
       };
+      const parseColor = (value) => {
+        const channels = value.match(/[\d.]+/g)?.map(Number) || [];
+        return { rgb: channels.slice(0, 3), alpha: channels[3] ?? 1 };
+      };
+      const luminance = (rgb) => {
+        const channels = rgb.map((channel) => {
+          const normalized = channel / 255;
+          return normalized <= 0.04045 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
+        });
+        return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+      };
+      const effectiveBackground = (node) => {
+        for (let currentNode = node; currentNode; currentNode = currentNode.parentElement) {
+          const color = parseColor(getComputedStyle(currentNode).backgroundColor);
+          if (color.alpha > 0) return color.rgb;
+        }
+        return [255, 255, 255];
+      };
+      const textContrast = (node) => {
+        if (!node) return 0;
+        const foreground = luminance(parseColor(getComputedStyle(node).color).rgb);
+        const background = luminance(effectiveBackground(node));
+        return (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05);
+      };
       const scopeNodes = [...document.querySelectorAll('[data-concept-node]')].slice(0, 3);
       const agentNode = document.querySelector('[data-concept-node][data-choice-value="Agent"]');
       const agentBranch = document.querySelector('[data-agent-branch]');
+      const relationshipLabels = [...document.querySelectorAll('[data-concept-link],[data-agent-relation]')];
       return {
       sceneCount: document.querySelectorAll('[data-scene-toggle]').length,
       sceneTags: [...document.querySelectorAll('[data-scene-toggle]')].map((node) => node.tagName),
@@ -709,6 +738,17 @@ async function runBeginnerInteractionContract(browser, base) {
       scopeLinkTexts: [...document.querySelectorAll('[data-concept-link]')].map((node) => node.textContent.trim()),
       agentRelationText: document.querySelector('[data-agent-relation]')?.textContent.trim() || '',
       visibleRelationshipLabels: [...document.querySelectorAll('[data-concept-link],[data-agent-relation]')].filter(isVisible).length,
+      relationshipLabelMetrics: relationshipLabels.map((node) => {
+        const rect = node.getBoundingClientRect();
+        const lineHeight = Number.parseFloat(getComputedStyle(node).lineHeight) || 0;
+        return {
+          kind: node.getAttribute('data-concept-link') || 'agent',
+          width: rect.width,
+          lineHeight,
+          lineCount: lineHeight > 0 ? rect.height / lineHeight : 99,
+          contrast: textContrast(node),
+        };
+      }),
       scopeBottom: Math.max(0, ...scopeNodes.map((node) => node.getBoundingClientRect().bottom)),
       agentTop: agentNode?.getBoundingClientRect().top || 0,
       agentBorderStyle: agentBranch ? getComputedStyle(agentBranch).borderTopStyle : '',
@@ -738,6 +778,14 @@ async function runBeginnerInteractionContract(browser, base) {
       `basics ${width}px: Agent must expose the complete external-mechanism label (${basicsStructure.agentRelationText})`);
     expect(basicsStructure.visibleRelationshipLabels === 3,
       `basics ${width}px: all three relationship labels must remain visible, including on mobile (${basicsStructure.visibleRelationshipLabels})`);
+    expect(basicsStructure.relationshipLabelMetrics.every(({ contrast }) => contrast >= 4.5),
+      `basics ${width}px: scope, foundation, and Agent relationship label contrast must be >=4.5 (${basicsStructure.relationshipLabelMetrics.map(({ kind, contrast }) => `${kind}:${contrast.toFixed(2)}`).join(', ')})`);
+    if (width === 1440) {
+      expect(basicsStructure.relationshipLabelMetrics.slice(0, 2).every(({ width: labelWidth }) => labelWidth >= 110),
+        `basics 1440px: desktop scope/foundation relationship labels must each be at least 110px wide (${basicsStructure.relationshipLabelMetrics.slice(0, 2).map(({ width: labelWidth }) => labelWidth.toFixed(1)).join(', ')})`);
+      expect(basicsStructure.relationshipLabelMetrics.slice(0, 2).every(({ lineCount }) => lineCount <= 3.25),
+        `basics 1440px: desktop scope/foundation relationship labels must wrap naturally within three lines (${basicsStructure.relationshipLabelMetrics.slice(0, 2).map(({ lineCount }) => lineCount.toFixed(2)).join(', ')})`);
+    }
     expect(basicsStructure.agentTop > basicsStructure.scopeBottom && basicsStructure.agentBorderStyle === 'dashed',
       `basics ${width}px: Agent must sit on a dashed external branch below the scope track (${basicsStructure.agentTop}/${basicsStructure.scopeBottom}/${basicsStructure.agentBorderStyle})`);
     expect(basicsStructure.oldConceptChoices === 0, `basics ${width}px: old repeated concept groups must be absent (${basicsStructure.oldConceptChoices})`);
@@ -1091,6 +1139,8 @@ const beginnerSelfTestMutations = [
   ['beginner-agent-explanation-wrong', 'Agent node must explain model + goal + tools + execution/check loop'],
   ['beginner-agent-relation-label-missing', 'Agent must expose the complete external-mechanism label'],
   ['beginner-linear-concept-map', 'all three relationship labels must remain visible, including on mobile'],
+  ['beginner-concept-labels-narrow', 'desktop scope/foundation relationship labels must each be at least 110px wide'],
+  ['beginner-relationship-label-low-contrast', 'scope, foundation, and Agent relationship label contrast must be >=4.5'],
   ['beginner-duplicate-judgment', 'relationship map must contain exactly one two-choice judgment'],
   ['done-score-gate', 'first relationship-node attempt must enable 我看完了 without a score gate'],
   ['beginner-punitive-feedback', 'wrong Agent judgment feedback must stay non-punitive'],
@@ -1102,7 +1152,7 @@ const beginnerSelfTestMutations = [
   ['target-below-44', 'every scene target must be at least 44px'],
 ];
 
-function runSelfTestChild(environment, timeoutMs) {
+function runSelfTestChild(environment, timeoutMs, readinessMarker = '') {
   return new Promise((resolveChild) => {
     const child = spawn(process.execPath, [__filename], {
       cwd: __dirname,
@@ -1113,16 +1163,41 @@ function runSelfTestChild(environment, timeoutMs) {
     let stderr = '';
     let timedOut = false;
     let settled = false;
-    child.stdout.on('data', (chunk) => { stdout += chunk; });
+    let timeoutTimer = null;
+    let startupTimer = null;
+    let forcedKillTimer = null;
+    let timeoutArmed = false;
+    const armTimeout = () => {
+      if (timeoutArmed || settled) return;
+      timeoutArmed = true;
+      timeoutTimer = setTimeout(() => {
+        timedOut = true;
+        child.kill('SIGTERM');
+        forcedKillTimer = setTimeout(() => child.kill('SIGKILL'), 5000);
+      }, timeoutMs);
+    };
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk;
+      if (readinessMarker && stdout.includes(readinessMarker)) {
+        clearTimeout(startupTimer);
+        armTimeout();
+      }
+    });
     child.stderr.on('data', (chunk) => { stderr += chunk; });
-    const timer = setTimeout(() => {
-      timedOut = true;
-      child.kill('SIGKILL');
-    }, timeoutMs);
+    if (readinessMarker) {
+      startupTimer = setTimeout(() => {
+        timedOut = true;
+        child.kill('SIGKILL');
+      }, 15000);
+    } else {
+      armTimeout();
+    }
     function finish(result) {
       if (settled) return;
       settled = true;
-      clearTimeout(timer);
+      clearTimeout(timeoutTimer);
+      clearTimeout(startupTimer);
+      clearTimeout(forcedKillTimer);
       resolveChild({ stdout, stderr, timedOut, ...result });
     }
     child.once('error', (error) => finish({ code: null, signal: null, error }));
@@ -1164,11 +1239,18 @@ async function runBrowserSelfTest() {
     }
     console.log('DETECTED path browser child error');
 
-    const timedOut = await runSelfTestChild({ ...sharedEnvironment, KB_LEARNING_SELF_TEST_HANG: '1' }, 300);
-    if (!timedOut.timedOut || timedOut.signal !== 'SIGKILL') {
-      throw new Error(`browser self-test must kill timed-out children (${JSON.stringify(timedOut)})`);
+    const timedOut = await runSelfTestChild(
+      { ...sharedEnvironment, KB_LEARNING_SELF_TEST_HANG: '1' },
+      300,
+      'SELF-TEST HANG READY: browser and local server running',
+    );
+    const timeoutOutput = `${timedOut.stdout}\n${timedOut.stderr}`;
+    if (!timedOut.timedOut || timedOut.signal === 'SIGKILL'
+      || !timeoutOutput.includes('SELF-TEST HANG READY: browser and local server running')
+      || !timeoutOutput.includes('SELF-TEST HANG CLEANED: browser and local server closed')) {
+      throw new Error(`browser self-test timeout must close an already-running browser and server (${JSON.stringify(timedOut)})`);
     }
-    console.log('DETECTED path browser child timeout and SIGKILL');
+    console.log('DETECTED path browser child timeout after launch and graceful browser/server cleanup');
 
     for (const [name, diagnostic] of pathSelfTestMutations) {
       const result = await runSelfTestChild({ ...sharedEnvironment, KB_LEARNING_MUTATION: name }, pathChildTimeoutMs);
@@ -1208,6 +1290,7 @@ async function runBrowserSelfTest() {
 async function runBrowserContract() {
   let localServer = null;
   let browser = null;
+  let releaseSyntheticHang = null;
   try {
     let base = suppliedBase;
     if (!base) {
@@ -1215,6 +1298,13 @@ async function runBrowserContract() {
       base = localServer.base;
     }
     browser = await chromium.launch({ headless: true });
+    if (process.env.KB_LEARNING_SELF_TEST_HANG === '1') {
+      console.log('SELF-TEST HANG READY: browser and local server running');
+      await new Promise((resolveHang, rejectHang) => {
+        releaseSyntheticHang = () => rejectHang(new Error('intentional learning browser self-test hang released for cleanup'));
+        process.once('SIGTERM', releaseSyntheticHang);
+      });
+    }
     if (pathOnlyMode) {
       await runPathFocusedContract(browser, base);
     } else if (beginnerOnlyMode) {
@@ -1237,17 +1327,17 @@ async function runBrowserContract() {
       ? `PASS: focused learning path browser contract (${checks} checks)`
       : `PASS: learning browser contract (${checks} checks, ${chapters.length * viewports.length} screenshots at ${screenshotRoot})`);
   } finally {
+    if (releaseSyntheticHang) process.removeListener('SIGTERM', releaseSyntheticHang);
     if (browser) await browser.close();
     if (localServer) await new Promise((resolveClose) => localServer.server.close(resolveClose));
+    if (process.env.KB_LEARNING_SELF_TEST_HANG === '1') {
+      console.log('SELF-TEST HANG CLEANED: browser and local server closed');
+    }
   }
 }
 
 async function main() {
   if (process.env.KB_LEARNING_SELF_TEST_CRASH === '1') throw new Error('intentional learning browser self-test child error');
-  if (process.env.KB_LEARNING_SELF_TEST_HANG === '1') {
-    await new Promise(() => { setInterval(() => {}, 1000); });
-    return;
-  }
   if (selfTestMode) await runBrowserSelfTest();
   else await runBrowserContract();
 }

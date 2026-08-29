@@ -1354,6 +1354,14 @@ function runContract() {
     'learning focus rings must not use translucent outline colors');
   assert.ok(!/\.lesson-concept-nodes\s+li[^{}]*::after/.test(learningCss),
     'concept relationships must not fall back to a single pseudo-element arrow chain');
+  const relationshipScopeRule = learningCss.match(/\.lesson-concept-scope\s*\{([^}]*)\}/)?.[1] || '';
+  assert.match(relationshipScopeRule, /grid-template-columns\s*:\s*repeat\(6\s*,\s*minmax\(0\s*,\s*1fr\)\)/,
+    'desktop relationship scope must use a readable six-track layout for wide DOM labels');
+  const relationshipLinkRule = learningCss.match(/\.lesson-concept-link\s*\{([^}]*)\}/)?.[1] || '';
+  assert.match(relationshipLinkRule, /color\s*:\s*#1f56d8\b/i,
+    'scope and foundation relationship labels must use the approved high-contrast blue');
+  assert.ok(hexContrast('#1f56d8', '#edf4ff') >= 4.5,
+    'relationship label blue must maintain at least 4.5:1 against its soft-blue background');
   const focusDeclarations = new Map();
   for (const [, selectorList, declarations] of learningCss.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
     for (const selector of selectorList.split(',').map((item) => item.trim()).filter((item) => item.includes(':focus-visible'))) {
@@ -1575,6 +1583,8 @@ function fixtureFiles(order = chapterIds) {
       window.AIBeginner={chapters:chapters,aliases:aliases,getStatus:getStatus,markStarted:markStarted,markSeen:markSeen,nextIncomplete:nextIncomplete,initHub:initHub,renderChapter:renderChapter,renderLearningPath:renderLearningPath,renderTokenPrediction:renderTokenPrediction,renderEvidenceSpotter:renderEvidenceSpotter,renderDelegationSorter:renderDelegationSorter,renderPromptBuilder:renderPromptBuilder,renderClaimClassifier:renderClaimClassifier,renderWorkflowSorter:renderWorkflowSorter,read:read};
     }());`,
     'learning-experience.css': `.learning-hub,.learning-card,.learning-status,.lesson-nav,.lesson-figure,.lesson-case,.lesson-exercise,.lesson-check,.lesson-takeaway,.lesson-actions,.learning-session-summary,.learning-toolkit,.learning-tool-card,.learning-tool-copy,.tool-copy-fallback,.progress-compat-cta,.learning-detail-layout,.learning-path-rail,.learning-path-disclosure,.learning-path-link,.learning-path-status { color: #0e2144; }
+      .lesson-concept-scope { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+      .lesson-concept-link { color: #1f56d8; background: #edf4ff; }
       .learning-card:focus-visible,.lesson-actions a:focus-visible,.lesson-actions button:focus-visible,.lesson-nav a:focus-visible,.learning-tool-copy:focus-visible,.progress-compat-cta:focus-visible,.tool-copy-fallback:focus-visible,.lesson-secondary-action:focus-visible,.lesson-check summary:focus-visible,.lesson-history summary:focus-visible,.lesson-template:focus-visible { outline:3px solid #0e2144;outline-offset:4px; }
       @media (prefers-reduced-motion: reduce) {
         .learning-card,.lesson-token,.lesson-feedback,.chapter-return-highlight,.learning-tool-card,.tool-copy-feedback,.tool-copy-fallback { scroll-behavior:auto; transition:none; animation:none; }
@@ -2500,6 +2510,13 @@ function runSelfTest() {
     replaceIn(root, 'learning-experience.js', '"工作流：固定过程与检查点","Agent：模型 + 目标 + 工具 + 执行与检查循环"',
       '"工作流：固定过程与检查点","Agent：在明确边界内调用工具、循环执行"');
   }, 'ai-workflow summary must describe Agent as model + goal + tools + execution/check loop');
+  expectMutation('narrow desktop relationship labels', (root) => {
+    replaceIn(root, 'learning-experience.css', 'grid-template-columns: repeat(6, minmax(0, 1fr));',
+      'grid-template-columns: minmax(0, 1fr) minmax(0, .8fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);');
+  }, 'desktop relationship scope must use a readable six-track layout for wide DOM labels');
+  expectMutation('low contrast relationship labels', (root) => {
+    replaceIn(root, 'learning-experience.css', 'color: #1f56d8;', 'color: #2f68ed;');
+  }, 'scope and foundation relationship labels must use the approved high-contrast blue');
 
   for (const id of chapterIds) {
     const expected = expectedChapterContent[id];
@@ -2550,7 +2567,7 @@ function runSelfTest() {
     },
   ]);
 
-  console.log('PASS learning experience contract self-test (valid fixture + top-level backup fixture + 83 mutations)');
+  console.log('PASS learning experience contract self-test (valid fixture + top-level backup fixture + 85 mutations)');
 }
 
 if (process.argv.includes('--runtime-test')) runRuntimeUnitTest();
