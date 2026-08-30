@@ -132,6 +132,7 @@ h1,h2,h3,h4,h5,h6,p{margin-top:0}
 .section-head .tag{margin-bottom:9px;color:var(--blue)}
 .section-head h2{margin-bottom:0;color:var(--ink);font-size:clamp(28px,3vw,36px);font-weight:800;letter-spacing:-.03em;line-height:1.2}
 .section-head .desc{max-width:680px;margin:10px 0 0;color:var(--muted);font-size:17px;line-height:1.8}
+.learning-intro .desc{max-width:none;white-space:nowrap}
 .section-more{min-height:44px;display:inline-flex;align-items:center;gap:7px;flex:none;color:var(--blue);font-size:14px;font-weight:700}
 .section-more svg{width:16px;height:16px;stroke:currentColor;transition:transform 160ms ease}
 .section-more:hover svg{transform:translateX(3px)}
@@ -477,7 +478,7 @@ body .xa-hero .xh-side li b{min-width:76px;color:var(--white);font-size:14px}
   .hero-mascot{position:relative;right:auto;bottom:auto;grid-column:1;grid-row:auto;width:132px;height:150px;max-height:150px;margin-top:16px;justify-self:start;align-self:start;transform:none;opacity:1}.hero-mascot img{max-height:150px}.bh-mascot{position:static;width:132px;max-height:150px;justify-self:start;align-self:auto;transform:none;opacity:1}.bh-meta{grid-column:auto;width:100%}
   .video-hero .hero-mascot,.resources-hero .hero-mascot{width:210px;height:210px;max-height:210px;margin-top:0}.video-hero .hero-mascot img,.resources-hero .hero-mascot img{max-height:210px}
   .learn-hero .bh-left,.learn-hero .hero-mascot,.learn-hero .bh-meta,.video-hero .bh-left,.video-hero .hero-mascot,.video-hero .bh-meta{grid-column:1;grid-row:auto}.learn-hero .bh-meta,.video-hero .bh-meta{justify-self:stretch}
-  .section-head{align-items:flex-start;flex-direction:column}.sub-grid,.video-grid,.gate-home-grid,.xa-qa-grid{grid-template-columns:1fr}.footer-grid{grid-template-columns:1.4fr 1fr}
+  .section-head{align-items:flex-start;flex-direction:column}.learning-intro .desc{white-space:normal}.sub-grid,.video-grid,.gate-home-grid,.xa-qa-grid{grid-template-columns:1fr}.footer-grid{grid-template-columns:1.4fr 1fr}
   body .xa-hero{grid-template-columns:1fr;gap:24px}body .lp-anchor{top:64px}
   body .lp-anchor-inner,body .lp-shell{width:min(100% - 32px,var(--content))}body .lp-shell{flex-direction:column;gap:20px}
   body .lp-side,body .lp-side.collapsed{position:static;width:100%!important}
