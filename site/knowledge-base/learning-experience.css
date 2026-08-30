@@ -3023,10 +3023,21 @@
 }
 
 .lesson-scale-name {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.lesson-scale-chip {
+  padding: 3px 10px;
   color: var(--learning-navy);
-  font-size: 15px;
-  font-weight: 750;
-  line-height: 1.6;
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1.5;
+  white-space: nowrap;
+  background: #ffffff;
+  border: 1px solid var(--learning-teal-line);
+  border-radius: 999px;
 }
 
 .lesson-scale-bar {
@@ -3128,3 +3139,7 @@
   padding-top: 0;
   border-top: 0;
 }
+
+/* 打字机结语可能有两段，第二段回答「那我把材料给它呢」 */
+.lesson-type-verdict p { margin: 0; }
+.lesson-type-verdict .lesson-type-verdict-more { margin-top: 10px; }
