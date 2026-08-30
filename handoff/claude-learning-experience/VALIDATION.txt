@@ -1,0 +1,20 @@
+在 claude/learning-experience @ d94676e 上实际执行
+
+静态
+  node scripts/test-learning-experience.mjs                 PASS
+  node scripts/verify-knowledge-base.mjs site/knowledge-base PASS (6 pages)
+  node scripts/test-task8.mjs site/knowledge-base            PASS (6 pages)
+  node scripts/test-task7.mjs                                PASS
+
+浏览器（本地服务指向本分支的 site/knowledge-base，127.0.0.1:4173）
+  node scripts/test-learning-browser.cjs                     PASS (1220 checks)
+  node scripts/test-task8-browser.cjs                        PASS (1221 checks)
+
+文案检查
+  python3 ~/.codex/skills/human-writing/scripts/check_prose.py <第1章正文>
+  翻案句 0，翻案腔变形 0，同构排比 0，名词化 0，黑话 0，硬停词 0，
+  模型路标 0，抒情词 0，洞察路标 0，长前置成分 0，重定语句 0
+
+  已知例外一处：「现在反过来了——你说人话，它去办」保留破折号，
+  作者指定。skill 的规则优先级里作者指定的语气排在标点规则之前。
+  以后跑检查器看到这条不要当 bug 改掉。
