@@ -1,55 +1,86 @@
-# 亚玛芬 AI 知识库（蓝白版）
+# 亚玛芬 AI 知识库｜交接包
 
-本仓库托管了 AAC 社群的 HTML 知识库站点源码，并通过 GitHub Pages 对外发布，面向任何可访问 GitHub 的用户，无需本地 VPN。
+本包用于交给下一位 agent 继续维护或迭代。当前版本保持蓝白、无渐变的视觉基线；首页是轻门户，内页是强阅读与轻互动。
 
-## 站点路径
-- 页面源码：`site/knowledge-base/`
-- 部署状态：见仓库 `Settings -> Pages`
+## 目录
 
-## 快速更新流程
-1. 从 `main` 拉新分支。
-2. 修改 `site/knowledge-base` 下的文件。
-3. `git commit` 并创建 PR。
-4. 合并后由 GitHub Actions 自动部署。
+- `site/knowledge-base/`：当前网站源文件（HTML、CSS、JS、图片）
+- `scripts/`：静态契约、运行时测试、浏览器 QA 与全站验证脚本
+- `docs/`：设计规范与实施计划
+- `DELIVERY.md`：最新交付、备份、验证与继续开发要求
 
-## 本地预览
-```bash
-cd site/knowledge-base
-python -m http.server 4173
-# 访问 http://localhost:4173
-```
+## 交付入口
 
-## 协作
-- 任何协作者优先阅读 [`AGENTS.md`](AGENTS.md)。
-- 维护者发布机制与回滚策略详见 `AGENTS.md`。
-- 安全约束与发布红线详见 [`SECURITY.md`](SECURITY.md)。
+- 本地交付首页：`/Users/rita/Downloads/知识库/index.html`
+- 小 A Portal：`https://portal.amersports.cn/portal/indexs`
 
-## 安全与发布约束
-- 发布前必须完成：
-  - `AGENTS.md` 的“更新检查”。
-  - `AGENTS.md` 的“发布前安全红线”。
-  - `SECURITY.md` 的风险处置流程（如有异常先回滚复核）。
+## 快速启动
 
-## GitHub 保护分支（主分支安全）的一次性配置
-
-当前仓库尚未检测到可用的 GitHub 登录与远端绑定，先用命令做配置（需先授权）：
+在仓库根目录运行：
 
 ```bash
-# 1) 先登录 GitHub（重置/补齐 token）
-gh auth logout -h github.com -u rita911018 || true
-gh auth login
-
-# 2) 绑定远端（示例）
-git remote add origin git@github.com:<owner>/<repo>.git
-git push -u origin main
-
-# 3) 应用主分支保护（默认 main，可改其他分支）
-chmod +x scripts/setup-branch-protection.sh
-bash scripts/setup-branch-protection.sh <owner>/<repo> main
+node scripts/test-learning-experience.mjs
+node scripts/test-task8.mjs site/knowledge-base
+node scripts/verify-knowledge-base.mjs site/knowledge-base
 ```
 
-建议参数设置：
-- 禁止直接推送 main（必须通过 PR）
-- 至少 1 人审批通过后可合并
-- 启用严格历史（建议开启）
-- 禁止 force push / delete branch
+浏览器验收（需要本机 Chromium/Playwright）：
+
+```bash
+node scripts/test-learning-browser.cjs
+node scripts/test-task8-browser.cjs
+```
+
+## 重要边界
+
+- 不要把 AI 新手入门重新变回课程、视频、博主或外部资源目录；外部工具与站点统一放在“AI 工具与资源”。
+- 不新增注册、评分、证书、结业门槛或跨设备追踪。
+- 学习状态只用 `sessionStorage`，关闭标签页后可重置；存储异常时页面仍可阅读和互动。
+- 暂不做综合实战。数据红线作为第 6 章的一个小节存在（不是独立的安全合规章节），内容只写通用原则并指向公司 IT 与合规政策，不得写入具体内部规定。
+- 保留首页小 A 快捷入口；Portal 打开方式为新标签页并带 `noopener`。
+- 保持无渐变；本地资源引用不可越界；保留旧路由别名和迁移提示。
+- 修改后先跑静态/运行时/浏览器契约，再同步到 Downloads；同步时排除交付目录顶层 `backups/`，旧备份只追加不覆盖。
+
+## 学习内容主线
+
+2026-08-29 起，六章按三块组织。章节 id 保持不变（`ai-basics` / `ai-boundaries` / `ai-prompting` / `ai-verification` / `ai-delegation` / `ai-workflow`），所以旧书签与别名映射照常可用；变的是数组顺序、编号和标题。
+
+**一、AI 是什么**
+
+1. AI 到底是个什么东西 —— AI 能帮你干哪些活｜这四个词说的不是一回事｜它在玩「接话茬」，不是在查资料｜聊久了，它会开始忘事
+2. 哪些能信，哪些不能信 —— 它不是搜索引擎｜它会一本正经地胡说｜那为什么有的 AI 能查到今天的新闻
+
+**二、怎么和 AI 沟通**
+
+3. 话怎么说它才懂 —— 把它当入职第一天的新同事｜四要素｜给背景，别给形容词｜说不清要什么？让它来问你｜别这么问
+4. 它给的东西怎么验 —— 动手之前，让它先复述一遍｜一段话里混着三种东西｜数字、日期、人名、引用——见一个核一个｜答歪了，别重开，接着改
+
+**三、怎么用 AI**
+
+5. 哪些活能交给它 —— 先问两个问题（信任四象限）｜照着这张清单办｜要你签字的，它只能打底
+6. 好用的那次，怎么让它下次还好用 —— 把一次成功写成菜谱｜检查点插在哪｜有四类东西绝对不能贴进去
+
+每章保持“速览 → 例子 → 轻互动 → 工作场景 → 带走要点”的节奏。互动要可重试、无惩罚式红叉，并在有意义互动后允许点击“我看完了”。
+
+## 写作口径
+
+- **小节标题本身要是一个答案**，不是名词或指令。「它不是搜索引擎」优于「搜索与 AI 的区别」。
+- **每个要点给「短语 + 展开」**，用 `{ term, explain }` 结构，不要只丢一句结论。纯字符串写法仍兼容，但新内容不要再用。
+- **每个概念配一个生活化类比**：接话茬、图书管理员 vs 读完图书馆的人、入职第一天的新同事、写菜谱、质检工位。类比是这套内容的骨架，改文案时不要把它删成定义。
+- 不引用外部统计数据。类比够用，引数据会带来无法核实的风险。
+
+## 视觉基线
+
+- 深海军蓝、亮蓝、白色、细线和留白；不使用 CSS/SVG 渐变。
+- 首页三张入口卡：学习、录播、工具资源；每张有大号单色图标，整卡是唯一链接。
+- 首页小 A 左移，脸部、标题与 Portal 快捷入口不得重叠。
+- 学习页桌面使用左侧六章路径栏；`1024px` 以下改为正文顶部原生 disclosure。
+- 正文阅读字号保持放大标准；移动端无横向溢出，控件触控区至少 44px，焦点环完整可见。
+
+## 协作与发布
+
+- 修改前先阅读 [`AGENTS.md`](AGENTS.md)，不要直接修改 `main`。
+- 每项改动在个人分支或独立 worktree 中完成，确认后通过 PR 合入 `main`。
+- 发布由 `.github/workflows/deploy-knowledge-base.yml` 自动触发；合并后通常约 1–2 分钟可见。
+- 发布前运行静态、运行时、无障碍和浏览器契约；安全红线与回滚流程见 [`SECURITY.md`](SECURITY.md)。
+- Codex 与 Claude Code 的分支、交接、冲突裁决和验收约定见 [`docs/agent-collaboration.md`](docs/agent-collaboration.md)。
