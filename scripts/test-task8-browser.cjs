@@ -256,11 +256,11 @@ const activeMutationPages = activeMutation ? (activeMutation.pages ?? [activeMut
 const pages = mutationMode ? allPages.filter(([name]) => activeMutationPages.includes(name)) : allPages;
 // 2026-08-29 内容改版：三块分组（AI 是什么 / 怎么和 AI 沟通 / 怎么用 AI），
 // 「学会分工」从第 3 位移到第 5 位。id 不变，旧链接和别名照常可用。
+// 2026-08-30：原第 2 章「哪些能信」和第 4 章「怎么验」合并成一章。
 const learningChapters = [
   ['ai-basics', 'AI 到底是什么'],
-  ['ai-boundaries', '哪些能信，哪些不能信'],
+  ['ai-boundaries', '哪些能信，哪些得自己核'],
   ['ai-prompting', '话怎么说它才懂'],
-  ['ai-verification', '它给的东西怎么验'],
   ['ai-delegation', '哪些活能交给它'],
   ['ai-workflow', '好用的那次，怎么让它下次还好用'],
 ];
@@ -982,7 +982,7 @@ async function runQa() {
       }
 
       if (name === 'learn') {
-        const expectedDescription = '六章讲清 AI 是什么、话怎么说它才懂、哪些活能交给它。每章都能动手试，无需技术背景。';
+        const expectedDescription = '五章讲清 AI 是什么、哪些能信、话怎么说它才懂、哪些活能交给它。每章都能动手试，无需技术背景。';
         const minimumImageHeight = width >= 1236 ? 300 : (width >= 820 ? 250 : 190);
         expect(metrics.learnDescriptionText === expectedDescription && metrics.learnDescriptionVisible,
           `learn ${width}px: full Hero description changed, hidden, or clipped (${metrics.learnDescriptionText})`);
@@ -1072,7 +1072,7 @@ async function runQa() {
       }
 
       if (name === 'learn') {
-        expect(metrics.learningCardCount === 6 && metrics.visibleLearningCardCount === 6, `learn ${width}px: expected six visible chapter cards (${metrics.visibleLearningCardCount}/${metrics.learningCardCount})`);
+        expect(metrics.learningCardCount === learningChapters.length && metrics.visibleLearningCardCount === learningChapters.length, `learn ${width}px: expected five visible chapter cards (${metrics.visibleLearningCardCount}/${metrics.learningCardCount})`);
         expect(JSON.stringify(metrics.learningCards.map((card) => [card.id, card.title])) === JSON.stringify(learningChapters), `learn ${width}px: chapter order or titles changed (${JSON.stringify(metrics.learningCards)})`);
         expect(metrics.learningCards.every((card) => card.status === '未看' && card.href === `detail.html?type=learn&id=${card.id}`), `learn ${width}px: fresh-session cards must expose 未看 and canonical detail URLs`);
         // 目录页的四张工具卡已移除——模板本来就重复在各章「带走要点」里。
@@ -1292,6 +1292,7 @@ async function runQa() {
       ['ai-history', 'AI 到底是什么'],
       ['prompt-basics', '话怎么说它才懂'],
       ['ai-other', 'AI 到底是什么'],
+      ['ai-verification', '哪些能信，哪些得自己核'],
     ]) {
       await page.goto(`${base}/detail.html?type=learn&id=${alias}`, { waitUntil: 'domcontentloaded' });
       await page.locator('.lesson-header h1').waitFor();

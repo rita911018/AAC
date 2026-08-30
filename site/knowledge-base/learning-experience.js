@@ -130,68 +130,84 @@
     {
       id: 'ai-boundaries',
       number: '02',
-      title: '哪些能信，哪些不能信',
-      description: '它不是搜索引擎，也不会说「我不知道」。先搞清它会在哪儿骗你。',
-      image: { webp: 'images/ai-xiaoa-ch02.webp', fallback: 'images/ai-xiaoa-ch02.png', width: 1200, height: 800, alt: '小A用放大镜检查回答卡片与来源文件，其中一份通过核验，另一份待确认', caption: '先看证据，再决定能不能信' },
+      title: '哪些能信，哪些得自己核',
+      description: '它不会说「我不知道」，判断的活落在你身上。',
+      image: { webp: 'images/ai-xiaoa-ch02.webp', fallback: 'images/ai-xiaoa-ch02.png', width: 1200, height: 800, alt: '小 A 对着一份材料逐条核对的插画', caption: '发出去之前，先自己过一遍' },
       sections: [
         {
           title: '它不是搜索引擎',
-          paragraphs: ['同一个问题问搜索和问 AI，你拿到的是两种完全不同的东西。搞混这一点，是新手踩坑最多的地方。', '搜索是图书管理员：你问他，他指给你「三楼第五排那本，第 82 页」，你自己去看，出处清清楚楚。AI 是把整个图书馆读完的人：你问他，他凭记忆直接给你结论——快得多，但他说不出是哪本书哪一页，而且可能记岔了。'],
-          bullets: [],
+          paragraphs: ['同一个问题问搜索和问 AI，你拿到的是两种完全不同的东西。搞混这一点，是新手踩坑最多的地方。', '搜索像图书管理员。你问他，他指给你「三楼第五排那本，第 82 页」，你自己去看，出处清清楚楚。AI 像把整个图书馆读完的人。你问他，他凭记忆直接给你结论，快得多，但他说不出是哪本书哪一页，而且可能记岔了。'],
+          bullets: [
+            { term: '有链接的是查过的，没链接的是凭记忆说的', explain: '现在不少助手能联网。开了检索它就是**开卷考**，能翻书，还能给你出处链接。没开就是闭卷，只能靠记忆。判断方法很简单，看它有没有给你能点开的链接。' },
+            { term: '开卷也不等于对', explain: '它翻到的可能是过期的、片面的、或者本来就写错的资料。给了链接，你还是得点开看一眼，尤其是数字。' },
+          ],
           compare: [
-            { role: '找搜索', title: '要出处、要最新', description: '实时数字、精确数据、法规条文、谁在什么时候说过什么——这些要能点开看原文。' },
-            { role: '找 AI', title: '要理解、要改写', description: '把长材料提成要点、换个说法讲给不同对象、起草初稿、发散思路——这些没有标准答案，它很擅长。' },
+            { role: '找搜索', title: '要出处、要最新', description: '实时数字、精确数据、法规条文、谁在什么时候说过什么。这些要能点开看原文。' },
+            { role: '找 AI', title: '要理解、要改写', description: '把长材料提成要点、换个说法讲给不同对象、起草初稿、发散思路。这些没有标准答案，它很擅长。' },
             { role: '两个都用', title: '重要的事先查再写', description: '先用搜索找到原始来源，再让 AI 帮你组织和表达，最后你自己回原文核一遍关键数字。' },
           ],
           choice: {
             question: '你要给管理层解释一份刚发布的行业数据，还得保证数字准确。先找谁？',
             options: [
               { value: '找搜索', explanation: '对了一半。搜索能找到最新数字和原始出处，但「怎么讲给管理层听」还得再找 AI 帮忙组织。' },
-              { value: '找 AI', explanation: '有风险。它可以帮你解释和改写，但刚发布的数字它多半不知道，硬答就会编——必须先去搜索核实。' },
+              { value: '找 AI', explanation: '有风险。它可以帮你解释和改写，但刚发布的数字它多半不知道，硬答就会编。必须先去搜索核实。' },
               { value: '两个都用', explanation: '对。先搜索拿到原始来源和准确数字，再让 AI 按对象组织表达，最后你自己回原文核对数字和引用。' },
             ],
           },
         },
         {
-          title: '它会一本正经地胡说',
-          paragraphs: ['这件事有个专门的词叫「幻觉」。它不是故意骗你——它根本没有「我不知道」这个概念，只会顺着往下写。'],
+          title: '它会编，而且编的时候看不出来',
+          paragraphs: ['这件事有个专门的词叫幻觉。它不是故意骗你，它根本没有「我不知道」这个概念，只会顺着往下写。'],
           bullets: [
             { term: '像那种从不说「我不知道」的同事', explain: '你问他上季度北区增长多少，他不会说「我查一下」，他会很自信地给你一个数。听起来特别合理，但可能是编的。' },
-            { term: '最要命的是：编的时候没有任何破绽', explain: '它胡说时的语气、流畅度、自信程度，和说真话时一模一样。你没法从「听起来怎么样」判断真假——只能回去核。' },
-            { term: '顺口的编造，天然赢过诚实的犹豫', explain: '它学的是「像答案的话长什么样」。一个流畅完整的假答案，比一句「这个我不确定」更像答案，所以它更容易写出前者。' },
-            { term: '越精确的东西越要小心', explain: '数字、日期、人名、引用、条文——这四五类最容易出问题。反过来，让它润色一段话、换个说法、起个名字，编不出什么大事。' },
+            { term: '最要命的是没有破绽', explain: '它胡说时的语气、流畅度、自信程度，和说真话时一模一样。你没法从「听起来怎么样」判断真假，只能回去核。' },
+            { term: '越精确的东西越要小心', explain: '数字、日期、人名、引用、条文这几类最容易出问题。反过来，让它润色一段话、换个说法、起个名字，编不出什么大事。' },
+          ],
+          demo: {
+            type: 'hallucination-spotter-inline',
+            title: '这三句话，哪句能直接用',
+            hint: '下面三句来自同一段 AI 写的汇报。点一点，看每句该怎么处理。',
+            claims: [
+              { text: '原始表显示本月销量为 12,400 件。', category: '可以保留', why: '这个数字在你给它的表里，回原表一对就能确认。' },
+              { text: '本月同比增长 18%。', category: '需要核验', why: '看着像从表里算出来的，但你给的表里未必有去年同期。这类数字必须自己算一遍。' },
+              { text: '增长完全由新活动带来。', category: '需要修改', why: '「完全由」是它接上去的因果判断，材料里没有排除促销、季节、竞品关店。要么补证据，要么改成推测。' },
+            ],
+          },
+        },
+        {
+          title: '一段话里混着三种东西',
+          paragraphs: ['AI 写出来的一段话，看着是连贯的一整段，其实里面混着性质完全不同的三种内容。分不开，你就会把它猜的当成查证过的。'],
+          bullets: [
+            { term: '事实：材料里能找到的', explain: '「北区上季度增长 12%」，这句要么在你给的表里，要么不在。不在就是它编的。' },
+            { term: '推论：它自己接上去的', explain: '「说明新店选址策略见效」，听起来像结论，其实是它顺着写下来的。增长可能来自促销、季节、竞品关店，它一个都没排除。' },
+            { term: '观点：它给的建议', explain: '「建议明年加倍开店」，这是判断不是发现。可以参考，但不能当成数据支持的结论。' },
+            { term: '最危险的是中间那句', explain: '事实好核，观点一看就是建议，唯独推论最容易被当成结论用进汇报里。看到「说明」「意味着」「因此」这些词，停一下。' },
           ],
         },
         {
-          title: '那为什么有的 AI 能查到今天的新闻',
-          paragraphs: ['因为它被允许「翻书」了。这个能力叫联网检索，技术上常被叫作 RAG，但你不用记这个词。'],
+          title: '发出去之前，四类东西见一个核一个',
+          paragraphs: ['不用整篇逐字核，抓四类就够。它们的共同点是有标准答案，一核就知道对不对，而且错了最容易被人当场抓住。'],
           bullets: [
-            { term: '闭卷考 vs 开卷考', explain: '默认它是闭卷，只能靠记忆答题。开了检索就是允许它翻书——所以能查到今天的新闻，还能给你出处链接。' },
-            { term: 'RAG 不是给 AI 补脑子，是给 AI 递资料', explain: '它没有变聪明，只是手边多了参考资料。同理，你把一份文件传给它，也是在递资料。' },
-            { term: '但书本身要是错的，抄出来照样错', explain: '开卷不等于一定对。它翻到的可能是过期的、片面的、或者本来就写错的资料。给了出处，你还是得点开看一眼。' },
-            { term: '怎么判断它是闭卷还是开卷', explain: '看它有没有给你可以点开的链接。给了链接就是查过的，没给就是凭记忆——凭记忆的那些，精确信息一律不能直接用。' },
+            { term: '数字、日期、人名机构名、引用出处', explain: '看到就停，回原文对一遍。这四类占了 AI 出错的绝大部分。' },
+            { term: '坑在这：出处本身也可能是编的', explain: '你追问「出处是什么」，它会给你一个格式很正规、看起来很可信的出处。这个出处也可能是它编的，必须真的点开看。' },
+            { term: '它给不出出处时，直接约定规则', explain: '开头就跟它说「凡是你不确定的，标上待确认，不要编」。企业汇报里最危险的不是空白，是看起来很确定的假信息。' },
+            { term: '核不动就别用', explain: '一个数字你既找不到来源、又没时间去查，那就删掉它，或者写成「据初步了解」。带着一个核不动的数字发出去，风险是你的。' },
           ],
+          demo: {
+            type: 'evidence-check-inline',
+            title: '同一份材料，两种写法',
+            hint: '哪一版能直接交出去？',
+            versions: [
+              { label: '版本 A', text: '销量上升，所以营销活动有效，下月应加大投放。', usable: false, explanation: '把事实、归因和建议连成了一句确定结论，中间那步没有证据。管理层看到这句会直接拿去做决策。' },
+              { label: '版本 B', text: '销量表显示本月销量上升；营销归因仍需补充活动与渠道证据，核验成本后再决定投放。', usable: true, explanation: '三种内容分开了，待验证的部分也标明了，每句都能追回去。' },
+            ],
+          },
         },
-      ],
-      caseStudy: {
-        title: '汇报里出现了原材料没有的增长数字',
-        situation: '你把一份销量表丢给它让它写汇报。它写出来的段落里有一句「同比增长 18%」——读起来很顺，但你翻遍原表也找不到这个数。它为了让叙述完整，自己补了一个看起来合理的数字。',
-        lesson: '凡是原材料里没有的精确数字，一律当成它编的，直到你在原文里找到为止。',
-      },
-      exercise: {
-        type: 'hallucination-spotter',
-        title: '幻觉侦探',
-        instruction: '下面三句话来自同一段 AI 生成的汇报。点一点，判断每句该怎么处理。',
-        claims: [{ text: '原始表显示本月销量为 12,400 件。', category: '可以保留' }, { text: '本月同比增长 18%。', category: '需要核验' }, { text: '增长完全由新活动带来。', category: '需要修改' }],
-      },
-      quickCheck: [
-        { question: '它答得特别自信流畅，能不能少核一步？', answer: '不能，自信是语气不是准确度', explanation: '它编造时的语气和说真话时完全一样，流畅度提供不了任何真假信号。' },
-        { question: '哪种情况最该先去搜索而不是问它？', answer: '要最新数字、精确数据或者原始出处时', explanation: '这些要能点开看原文，而它给不出可追溯的出处。' },
       ],
       takeaway: {
         title: '这一章带走什么',
-        items: ['搜索给你书架位置，它凭记忆给你结论', '它没有「我不知道」，只会顺着写', '数字、日期、人名、引用——见一个核一个', '有链接的是查过的，没链接的是猜的'],
-        template: '什么时候找谁\n要出处、要最新 → 搜索\n要理解、要改写 → AI\n重要的事 → 先搜索找原文，再让 AI 组织，最后自己核一遍\n\n红灯词：精确数字、具体日期、人名、引用出处',
+        items: null,
+        template: '发出去之前的四问\n\n1. 这个数字在我给它的材料里吗？\n   不在就是它编的。\n\n2. 这句是事实、是它的推论，还是它的建议？\n   看到「说明」「意味着」「因此」就停一下。\n\n3. 出处我真的点开看过吗？\n   格式正规不等于真实存在。\n\n4. 核不动的部分，我删了还是标注了？\n   带着核不动的数字发出去，风险是我的。\n\n开场可以直接跟它约定\n凡是你不确定的，标上待确认，不要编。',
       },
     },
     {
@@ -275,81 +291,8 @@
       },
     },
     {
-      id: 'ai-verification',
-      number: '04',
-      title: '它给的东西怎么验',
-      description: '在你署名发出去之前，有几步省不得。',
-      image: { webp: 'images/ai-xiaoa-ch04.webp', fallback: 'images/ai-xiaoa-ch04.png', width: 1200, height: 800, alt: '小A拿着笔核对原始文件、AI 回答和检查清单', caption: '从原始材料走到可以署名的结论' },
-      sections: [
-        {
-          title: '动手之前，让它先复述一遍',
-          paragraphs: ['像开会散场前那句「我复述一下我的理解」。一句话的成本，省掉的是一整轮返工。'],
-          bullets: [
-            { term: '怎么说', explain: '「动手之前，先用你自己的话复述一遍我的要求，我确认了你再开始。」' },
-            { term: '为什么有用', explain: '它复述错了，你现在改；复述对了，再让它动手。等它写完三千字你才发现方向不对，那三千字全白费。' },
-            { term: '什么时候一定要用', explain: '任务复杂、材料多、或者你自己也是刚想明白的时候。简单活不用，让它直接干更快。' },
-          ],
-        },
-        {
-          title: '一段话里混着三种东西',
-          paragraphs: ['AI 写出来的一段话，看着是连贯的一整段，其实里面混着性质完全不同的三种内容。分不开，你就会把它猜的当成查证过的。'],
-          bullets: [
-            { term: '事实：材料里能找到的', explain: '「北区上季度增长 12%」——这句要么在你给的表里，要么不在。不在就是它编的。' },
-            { term: '推论：它自己接上去的', explain: '「说明新店选址策略见效」——听起来像结论，其实是它顺着写下来的。增长可能来自促销、来自季节、来自竞品关店，它没排除任何一个。' },
-            { term: '观点：它给的建议', explain: '「建议明年加倍开店」——这是判断，不是发现。可以参考，但不能当成数据支持的结论。' },
-            { term: '最危险的是中间那句', explain: '事实好核，观点一看就是建议，唯独推论最容易被当成结论用进汇报里。看到「说明」「意味着」「因此」这些词，停一下。' },
-          ],
-        },
-        {
-          title: '数字、日期、人名、引用——见一个核一个',
-          paragraphs: ['不用整篇逐字核，抓这四类就够。它们的共同点是有标准答案，一核就知道对不对，而且错了最容易被人当场抓住。'],
-          bullets: [
-            { term: '四类红灯词', explain: '精确数字、具体日期、人名机构名、引用和出处。看到就停，回原文对一遍。' },
-            { term: '坑：出处本身也可能是编的', explain: '你追问「出处是什么」，它会给你一个格式很正规、看起来很可信的出处——这个出处也可能是它编的。必须真的点开看。' },
-            { term: '它给不出出处时怎么办', explain: '直接约定规则：「凡是你不确定的，标上待确认，不要编」。企业汇报里最危险的不是空白，是看起来很确定的假信息。' },
-            { term: '核不动就别用', explain: '如果一个数字你既找不到来源、又没时间去查，那就删掉它，或者写成「据初步了解」。带着一个核不动的数字发出去，风险是你的。' },
-          ],
-        },
-        {
-          title: '答歪了，别重开，接着改',
-          paragraphs: ['多数人第一版不满意就整个删掉重来。其实接着改更快，前提是你得说清楚哪儿不对。'],
-          bullets: [
-            { term: '说具体，别说「不行」', explain: '「第二段那个 18% 不在我给的表里，删掉」比「不行，重写」有效得多。像改下属的稿，圈出具体哪句。' },
-            { term: '一次只改一件事', explain: '一口气提五个修改意见，它会顾此失彼。改完一处看一眼，再提下一处。' },
-            { term: '改到第三轮还不对，回去补背景', explain: '这通常不是它的问题，是你一开始要求没说清。回到「话怎么说它才懂」那章，把四要素补全再来一次。' },
-            { term: '改五六轮还不如自己写，就自己写', explain: '它是加速器，不是必须用的工具。判断标准很简单：你花在改上的时间，已经超过自己写的时间了吗。' },
-          ],
-        },
-      ],
-      caseStudy: {
-        title: '「销量上升」能不能直接说成「营销有效」',
-        situation: 'AI 把两件先后发生的事直接写成了因果：销量涨了，所以活动有效。但材料里没有排除促销、季节、竞品这些因素——它只是把两句话接在了一起。',
-        lesson: '事实和推论要分开写。推论要么补上证据，要么标明这是推测。',
-      },
-      exercise: {
-        type: 'evidence-check',
-        title: '事实、推论、观点与证据',
-        instruction: '逐句判断这是哪一种，再把关键结论连回它该有的证据。',
-        claims: [{ text: '本月销量比上月上升。', kind: '事实', evidence: '销量表' }, { text: '上升主要是营销活动带来。', kind: '推论', evidence: '尚无足够证据' }, { text: '下月应加大投放。', kind: '观点', evidence: '需要结合成本和其他因素' }],
-        evidenceOptions: ['销量表', '营销活动记录', '成本与渠道数据', '尚无足够证据', '需要结合成本和其他因素'],
-        versions: [
-          { label: '版本 A', text: '销量上升，所以营销活动有效，下月应加大投放。', usable: false, explanation: '把事实、归因和建议连成了一句确定结论，但中间那步没有证据。' },
-          { label: '版本 B', text: '销量表显示本月销量上升；营销归因仍需补充活动与渠道证据，核验成本后再决定投放。', usable: true, explanation: '三种内容分开了，待验证的部分也标明了，每句都能追回去。' },
-        ],
-      },
-      quickCheck: [
-        { question: '它给了一个看起来很正规的出处，可以直接用吗？', answer: '不行，出处本身也可能是编的', explanation: '格式正规不等于真实存在。必须点开看到原文才算核过。' },
-        { question: '一段话里最容易被误用的是哪一种内容？', answer: '推论', explanation: '它长得像结论，但没有证据支持，最容易被直接搬进汇报。' },
-      ],
-      takeaway: {
-        title: '这一章带走什么',
-        items: ['动手前让它复述一遍', '一段话里混着事实、推论、观点', '数字、日期、人名、引用——见一个核一个', '出处也可能是编的，要真的点开看'],
-        template: '发出去之前的四问\n1. 这个数字在原材料里吗？\n2. 这句是事实、推论，还是建议？\n3. 出处我真的点开看过吗？\n4. 核不动的部分，我删了还是标注了？',
-      },
-    },
-    {
       id: 'ai-delegation',
-      number: '05',
+      number: '04',
       title: '哪些活能交给它',
       description: '两个问题定位一件事，剩下的照清单办。',
       image: { webp: 'images/ai-xiaoa-ch05.webp', fallback: 'images/ai-xiaoa-ch05.png', width: 1200, height: 800, alt: '小A把任务卡片分到自动处理、协助处理和人工判断的三个区域', caption: '把任务放进合适的协作通道' },
@@ -412,7 +355,7 @@
     },
     {
       id: 'ai-workflow',
-      number: '06',
+      number: '05',
       title: '好用的那次，怎么让它下次还好用',
       description: '把一次成功写下来，再把不能碰的红线记住。',
       image: { webp: 'images/ai-xiaoa-ch06.webp', fallback: 'images/ai-xiaoa-ch06.png', width: 1200, height: 800, alt: '小A把一次成功对话整理成模板并连接到可复用的工作流', caption: '把一次成功，沉淀成下次还能复用的流程' },
@@ -541,6 +484,10 @@
   ];
 
   var aliases = Object.assign(Object.create(null), {
+    // 2026-08-30：原第 2 章「哪些能信」和第 4 章「怎么验」合并。
+    // 判断什么不能信和怎么核，本来就是一件事的两面，拆开会让读者
+    // 看完前一章不知道下一步该做什么。旧链接指到合并后的章节。
+    'ai-verification': 'ai-boundaries',
     'ai-what': 'ai-basics',
     'ai-history': 'ai-basics',
     'prompt-basics': 'ai-prompting',
@@ -1723,8 +1670,99 @@
     return wrap;
   }
 
+  // 7) 幻觉判断：三句话逐句判定「能用 / 要核 / 要改」，选完给理由。
+  function renderClaimTriageDemo(ownerDocument, root, demo) {
+    var wrap = demoShell(ownerDocument, root, demo, 'lesson-demo-triage');
+    var options = ['可以保留', '需要核验', '需要修改'];
+    var settled = 0;
+
+    for (var index = 0; index < demo.claims.length; index += 1) {
+      (function (claim, claimIndex) {
+        var card = element(ownerDocument, 'div', 'lesson-triage-card');
+        card.appendChild(element(ownerDocument, 'p', 'lesson-triage-text', claim.text));
+
+        var row = element(ownerDocument, 'div', 'lesson-triage-row');
+        var feedback = element(ownerDocument, 'p', 'lesson-triage-feedback');
+        feedback.hidden = true;
+        var answered = false;
+
+        for (var optIndex = 0; optIndex < options.length; optIndex += 1) {
+          (function (option) {
+            var button = element(ownerDocument, 'button', 'lesson-triage-choice', option);
+            button.setAttribute('type', 'button');
+            button.setAttribute('data-claim-index', String(claimIndex));
+            button.setAttribute('data-choice-value', option);
+            button.addEventListener('click', function () {
+              var right = option === claim.category;
+              var siblings = row.querySelectorAll('button');
+              for (var si = 0; si < siblings.length; si += 1) {
+                siblings[si].setAttribute('aria-pressed', siblings[si] === button ? 'true' : 'false');
+              }
+              card.setAttribute('data-state', right ? 'right' : 'retry');
+              feedback.hidden = false;
+              clearNode(feedback);
+              if (right) {
+                feedback.appendChild(element(ownerDocument, 'b', '', claim.category + '。'));
+                feedback.appendChild(ownerDocument.createTextNode(claim.why));
+                if (!answered) { answered = true; settled += 1; }
+                if (settled === demo.claims.length) {
+                  demoAnnounce(wrap, '三句都判完了。');
+                  dispatchExerciseAttempt(wrap, '三句都判完了。');
+                }
+              } else {
+                feedback.appendChild(ownerDocument.createTextNode('再想想。这句的问题不在这里，换一个看看。'));
+              }
+            });
+            row.appendChild(button);
+          }(options[optIndex]));
+        }
+        card.appendChild(row);
+        card.appendChild(feedback);
+        wrap.appendChild(card);
+      }(demo.claims[index], index));
+    }
+    return wrap;
+  }
+
+  // 8) 两版对照：同一份材料的两种写法，点开看哪版能直接交。
+  function renderVersionPickDemo(ownerDocument, root, demo) {
+    var wrap = demoShell(ownerDocument, root, demo, 'lesson-demo-versions');
+    var grid = element(ownerDocument, 'div', 'lesson-version-grid');
+
+    for (var index = 0; index < demo.versions.length; index += 1) {
+      (function (version) {
+        var card = element(ownerDocument, 'button', 'lesson-version-card');
+        card.setAttribute('type', 'button');
+        card.setAttribute('data-version-usable', version.usable ? 'true' : 'false');
+        card.appendChild(element(ownerDocument, 'span', 'lesson-version-label', version.label));
+        card.appendChild(element(ownerDocument, 'span', 'lesson-version-text', version.text));
+        var verdict = element(ownerDocument, 'span', 'lesson-version-verdict');
+        verdict.hidden = true;
+        card.appendChild(verdict);
+        card.addEventListener('click', function () {
+          var picked = grid.querySelectorAll('.lesson-version-card');
+          for (var pi = 0; pi < picked.length; pi += 1) {
+            picked[pi].setAttribute('aria-pressed', picked[pi] === card ? 'true' : 'false');
+          }
+          card.setAttribute('data-revealed', 'true');
+          verdict.hidden = false;
+          clearNode(verdict);
+          verdict.appendChild(element(ownerDocument, 'b', '', version.usable ? '这版可以交。' : '这版不能交。'));
+          verdict.appendChild(ownerDocument.createTextNode(version.explanation));
+          demoAnnounce(wrap, version.label + (version.usable ? ' 可以交。' : ' 不能交。'));
+          dispatchExerciseAttempt(wrap, '看过两版对照了。');
+        });
+        grid.appendChild(card);
+      }(demo.versions[index]));
+    }
+    wrap.appendChild(grid);
+    return wrap;
+  }
+
   var demoRenderers = Object.assign(Object.create(null), {
     shift: renderShiftDemo,
+    'hallucination-spotter-inline': renderClaimTriageDemo,
+    'evidence-check-inline': renderVersionPickDemo,
     'context-scale': renderContextScaleDemo,
     concentric: renderConcentricDemo,
     timeline: renderTimelineDemo,
@@ -2272,7 +2310,7 @@
   }
 
   function appendPathProgress(ownerDocument, target, mobile) {
-    if (mobile) target.appendChild(ownerDocument.createTextNode('六章目录 · '));
+    if (mobile) target.appendChild(ownerDocument.createTextNode('五章目录 · '));
     target.appendChild(ownerDocument.createTextNode('本次浏览已看 '));
     var count = element(ownerDocument, 'span', '', String(seenCount()));
     count.setAttribute('data-learning-path-count', '');
@@ -2428,8 +2466,9 @@
     nav.setAttribute('aria-label', bottom ? '本章底部导航' : '学习导航');
     var back = element(ownerDocument, 'a', '', '← 返回 AI 新手入门');
     back.setAttribute('href', 'learn.html#chapter-' + encodeURIComponent(resolvedId));
-    var progress = element(ownerDocument, 'span', 'lesson-progress', chapter.number + ' / 06');
-    progress.setAttribute('aria-label', '第 ' + Number(chapter.number) + ' 章，共 6 章');
+    var totalLabel = String(chapters.length).padStart(2, '0');
+    var progress = element(ownerDocument, 'span', 'lesson-progress', chapter.number + ' / ' + totalLabel);
+    progress.setAttribute('aria-label', '第 ' + Number(chapter.number) + ' 章，共 ' + chapters.length + ' 章');
     nav.appendChild(back);
     nav.appendChild(progress);
     return nav;
@@ -2664,7 +2703,7 @@
     template.setAttribute('tabindex', '0');
     template.setAttribute('data-template-content', '');
     takeaway.appendChild(template);
-    if (resolvedId === 'ai-delegation' || resolvedId === 'ai-prompting' || resolvedId === 'ai-verification' || resolvedId === 'ai-workflow') {
+    if (resolvedId === 'ai-delegation' || resolvedId === 'ai-prompting' || resolvedId === 'ai-boundaries' || resolvedId === 'ai-workflow') {
       var takeawayActions = element(ownerDocument, 'div', 'lesson-takeaway-actions');
       var copyButton = element(ownerDocument, 'button', 'lesson-secondary-action', '复制模板');
       copyButton.setAttribute('type', 'button');

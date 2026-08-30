@@ -30,11 +30,10 @@ if (!selfTestMode) mkdirSync(screenshotRoot, { recursive: true });
 
 const chapters = [
   { id: 'ai-basics', number: '01', title: 'AI 到底是什么', action: '.lesson-demo-typewriter .lesson-type-candidate' },
-  { id: 'ai-boundaries', number: '02', title: '哪些能信，哪些不能信', action: '[data-claim-index="0"][data-choice-value="需要修改"]' },
+  { id: 'ai-boundaries', number: '02', title: '哪些能信，哪些得自己核', action: '.lesson-demo-triage .lesson-triage-choice' },
   { id: 'ai-prompting', number: '03', title: '话怎么说它才懂', action: '[data-prompt-field="目标"]' },
-  { id: 'ai-verification', number: '04', title: '它给的东西怎么验', action: '[data-claim-kind][data-claim-index="0"][data-choice-value="观点"]' },
-  { id: 'ai-delegation', number: '05', title: '哪些活能交给它', action: '[data-task-index="0"][data-choice-value="人负责"]' },
-  { id: 'ai-workflow', number: '06', title: '好用的那次，怎么让它下次还好用', action: '[data-workflow-move]:not(:disabled)' },
+  { id: 'ai-delegation', number: '04', title: '哪些活能交给它', action: '[data-task-index="0"][data-choice-value="人负责"]' },
+  { id: 'ai-workflow', number: '05', title: '好用的那次，怎么让它下次还好用', action: '[data-workflow-move]:not(:disabled)' },
 ];
 const rendererNames = [
   'renderTokenPrediction',
@@ -431,7 +430,7 @@ async function runPrimaryContract(browser, base) {
       await page.locator('.lesson').waitFor();
       let snapshot = await lessonSnapshot(page);
       expect(snapshot.title === chapter.title, `${chapter.id} ${width}px: title mismatch (${snapshot.title})`);
-      expect(snapshot.progress === `${chapter.number} / 06`, `${chapter.id} ${width}px: chapter progress mismatch (${snapshot.progress})`);
+      expect(snapshot.progress === `${chapter.number} / 05`, `${chapter.id} ${width}px: chapter progress mismatch (${snapshot.progress})`);
       // 2026-08-29 起口径变更：打开页面 ≠ 正在看。
       // 旧契约要求一进详情页就写 in-progress，结果目录页六张卡同时亮「正在看」，
       // 却又显示「已看 0 / 6」，两个口径互相打架。现在只有真正读过 2 个小节才升级。
@@ -448,7 +447,7 @@ async function runPrimaryContract(browser, base) {
       expect(snapshot.overflow <= 1, `${chapter.id} ${width}px: horizontal overflow ${snapshot.overflow}px`);
       expect(snapshot.badLinks === 0 && snapshot.linkCount >= 2, `${chapter.id} ${width}px: chapter links must remain usable`);
       expect(snapshot.nextVisible || chapter.id === 'ai-workflow', `${chapter.id} ${width}px: next chapter must be visible without a score gate`);
-      expect(snapshot.path.linkCount === 6, `${chapter.id} ${width}px: visible path must contain exactly six chapter links`);
+      expect(snapshot.path.linkCount === 5, `${chapter.id} ${width}px: visible path must contain exactly five chapter links`);
       expect(snapshot.path.hrefs.join('|') === chapters.map(({ id }) => `detail.html?type=learn&id=${id}`).join('|'),
         `${chapter.id} ${width}px: path href order must remain canonical`);
       expect(snapshot.path.currentCount === 1 && snapshot.path.currentText.includes('当前'),
@@ -474,7 +473,7 @@ async function runPrimaryContract(browser, base) {
           const [read, total] = status.split(' / ');
           return Number(total) > 0 && read === total;
         }).length;
-        expect(snapshot.path.summaryText === `六章目录 · 本次浏览已看 ${seenChapterCount} / 6`,
+        expect(snapshot.path.summaryText === `五章目录 · 本次浏览已看 ${seenChapterCount} / 5`,
           `${chapter.id} ${width}px: disclosure summary must expose exact session count (${snapshot.path.summaryText})`);
         expect(snapshot.path.summaryHeight >= 44, `${chapter.id} ${width}px: disclosure summary must be at least 44px (${snapshot.path.summaryHeight})`);
       }
@@ -499,7 +498,7 @@ async function runPrimaryContract(browser, base) {
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${base}/detail.html?type=learn&id=ai-boundaries`, { waitUntil: 'domcontentloaded' });
-  await page.locator('[data-claim-choice]').first().focus();
+  await page.locator('.lesson-demo-triage .lesson-triage-choice').first().focus();
   await page.keyboard.press('Enter');
   const done = page.locator('[data-mark-seen]');
   if (await done.isEnabled()) {
@@ -571,7 +570,7 @@ async function runPathRouteAndStateContract(browser, base) {
   for (const [name, state, count] of [
     ['fresh', null, 0],
     ['partial', { 'ai-basics': 'seen', 'ai-boundaries': 'seen', 'ai-workflow': 'in-progress' }, 2],
-    ['complete', Object.fromEntries(chapters.map(({ id }) => [id, 'seen'])), 6],
+    ['complete', Object.fromEntries(chapters.map(({ id }) => [id, 'seen'])), chapters.length],
   ]) {
     await context.clearCookies();
     await page.goto(`${base}/learn.html`, { waitUntil: 'domcontentloaded' });
@@ -580,8 +579,8 @@ async function runPathRouteAndStateContract(browser, base) {
       if (value) sessionStorage.setItem(key, JSON.stringify(value));
     }, { key: storageKey, value: state });
     await page.goto(`${base}/detail.html?type=learn&id=ai-workflow`, { waitUntil: 'domcontentloaded' });
-    expect((await page.locator('.learning-path-disclosure > summary').textContent()).trim() === `六章目录 · 本次浏览已看 ${count} / 6`,
-      `${name}: learning path must render exact ${count} / 6 count`);
+    expect((await page.locator('.learning-path-disclosure > summary').textContent()).trim() === `五章目录 · 本次浏览已看 ${count} / 5`,
+      `${name}: learning path must render exact ${count} / 5 count`);
   }
   await context.close();
 }
@@ -624,7 +623,7 @@ async function runPathFocusedContract(browser, base) {
   await page.goto(`${base}/detail.html?type=learn&id=ai-basics`, { waitUntil: 'domcontentloaded' });
   let snapshot = await lessonSnapshot(page);
   const contrastEvidence = { desktop1440: snapshot.path.contrasts };
-  expect(snapshot.path.linkCount === 6, `focused desktop: visible path must contain exactly six chapter links (${snapshot.path.linkCount})`);
+  expect(snapshot.path.linkCount === 5, `focused desktop: visible path must contain exactly five chapter links (${snapshot.path.linkCount})`);
   expect(snapshot.path.hrefs.join('|') === canonicalHrefs, 'focused desktop: path href order must remain canonical');
   expect(snapshot.path.currentCount === 1 && snapshot.path.currentText.includes('当前'),
     `focused desktop: current item must expose aria-current and visible 当前 (${snapshot.path.currentCount})`);
@@ -647,7 +646,7 @@ async function runPathFocusedContract(browser, base) {
   await page.goto(`${base}/detail.html?type=learn&id=ai-basics`, { waitUntil: 'domcontentloaded' });
   snapshot = await lessonSnapshot(page);
   contrastEvidence.mobile1024 = snapshot.path.contrasts;
-  expect(snapshot.path.linkCount === 6, `focused mobile: visible path must contain exactly six chapter links (${snapshot.path.linkCount})`);
+  expect(snapshot.path.linkCount === 5, `focused mobile: visible path must contain exactly five chapter links (${snapshot.path.linkCount})`);
   expect(snapshot.path.hrefs.join('|') === canonicalHrefs, 'focused mobile: path href order must remain canonical');
   expect(snapshot.path.currentCount === 1 && snapshot.path.currentText.includes('当前'),
     `focused mobile: current item must expose aria-current and visible 当前 (${snapshot.path.currentCount})`);
@@ -680,8 +679,8 @@ async function runPathFocusedContract(browser, base) {
     'ai-workflow': 'in-progress',
   })), storageKey);
   await page.goto(`${base}/detail.html?type=learn&id=ai-workflow`, { waitUntil: 'domcontentloaded' });
-  expect((await page.locator('.learning-path-disclosure > summary').textContent()).trim() === '六章目录 · 本次浏览已看 2 / 6',
-    'focused state: partial path count must be 2 / 6');
+  expect((await page.locator('.learning-path-disclosure > summary').textContent()).trim() === '五章目录 · 本次浏览已看 2 / 5',
+    'focused state: partial path count must be 2 / 5');
 
   await page.evaluate((key) => sessionStorage.removeItem(key), storageKey);
   await page.goto(`${base}/detail.html?type=learn&id=ai-basics`, { waitUntil: 'domcontentloaded' });
@@ -951,31 +950,28 @@ async function runDeepInteractionContract(browser, base) {
   await page.keyboard.type('D');
   expect(await page.locator('[data-mark-seen]').isEnabled(), 'prompting: clearing and retyping must not revoke completion');
 
-  await page.goto(`${base}/detail.html?type=learn&id=ai-verification`, { waitUntil: 'domcontentloaded' });
-  const evidenceChoices = page.locator('[data-evidence-choice]');
-  expect(await evidenceChoices.count() === 5, 'verification: the key attribution claim must expose a focused five-source evidence connection');
-  expect(await evidenceChoices.evaluateAll((nodes) => nodes.every((node) => node.getAttribute('data-claim-index') === '1')),
-    'verification: evidence connection must stay focused on the key attribution claim');
-  const evidence = page.locator('[data-evidence-choice][data-claim-index="1"]').first();
-  await evidence.focus({ timeout: 3000 });
+  // 原第 4 章「验证结果」已并入第 2 章。章末的 evidence-check 练习拆成了
+  // 两个小节演示：三句话判断（triage）和两版对照（version pick）。
+  await page.goto(`${base}/detail.html?type=learn&id=ai-boundaries`, { waitUntil: 'domcontentloaded' });
+  const triageChoices = page.locator('.lesson-demo-triage .lesson-triage-choice');
+  expect(await triageChoices.count() === 9, 'boundaries: three claims must each offer the three review states');
+  const firstTriage = triageChoices.first();
+  await firstTriage.focus({ timeout: 3000 });
   await page.keyboard.press('Enter');
-  expect(await evidence.getAttribute('aria-pressed') === 'true', 'verification: evidence choice must expose selected state');
-  expect((await page.locator('.lesson-feedback').textContent()).includes('证据'), 'verification: evidence attempt must explain the connection');
-  const correctEvidence = page.locator('[data-evidence-choice][data-choice-value="尚无足够证据"]');
-  await correctEvidence.focus();
+  expect(await firstTriage.getAttribute('aria-pressed') === 'true', 'boundaries: triage choice must expose selected state');
+  const triageFeedback = page.locator('.lesson-demo-triage .lesson-triage-feedback:visible').first();
+  expect((await triageFeedback.textContent()).trim().length >= 8, 'boundaries: every triage choice must explain itself');
+  expect(!/(未通过|不及格|评分|扣分)/.test(await triageFeedback.textContent()), 'boundaries: triage feedback must stay non-punitive');
+
+  const versionCards = page.locator('.lesson-demo-versions .lesson-version-card');
+  expect(await versionCards.count() === 2, 'boundaries: two answer versions must be available for comparison');
+  const firstVersion = versionCards.first();
+  await firstVersion.focus({ timeout: 3000 });
   await page.keyboard.press('Enter');
-  expect((await page.locator('.lesson-feedback').textContent()).includes('合理'), 'verification: evidence connection must support a correct retry');
-  const versionChoices = page.locator('[data-version-choice]');
-  expect(await versionChoices.count() === 2, 'verification: two answer versions must be available for comparison');
-  const version = versionChoices.first();
-  await version.focus({ timeout: 3000 });
-  await page.keyboard.press('Enter');
-  expect(await version.getAttribute('aria-pressed') === 'true', 'verification: version choice must expose selected state');
-  expect((await page.locator('.lesson-feedback').textContent()).includes('版本'), 'verification: version comparison must explain usability');
-  const usableVersion = page.locator('[data-version-choice][data-choice-value="版本 B"]');
-  await usableVersion.focus();
-  await page.keyboard.press('Enter');
-  expect((await page.locator('.lesson-feedback').textContent()).includes('更可用'), 'verification: version comparison must support a more-usable retry');
+  expect(await firstVersion.getAttribute('aria-pressed') === 'true', 'boundaries: version choice must expose selected state');
+  expect((await page.locator('.lesson-demo-versions .lesson-version-verdict:visible').first().textContent()).trim().length >= 8,
+    'boundaries: version comparison must explain usability');
+
 
   await page.goto(`${base}/detail.html?type=learn&id=ai-workflow`, { waitUntil: 'domcontentloaded' });
   const workflowInitial = await page.evaluate(() => ({
@@ -1094,7 +1090,7 @@ async function runStorageFaultContract(browser, base, mode) {
   await page.goto(`${base}/detail.html?type=learn&id=ai-delegation`, { waitUntil: 'domcontentloaded' });
   await page.locator('[data-sort-choice]').first().waitFor({ state: 'visible', timeout: 3000 });
   expect(await page.locator('.learning-path-disclosure').isVisible(), `${mode}: storage failure must not hide the mobile path`);
-  expect((await page.locator('.learning-path-disclosure > summary').textContent()).includes('/ 6'), `${mode}: storage failure must preserve a valid path count`);
+  expect((await page.locator('.learning-path-disclosure > summary').textContent()).includes(`/ ${chapters.length}`), `${mode}: storage failure must preserve a valid path count`);
   await page.locator('[data-sort-choice]').first().focus();
   await page.keyboard.press('Enter');
   expect(await page.locator('[data-mark-seen]').isEnabled(), `${mode}: storage failure must not block meaningful interaction`);
@@ -1112,7 +1108,7 @@ async function runCopyContract(browser, base) {
     });
   });
   const page = await context.newPage();
-  for (const id of ['ai-delegation', 'ai-prompting', 'ai-verification', 'ai-workflow']) {
+  for (const id of ['ai-delegation', 'ai-prompting', 'ai-boundaries', 'ai-workflow']) {
     await page.goto(`${base}/detail.html?type=learn&id=${id}`, { waitUntil: 'domcontentloaded' });
     const copy = page.locator('[data-lesson-copy]');
     expect(await copy.count() === 1, `${id}: chapter takeaway needs one copy action`);
@@ -1129,10 +1125,10 @@ async function runCopyContract(browser, base) {
 }
 
 const pathSelfTestMutations = [
-  ['path-missing-chapter', 'visible path must contain exactly six chapter links'],
+  ['path-missing-chapter', 'visible path must contain exactly five chapter links'],
   ['path-order-swap', 'path href order must remain canonical'],
   ['path-current-removed', 'current item must expose aria-current and visible 当前'],
-  ['path-count-hardcoded', 'partial path count must be 2 / 6'],
+  ['path-count-hardcoded', 'partial path count must be 2 / 5'],
   ['path-mark-seen-no-refresh', 'markSeen must immediately refresh both path counts'],
   ['path-leaks-routes', 'non-canonical learning route must not expose the learning path'],
   ['path-mobile-not-details', 'mobile path must be native details'],

@@ -16,15 +16,13 @@ const chapterIds = [
   'ai-basics',
   'ai-boundaries',
   'ai-prompting',
-  'ai-verification',
   'ai-delegation',
   'ai-workflow',
 ];
 const titles = [
   'AI 到底是什么',
-  '哪些能信，哪些不能信',
+  '哪些能信，哪些得自己核',
   '话怎么说它才懂',
-  '它给的东西怎么验',
   '哪些活能交给它',
   '好用的那次，怎么让它下次还好用',
 ];
@@ -32,6 +30,7 @@ const chapterHrefs = chapterIds.map((id) => `detail.html?type=learn&id=${id}`);
 const allowedStatusCopy = new Set(['未看', '正在看', '看过']);
 const forbiddenStatusCopy = ['未通过', '结业', '评分', '综合实战'];
 const aliases = {
+  'ai-verification': 'ai-boundaries',
   'ai-what': 'ai-basics',
   'ai-history': 'ai-basics',
   'prompt-basics': 'ai-prompting',
@@ -47,17 +46,16 @@ const requiredApiMethods = [
 const storageKey = 'amersports-ai-beginner-session-v1';
 // 已按「每小节都要有演示」标准重构完的章节。改完一章就加一个进来。
 const rebuiltChapters = new Set(['ai-basics']);
-const chapterMinutes = ['约 8 分钟', '约 7 分钟', '约 10 分钟', '约 9 分钟', '约 8 分钟', '约 8 分钟'];
+const chapterMinutes = ['约 8 分钟', '约 10 分钟', '约 10 分钟', '约 8 分钟', '约 8 分钟'];
 const chapterImages = [
   ['images/ai-xiaoa-ch01.webp', 'images/ai-xiaoa-ch01.png'],
   ['images/ai-xiaoa-ch02.webp', 'images/ai-xiaoa-ch02.png'],
   ['images/ai-xiaoa-ch03.webp', 'images/ai-xiaoa-ch03.png'],
-  ['images/ai-xiaoa-ch04.webp', 'images/ai-xiaoa-ch04.png'],
   ['images/ai-xiaoa-ch05.webp', 'images/ai-xiaoa-ch05.png'],
   ['images/ai-xiaoa-ch06.webp', 'images/ai-xiaoa-ch06.png'],
 ];
-const chapterDimensions = [[1200, 800], [1200, 800], [1200, 800], [1200, 800], [1200, 800], [1200, 800]];
-const chapterFallbackDimensions = [[1536, 1024], [1536, 1024], [1536, 1024], [1536, 1024], [1536, 1024], [1536, 1024]];
+const chapterDimensions = [[1200, 800], [1200, 800], [1200, 800], [1200, 800], [1200, 800]];
+const chapterFallbackDimensions = [[1536, 1024], [1536, 1024], [1536, 1024], [1536, 1024], [1536, 1024]];
 // 2026-08-29：第 1 章重构。删掉「四个词」（在解释术语，不是在回答「AI 是什么」）、
 // 章首图库套图、工作案例、动手练一练、快速想一想——练习不再堆在章末，
 // 改为嵌进各小节的演示里。每章保留「带走要点」。
@@ -69,14 +67,10 @@ const expectedChapterContent = {
     takeawayTerms: ['猜', '编', '关掉', '核一个', '署名'],
   },
   'ai-boundaries': {
-    sectionTitles: ['它不是搜索引擎', '它会一本正经地胡说', '那为什么有的 AI 能查到今天的新闻'],
-    coreTerms: ['搜索', '出处', '幻觉', '闭卷', '开卷', '核'],
-    caseTitle: '汇报里出现了原材料没有的增长数字',
-    caseTerms: ['原材料', '精确数字', '编'],
-    exerciseType: 'hallucination-spotter',
-    exerciseKeys: ['claims'],
+    sectionTitles: ['它不是搜索引擎', '它会编，而且编的时候看不出来', '一段话里混着三种东西', '发出去之前，四类东西见一个核一个'],
+    coreTerms: ['搜索', '出处', '开卷', '事实', '推论', '观点', '核'],
     takeawayTitle: '这一章带走什么',
-    takeawayTerms: ['搜索', '记忆', '数字', '链接'],
+    takeawayTerms: ['数字', '出处', '推论', '待确认'],
   },
   'ai-prompting': {
     sectionTitles: ['把它当入职第一天的新同事', '四要素：像给同事派活一样交代', '给背景，别给形容词', '说不清要什么？让它来问你', '别这么问'],
@@ -87,16 +81,6 @@ const expectedChapterContent = {
     exerciseKeys: ['fields', 'reference'],
     takeawayTitle: '这一章带走什么',
     takeawayTerms: ['目标', '背景', '任务', '输出要求'],
-  },
-  'ai-verification': {
-    sectionTitles: ['动手之前，让它先复述一遍', '一段话里混着三种东西', '数字、日期、人名、引用——见一个核一个', '答歪了，别重开，接着改'],
-    coreTerms: ['事实', '推论', '观点', '复述', '出处', '原文'],
-    caseTitle: '「销量上升」能不能直接说成「营销有效」',
-    caseTerms: ['因果', '证据', '推论'],
-    exerciseType: 'evidence-check',
-    exerciseKeys: ['claims', 'evidenceOptions', 'versions'],
-    takeawayTitle: '这一章带走什么',
-    takeawayTerms: ['复述', '事实', '推论', '出处'],
   },
   'ai-delegation': {
     sectionTitles: ['先问两个问题', '照着这张清单办', '要你签字的，它只能打底'],
@@ -120,7 +104,7 @@ const expectedChapterContent = {
   },
 };
 const allowedRuntimeStatuses = new Set(['unseen', 'in-progress', 'seen']);
-const learnHeroDescription = '六章讲清 AI 是什么、话怎么说它才懂、哪些活能交给它。每章都能动手试，无需技术背景。';
+const learnHeroDescription = '五章讲清 AI 是什么、哪些能信、话怎么说它才懂、哪些活能交给它。每章都能动手试，无需技术背景。';
 const learnHubHeading = '选择一个章节，轻松开始';
 const toolkitTitles = ['任务分工卡', '四要素提问模板', '结果验证清单', '工作流拆解模板'];
 const toolkitFields = [
@@ -567,7 +551,7 @@ function evaluateLearningRuntime(source, storageOverride, environment = {}) {
 
 function createHubStateHarness() {
   const countNode = { textContent: '0' };
-  const summary = { textContent: '已看 0 / 6' };
+  const summary = { textContent: '已看 0 / 5' };
   const continueLink = { setAttribute() {} };
   return {
     countNode,
@@ -1025,7 +1009,7 @@ function runContract() {
   const cards = learnElements.filter((element) => element.tagName === 'a' && hasClass(element, 'learning-card') && isVisible(element));
 
   // This intentionally remains the first production assertion: it is the RED hand-off to implementation.
-  assert.equal(cards.length, 6, 'learn hub must contain exactly six chapter cards');
+  assert.equal(cards.length, 5, 'learn hub must contain exactly five chapter cards');
 
   const hubs = learnElements.filter((element) => hasClass(element, 'learning-hub') && isVisible(element));
   assert.equal(hubs.length, 1, 'learn.html must contain exactly one visible .learning-hub');
@@ -1099,7 +1083,7 @@ function runContract() {
   assert.equal(continueLinks.length, 1, 'learn hub must contain one session-aware continue link');
   const summaries = learnElements.filter((element) => hasClass(element, 'learning-session-summary') && isVisible(element));
   assert.equal(summaries.length, 1, 'learn.html must contain one visible session summary');
-  assert.equal(visibleText(summaries[0].innerHtml, 'learning session summary'), '已看 0 / 6', 'session summary must have the approved static fallback');
+  assert.equal(visibleText(summaries[0].innerHtml, 'learning session summary'), '已看 0 / 5', 'session summary must have the approved static fallback');
   const summaryParts = parseElements(summaries[0].innerHtml, 'learning session summary');
   assert.equal(summaryParts.filter((element) => element.attributes.has('data-learning-seen-count')).length, 1,
     'session summary must expose one seen-count update target');
@@ -1272,32 +1256,30 @@ function runContract() {
     'ai-boundaries lightweight choice must offer 找搜索 / 找 AI / 两个都用');
   assert.ok(boundaryComparison.choice.options.every(({ value, explanation }) => value && explanation),
     'every boundary choice must provide an immediate explanation');
-  assert.deepEqual(api.chapters[1].exercise.claims.map(({ category }) => category), ['可以保留', '需要核验', '需要修改'],
-    'ai-boundaries exercise must retain the three non-punitive review states');
-  assert.ok(api.chapters[1].exercise.claims.some(({ text }) => /\d/.test(text)), 'ai-boundaries exercise must include a numeric claim to verify');
-  assert.deepEqual(api.chapters[4].exercise.tasks.map(({ lane }) => lane), ['AI', '人机协作', '人负责'],
+  // 合并后练习嵌进小节演示，章末不再单独放一块
+  const triage = api.chapters[1].sections[1].demo;
+  assert.deepEqual(triage.claims.map(({ category }) => category), ['可以保留', '需要核验', '需要修改'],
+    'ai-boundaries triage must retain the three non-punitive review states');
+  assert.ok(triage.claims.every(({ why }) => why && why.trim()), 'every triage claim must explain why');
+  assert.ok(triage.claims.some(({ text }) => /\d/.test(text)), 'ai-boundaries triage must include a numeric claim');
+  const versions = api.chapters[1].sections[3].demo;
+  assert.deepEqual(versions.versions.map(({ label, usable }) => [label, usable]), [['版本 A', false], ['版本 B', true]],
+    'ai-boundaries must keep the approved two-version usability comparison');
+  assert.deepEqual(api.chapters[3].exercise.tasks.map(({ lane }) => lane), ['AI', '人机协作', '人负责'],
     'ai-delegation exercise must cover all three delegation lanes');
   assert.deepEqual(api.chapters[2].exercise.fields, ['目标', '背景', '任务', '输出要求'],
     'ai-prompting exercise must retain the four approved brief fields');
   for (const field of api.chapters[2].exercise.fields) assert.ok(api.chapters[2].exercise.reference.includes(field),
     `ai-prompting reference brief must demonstrate ${field}`);
-  assert.deepEqual(api.chapters[3].exercise.claims.map(({ kind }) => kind), ['事实', '推论', '观点'],
-    'ai-verification exercise must distinguish fact, inference, and opinion');
-  assert.ok(api.chapters[3].exercise.claims.every(({ evidence }) => typeof evidence === 'string' && evidence.trim()),
-    'ai-verification exercise must connect every claim to evidence guidance');
-  assert.ok(api.chapters[3].exercise.claims.every(({ evidence }) => api.chapters[3].exercise.evidenceOptions.includes(evidence)),
-    'ai-verification evidence choices must include every approved claim connection');
-  assert.deepEqual(api.chapters[3].exercise.versions.map(({ label, usable }) => [label, usable]), [['版本 A', false], ['版本 B', true]],
-    'ai-verification must retain the approved two-version usability comparison');
-  assert.ok(api.chapters[5].exercise.steps.length >= 4, 'ai-workflow exercise must contain sortable workflow steps');
-  assert.deepEqual(api.chapters[5].exercise.steps.map(({ text }) => text),
+  assert.ok(api.chapters[4].exercise.steps.length >= 4, 'ai-workflow exercise must contain sortable workflow steps');
+  assert.deepEqual(api.chapters[4].exercise.steps.map(({ text }) => text),
     ['收集当月数据', '提取变化与异常', '核对来源和口径', '生成汇报初稿', '确定优先级并交付'],
     'ai-workflow exercise must retain the approved sortable monthly-report sequence');
-  assert.ok(api.chapters[5].exercise.steps.some(({ owner, checkpoint }) => owner === '人负责' && checkpoint === true),
+  assert.ok(api.chapters[4].exercise.steps.some(({ owner, checkpoint }) => owner === '人负责' && checkpoint === true),
     'ai-workflow exercise must retain a human-owned checkpoint');
-  assert.deepEqual(api.chapters[5].exercise.shuffleOrder, [3, 0, 4, 1, 2],
+  assert.deepEqual(api.chapters[4].exercise.shuffleOrder, [3, 0, 4, 1, 2],
     'ai-workflow exercise must begin from the approved deterministic shuffled order');
-  assert.notDeepEqual(api.chapters[5].exercise.shuffleOrder, [0, 1, 2, 3, 4],
+  assert.notDeepEqual(api.chapters[4].exercise.shuffleOrder, [0, 1, 2, 3, 4],
     'ai-workflow initial order must not leak the recommended sequence');
   // Agent 的定义改版后只在 ai-basics 讲一次（那边的断言仍在）；
   // ai-workflow 这一章现在讲菜谱、检查点和数据红线，不再重复定义 Agent。
@@ -1519,7 +1501,7 @@ function fixtureFiles(order = chapterIds) {
     'learn.html': `<!doctype html><html><head><link rel="stylesheet" href="learning-experience.css"></head><body>
       <!-- <a class="learning-card"><h2>decoy 未通过</h2></a> -->
       <script>var decoy='<a class="learning-card">decoy 未通过</a>';</script>
-      <main><h1>AI 新手入门</h1><p>${learnHeroDescription}</p><picture><source srcset="img/xiaoa-learn.webp" type="image/webp"><img src="img/xiaoa-learn.png" width="432" height="480" alt="小A学习插画"></picture><h2>${learnHubHeading}</h2><a href="${chapterHrefs[0]}" data-learning-continue>继续学习</a><p class="learning-session-summary" data-learning-summary>已看 <span data-learning-seen-count>0</span> / 6</p><p>章节案例可以自然提到 AI 公司、主流 AI 模型、推荐课程、精选视频或值得关注的博主，不代表这里承载资源目录。必要时可引用<a href="https://www.anthropic.com/research">单一权威来源</a>。</p><section class="learning-hub"><a class="learning-card" hidden href="detail.html?type=learn&id=hidden"><h2>隐藏占位</h2><span class="learning-status">未看</span></a>${cards}</section><section class="learning-toolkit"><h2>可复制工具</h2>${toolCards}</section></main><footer><a href="learn.html">继续学习</a></footer><script src="learning-experience.js"></script><script>window.AIBeginner.initHub();</script></body></html>`,
+      <main><h1>AI 新手入门</h1><p>${learnHeroDescription}</p><picture><source srcset="img/xiaoa-learn.webp" type="image/webp"><img src="img/xiaoa-learn.png" width="432" height="480" alt="小A学习插画"></picture><h2>${learnHubHeading}</h2><a href="${chapterHrefs[0]}" data-learning-continue>继续学习</a><p class="learning-session-summary" data-learning-summary>已看 <span data-learning-seen-count>0</span> / 5</p><p>章节案例可以自然提到 AI 公司、主流 AI 模型、推荐课程、精选视频或值得关注的博主，不代表这里承载资源目录。必要时可引用<a href="https://www.anthropic.com/research">单一权威来源</a>。</p><section class="learning-hub"><a class="learning-card" hidden href="detail.html?type=learn&id=hidden"><h2>隐藏占位</h2><span class="learning-status">未看</span></a>${cards}</section><section class="learning-toolkit"><h2>可复制工具</h2>${toolCards}</section></main><footer><a href="learn.html">继续学习</a></footer><script src="learning-experience.js"></script><script>window.AIBeginner.initHub();</script></body></html>`,
     'detail.html': `<!doctype html><html><head><link rel="stylesheet" href="learning-experience.css"></head><body><section id="detailHero"><h1 id="dhTitle"></h1></section><main id="learningExperience"></main><script src="learning-experience.js"></script><script>
       function qs(name){var m=location.search.match(new RegExp('[?&]'+name+'=([^&]*)'));if(!m)return '';try{return decodeURIComponent(m[1]);}catch(error){return '';}}
       function safeOwnGet(object,key){try{return object&&Object.prototype.hasOwnProperty.call(object,key)?object[key]:undefined;}catch(error){return undefined;}}
@@ -1725,7 +1707,7 @@ function runRuntimeUnitTest() {
     const harness = createHubStateHarness();
     const runtime = evaluateLearningRuntime(source, createStorage(rawState, storageOptions));
     assert.doesNotThrow(() => runtime.initHub(harness.root), `${name} must not interrupt hub initialization`);
-    assert.equal(harness.countNode.textContent, String(expectedCount), `${name} must render 已看 ${expectedCount} / 6`);
+    assert.equal(harness.countNode.textContent, String(expectedCount), `${name} must render 已看 ${expectedCount} / 5`);
   }
   assertSeenSummary('fresh session summary', null, 0);
   assertSeenSummary('partial session summary', JSON.stringify({
@@ -1862,7 +1844,7 @@ function runRuntimeUnitTest() {
   assert.equal(desktopPath.tagName, 'ASIDE', 'desktop learning path must use an aside landmark');
   assert.equal(desktopPath.getAttribute('aria-label'), 'AI 新手入门学习路径', 'desktop learning path must have the approved accessible name');
   assert.equal(mobilePath.tagName, 'DETAILS', 'mobile learning path must use a native details disclosure');
-  assert.equal(mobilePath.querySelector('summary').textContent, '六章目录 · 本次浏览已看 0 / 6', 'fresh mobile summary must expose the exact 0 / 6 count');
+  assert.equal(mobilePath.querySelector('summary').textContent, '五章目录 · 本次浏览已看 0 / 5', 'fresh mobile summary must expose the exact 0 / 5 count');
   const pathLinks = firstTarget.querySelectorAll('.learning-path-link');
   assert.equal(pathLinks.length, 12, 'desktop and mobile paths must each contain all six chapter links');
   assert.deepEqual(pathLinks.map((link) => link.getAttribute('href')), [...chapterHrefs, ...chapterHrefs],
@@ -2135,7 +2117,7 @@ function runRuntimeMutationTest() {
     createStorage(JSON.stringify({ 'ai-basics': 'seen', 'ai-boundaries': 'seen' })));
   missingSummaryUpdate.initHub(summaryHarness.root);
   assert.throws(
-    () => assert.equal(summaryHarness.countNode.textContent, '2', 'partial session summary must render 已看 2 / 6'),
+    () => assert.equal(summaryHarness.countNode.textContent, '2', 'partial session summary must render 已看 2 / 5'),
     assert.AssertionError,
     'runtime unit assertion must catch a missing seen-count update target',
   );
@@ -2322,7 +2304,7 @@ function runSelfTest() {
 
   expectMutation('seventh card', (root) => {
     replaceIn(root, 'learn.html', '</section>', '<a class="learning-card" href="detail.html?type=learn&id=extra"><h2>额外章节</h2><span class="learning-status">未看</span></a></section>');
-  }, 'learn hub must contain exactly six chapter cards');
+  }, 'learn hub must contain exactly five chapter cards');
   expectMutation('chapter order', (root) => {
     const files = fixtureFiles([chapterIds[1], chapterIds[0], ...chapterIds.slice(2)]);
     writeFileSync(path.join(root, 'learn.html'), files['learn.html']);
