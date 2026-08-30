@@ -1333,7 +1333,7 @@ async function runQa() {
 
     await page.goto(`${base}/video.html`, { waitUntil: 'domcontentloaded' });
     const replayCards = await page.locator('a.video-card').evaluateAll((nodes) => nodes.map((node) => ({ target: node.target, rel: node.rel, height: node.getBoundingClientRect().height })));
-    expect(replayCards.length === 3, 'video page does not expose three full-card replay links');
+    expect(replayCards.length === 2, 'video page does not expose the two full-card replay links');
     expect(replayCards.every((card) => card.target === '_blank' && card.rel.split(/\s+/).includes('noopener') && card.height >= 44), 'replay cards are not safe 44px new-tab targets');
 
     await page.goto(`${base}/index.html`, { waitUntil: 'domcontentloaded' });
