@@ -8,12 +8,12 @@
     { t:'AI 工具与资源', d:'工具 / 课程 / 博主 / 论文 四类资源导航', tag:'板块', href:'resources.html' },
     { t:'本次学习进度', d:'返回六章学习路径，继续本次标签会话中的学习', tag:'功能', href:'learn.html' },
     /* 学习模块 */
-    { t:'认识 AI', d:'理解 AI、生成式 AI、大模型与 Agent 的关系', tag:'入门', href:'detail.html?type=learn&id=ai-basics' },
-    { t:'看清边界', d:'理解 AI 的能力边界与幻觉，学会识别需要核验的内容', tag:'入门', href:'detail.html?type=learn&id=ai-boundaries' },
-    { t:'学会分工', d:'区分 AI 执行、人机协作与必须由人负责的任务', tag:'入门', href:'detail.html?type=learn&id=ai-delegation' },
-    { t:'把需求说清楚', d:'用目标、背景、任务、输出要求四要素表达需求', tag:'入门', href:'detail.html?type=learn&id=ai-prompting' },
-    { t:'验证结果', d:'区分事实、推论与观点，把结论连回原文证据', tag:'入门', href:'detail.html?type=learn&id=ai-verification' },
-    { t:'从对话走向工作流', d:'拆任务、设检查点，把一次对话沉淀为可复用流程', tag:'入门', href:'detail.html?type=learn&id=ai-workflow' },
+    { t:'AI 到底是什么', d:'接话茬、Token、上下文：先搞懂它是怎么工作的', tag:'入门', href:'detail.html?type=learn&id=ai-basics' },
+    { t:'哪些能信，哪些不能信', d:'它不是搜索引擎，也不会说“我不知道”', tag:'入门', href:'detail.html?type=learn&id=ai-boundaries' },
+    { t:'话怎么说它才懂', d:'把它当入职第一天的新同事：给背景、别给形容词', tag:'入门', href:'detail.html?type=learn&id=ai-prompting' },
+    { t:'它给的东西怎么验', d:'让它复述、分清事实推论观点、四类必核', tag:'入门', href:'detail.html?type=learn&id=ai-verification' },
+    { t:'哪些活能交给它', d:'两个问题：有没有标准答案、错了代价多大', tag:'入门', href:'detail.html?type=learn&id=ai-delegation' },
+    { t:'好用的那次，怎么让它下次还好用', d:'写成菜谱、插好检查点、记牢数据红线', tag:'入门', href:'detail.html?type=learn&id=ai-workflow' },
     /* 录播 */
     { t:'Copilot 高阶培训录播', d:'公司内部 Copilot 进阶培训回放', tag:'回放', href:'https://amersportsonline.sharepoint.com/sites/amersportsaicommunity/SitePages/Copilot%E9%AB%98%E9%98%B6%E5%9F%B9%E8%AE%85%E5%BD%95%E6%92%AD.aspx', ext:1 },
     { t:'Copilot 财务专场培训', d:'面向财务场景的 Copilot 专场培训回放', tag:'回放', href:'https://amersportsonline.sharepoint.com/sites/amersportsaicommunity/SitePages/Copilot%E8%B4%A2%E5%8A%A1%E4%B8%93%E5%9C%BA%E5%9F%B9%E8%AE%AD.aspx', ext:1 },
