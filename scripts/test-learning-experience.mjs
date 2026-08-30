@@ -37,7 +37,7 @@ const aliases = {
   'prompt-basics': 'ai-prompting',
   'ai-other': 'ai-basics',
 };
-const newImageNames = ['ai-boundaries', 'ai-delegation', 'ai-verification', 'ai-workflow'];
+const newImageNames = ['ai-xiaoa-ch01', 'ai-xiaoa-ch02', 'ai-xiaoa-ch03', 'ai-xiaoa-ch04', 'ai-xiaoa-ch05', 'ai-xiaoa-ch06'];
 const requiredApiMethods = [
   'getStatus', 'markStarted', 'markSeen', 'nextIncomplete', 'initHub', 'renderChapter',
   'renderLearningPath',
@@ -49,15 +49,15 @@ const storageKey = 'amersports-ai-beginner-session-v1';
 const rebuiltChapters = new Set(['ai-basics']);
 const chapterMinutes = ['约 8 分钟', '约 7 分钟', '约 10 分钟', '约 9 分钟', '约 8 分钟', '约 8 分钟'];
 const chapterImages = [
-  ['images/ai-concept.webp', 'images/ai-concept.png'],
-  ['images/ai-boundaries.webp', 'images/ai-boundaries.png'],
-  ['images/ai-prompt.webp', 'images/ai-prompt.png'],
-  ['images/ai-verification.webp', 'images/ai-verification.png'],
-  ['images/ai-delegation.webp', 'images/ai-delegation.png'],
-  ['images/ai-workflow.webp', 'images/ai-workflow.png'],
+  ['images/ai-xiaoa-ch01.webp', 'images/ai-xiaoa-ch01.png'],
+  ['images/ai-xiaoa-ch02.webp', 'images/ai-xiaoa-ch02.png'],
+  ['images/ai-xiaoa-ch03.webp', 'images/ai-xiaoa-ch03.png'],
+  ['images/ai-xiaoa-ch04.webp', 'images/ai-xiaoa-ch04.png'],
+  ['images/ai-xiaoa-ch05.webp', 'images/ai-xiaoa-ch05.png'],
+  ['images/ai-xiaoa-ch06.webp', 'images/ai-xiaoa-ch06.png'],
 ];
-const chapterDimensions = [[1200, 800], [1200, 800], [1024, 1024], [1200, 800], [1200, 800], [1200, 800]];
-const chapterFallbackDimensions = [[1536, 1024], [1536, 1024], [1024, 1024], [1536, 1024], [1536, 1024], [1536, 1024]];
+const chapterDimensions = [[1200, 800], [1200, 800], [1200, 800], [1200, 800], [1200, 800], [1200, 800]];
+const chapterFallbackDimensions = [[1536, 1024], [1536, 1024], [1536, 1024], [1536, 1024], [1536, 1024], [1536, 1024]];
 // 2026-08-29：第 1 章重构。删掉「四个词」（在解释术语，不是在回答「AI 是什么」）、
 // 章首图库套图、工作案例、动手练一练、快速想一想——练习不再堆在章末，
 // 改为嵌进各小节的演示里。每章保留「带走要点」。
@@ -1955,7 +1955,7 @@ function runRuntimeUnitTest() {
   }
   assert.equal(instrumented.chapter.id, 'ai-basics', 'display instrumentation must preserve the structural chapter id');
   assert.equal(instrumented.chapter.exercise.type, 'token-and-concepts', 'display instrumentation must preserve the structural exercise type');
-  assert.equal(instrumented.chapter.image.webp, 'images/ai-concept.webp', 'display instrumentation must preserve local image URLs');
+  assert.equal(instrumented.chapter.image.webp, 'images/ai-xiaoa-ch01.webp', 'display instrumentation must preserve local image URLs');
   const instrumentedTarget = instrumentedDom.createTarget();
   assert.equal(instrumentedRuntime.renderChapter('ai-basics', instrumentedTarget), true,
     'instrumented chapter clone must render through the production renderer');
@@ -2380,7 +2380,7 @@ function runSelfTest() {
     replaceIn(root, 'detail.html', '约 8 分钟', '约 18 分钟');
   }, 'ai-basics detail config must be a learning route with 约 8 分钟');
   expectMutation('wrong approved chapter image', (root) => {
-    replaceIn(root, 'learning-experience.js', 'images/ai-concept.webp', 'images/ai-history.webp');
+    replaceIn(root, 'learning-experience.js', 'images/ai-xiaoa-ch01.webp', 'images/ai-history.webp');
   }, 'ai-basics must use the approved WebP and fallback image');
   expectMutation('wrong chapter intrinsic width', (root) => {
     replaceIn(root, 'learning-experience.js', '"width":1200', '"width":900');

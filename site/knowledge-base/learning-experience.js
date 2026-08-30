@@ -12,7 +12,7 @@
       number: '01',
       title: 'AI 到底是什么',
       description: '它和你以前用过的软件，根本不是一回事。',
-      heroSvg: { src: 'images/ai-basics-hero.svg', alt: '左边是过去的软件，一堆固定按钮和菜单；右边是现在的 AI，你说一句人话它给你结果', caption: '过去你学软件的规则，现在软件听你的话' },
+      image: { webp: 'images/ai-xiaoa-ch01.webp', fallback: 'images/ai-xiaoa-ch01.png', width: 1200, height: 800, alt: '小A站在固定软件按钮与自然语言结果之间，展示软件使用方式的变化', caption: '从学软件的规则，到直接说清楚你要什么' },
       sections: [
         {
           title: '不用学操作，说人话就行',
@@ -132,7 +132,7 @@
       number: '02',
       title: '哪些能信，哪些不能信',
       description: '它不是搜索引擎，也不会说「我不知道」。先搞清它会在哪儿骗你。',
-      image: { webp: 'images/ai-boundaries.webp', fallback: 'images/ai-boundaries.png', width: 1200, height: 800, alt: '人员核验 AI 回答证据的插画', caption: '核验答案背后的证据' },
+      image: { webp: 'images/ai-xiaoa-ch02.webp', fallback: 'images/ai-xiaoa-ch02.png', width: 1200, height: 800, alt: '小A用放大镜检查回答卡片与来源文件，其中一份通过核验，另一份待确认', caption: '先看证据，再决定能不能信' },
       sections: [
         {
           title: '它不是搜索引擎',
@@ -199,7 +199,7 @@
       number: '03',
       title: '话怎么说它才懂',
       description: '把它当一个聪明、但完全不了解你的新同事。',
-      image: { webp: 'images/ai-prompt.webp', fallback: 'images/ai-prompt.png', width: 1024, height: 1024, alt: '人员与 AI 整理提示词信息的插画', caption: '四个要素组成清晰工作 brief' },
+      image: { webp: 'images/ai-xiaoa-ch03.webp', fallback: 'images/ai-xiaoa-ch03.png', width: 1200, height: 800, alt: '小A把四块信息拼成一张清晰的任务说明卡片', caption: '把目标、背景、格式和边界说清楚' },
       sections: [
         {
           title: '把它当入职第一天的新同事',
@@ -279,7 +279,7 @@
       number: '04',
       title: '它给的东西怎么验',
       description: '在你署名发出去之前，有几步省不得。',
-      image: { webp: 'images/ai-verification.webp', fallback: 'images/ai-verification.png', width: 1200, height: 800, alt: '原始材料、AI 回答与核验清单的插画', caption: '从原文到结论的核验路径' },
+      image: { webp: 'images/ai-xiaoa-ch04.webp', fallback: 'images/ai-xiaoa-ch04.png', width: 1200, height: 800, alt: '小A拿着笔核对原始文件、AI 回答和检查清单', caption: '从原始材料走到可以署名的结论' },
       sections: [
         {
           title: '动手之前，让它先复述一遍',
@@ -352,7 +352,7 @@
       number: '05',
       title: '哪些活能交给它',
       description: '两个问题定位一件事，剩下的照清单办。',
-      image: { webp: 'images/ai-delegation.webp', fallback: 'images/ai-delegation.png', width: 1200, height: 800, alt: '人与 AI 通过三条通道分工的插画', caption: '把任务放进合适的协作通道' },
+      image: { webp: 'images/ai-xiaoa-ch05.webp', fallback: 'images/ai-xiaoa-ch05.png', width: 1200, height: 800, alt: '小A把任务卡片分到自动处理、协助处理和人工判断的三个区域', caption: '把任务放进合适的协作通道' },
       sections: [
         {
           title: '先问两个问题',
@@ -415,7 +415,7 @@
       number: '06',
       title: '好用的那次，怎么让它下次还好用',
       description: '把一次成功写下来，再把不能碰的红线记住。',
-      image: { webp: 'images/ai-workflow.webp', fallback: 'images/ai-workflow.png', width: 1200, height: 800, alt: '对话、模板、工作流与 Agent 四阶段插画', caption: '把一次对话沉淀为可复用流程' },
+      image: { webp: 'images/ai-xiaoa-ch06.webp', fallback: 'images/ai-xiaoa-ch06.png', width: 1200, height: 800, alt: '小A把一次成功对话整理成模板并连接到可复用的工作流', caption: '把一次成功，沉淀成下次还能复用的流程' },
       sections: [
         {
           title: '把一次成功写成菜谱',
