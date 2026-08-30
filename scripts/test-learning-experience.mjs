@@ -63,7 +63,7 @@ const chapterFallbackDimensions = [[1536, 1024], [1536, 1024], [1536, 1024], [15
 // 改为嵌进各小节的演示里。每章保留「带走要点」。
 const expectedChapterContent = {
   'ai-basics': {
-    sectionTitles: ['不用学操作，说人话就行', '四件今天就能上手的活', '它每写一个词，都是在猜', '关掉对话，它就把你忘了'],
+    sectionTitles: ['不用学操作，说人话就行', '四件今天就能上手的活', 'AI 每写一个词，都是在猜', '关掉对话，它就把你忘了'],
     coreTerms: ['软件', '规则', '说人话', '猜', '上下文', '编', '桌子'],
     takeawayTitle: '这一章带走什么',
     takeawayTerms: ['猜', '编', '关掉', '核一个', '署名'],

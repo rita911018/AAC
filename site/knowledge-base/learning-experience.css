@@ -3013,12 +3013,12 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: baseline;
-  gap: 8px 14px;
-  padding-bottom: 14px;
+  gap: 6px 14px;
+  padding-bottom: 12px;
 }
 
 .lesson-scale-item + .lesson-scale-item {
-  padding-top: 14px;
+  padding-top: 12px;
   border-top: 1px solid var(--learning-teal-line);
 }
 
@@ -3032,7 +3032,7 @@
 .lesson-scale-bar {
   position: relative;
   grid-column: 1 / -1;
-  height: 10px;
+  height: 8px;
   background: var(--learning-surface);
   border: 1px solid var(--learning-amber-line);
   border-radius: 999px;
@@ -3057,6 +3057,7 @@
 
 .lesson-scale-note {
   grid-column: 1 / -1;
+  margin-top: 2px;
   color: var(--learning-muted);
   font-size: 13.5px;
   line-height: 1.6;
