@@ -1,0 +1,17 @@
+共享文件，禁止整份覆盖
+
+style.css
+  本分支只在 .entry-card p 的 font-size 上改过（17px → 15px，
+  窄屏 16px），用来拉开与 28px 标题的层级。其余部分归 Codex。
+  合并时请只取这一处 hunk。
+
+search.js
+  章节标题索引跟着 learning-experience.js 的六章走。整合方按行合并。
+
+video.html / resources.html
+  本分支没有改动。test-task8-browser.cjs 里录播卡数量从 3 改成 2
+  只是对齐现状（课程已移到资源页），未触碰页面本身。
+
+scripts/test-task8-browser.cjs
+  Codex 的 video/resources 断言和 Claude 的 learn 断言都在这个文件里。
+  按 hunk 合并，不要整份取一边。

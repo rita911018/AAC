@@ -1,0 +1,10 @@
+基线分支: origin/codex/ai-knowledge-base-redesign
+基线 SHA: 2ab8c88abb14617caa8c3a6548c277aebf323874
+交付分支: claude/learning-experience
+交付 SHA: d94676eb7a69c179492e2945ef762773b45fcfdd
+工作树:   0 个未提交改动
+生成时间: 2026-08-30 10:44
+
+核对改动:
+  git fetch origin
+  git diff --name-status 2ab8c88abb14617caa8c3a6548c277aebf323874..origin/claude/learning-experience
